@@ -32,3 +32,33 @@ model Session {
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
+
+enum StoreMode {
+  FASHION
+  ELECTRONICS
+  FURNITURE
+  BEAUTY
+  GENERAL
+}
+
+enum CtaPlacement {
+  PRODUCT_PAGE
+  GLOBAL
+  COLLECTION
+}
+
+model MerchantConfig {
+  id                   String       @id @default(cuid())
+  shop                 String       @unique
+  storeMode            StoreMode    @default(GENERAL)
+  chatWidgetEnabled    Boolean      @default(true)
+  ctaEnabled           Boolean      @default(true)
+  ctaLabel             String       @default("Need help choosing?")
+  ctaPlacement         CtaPlacement @default(PRODUCT_PAGE)
+  quizEnabled          Boolean      @default(true)
+  lookbookEnabled      Boolean      @default(false)
+  stylistAgentEnabled  Boolean      @default(false)
+  commerceAgentEnabled Boolean      @default(true)
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+}

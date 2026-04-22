@@ -72,9 +72,9 @@ Add a new Prisma model `MerchantConfig` with these fields:
 
 &#x20; - A dropdown for `ctaPlacement`
 
-&#x20; - A Save button (disabled if form is unchanged)
+&#x20; - The App Bridge Save Bar (`<form data-save-bar>`), which auto-tracks dirty state and renders Save/Discard at the top of the page. Do not combine `<s-switch>` with an inline Save button — that contradicts Polaris guidance.
 
-&#x20; - A success toast on save
+&#x20; - A success toast on save, fired via `shopify.toast.show()` from `useAppBridge()` (there is no `<s-toast>` component).
 
 &#x20; - Graceful error state if the action throws
 
@@ -84,7 +84,7 @@ Add a new Prisma model `MerchantConfig` with these fields:
 
 
 
-\- Use Polaris web components only (`<s-page>`, `<s-section>`, `<s-select>`, `<s-text-field>`, `<s-button>`, `<s-toast>`, etc.). No raw HTML form elements, no Tailwind, no custom CSS.
+\- Use Polaris web components only (`<s-page>`, `<s-section>`, `<s-select>`, `<s-text-field>`, `<s-switch>`, `<s-button>`, etc.). No raw HTML form elements, no Tailwind, no custom CSS. The one exception is the `<form>` element used to host the App Bridge Save Bar (`<form data-save-bar>`).
 
 \- Wrap form sections in `<s-section>` with clear headings: "Store type", "Features", "CTA configuration".
 

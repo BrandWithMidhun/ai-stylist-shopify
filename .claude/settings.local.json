@@ -1,6 +1,13 @@
 {
+  "permissions": {
+    "allow": [
+      "mcp__shopify-dev__learn_shopify_api",
+      "mcp__shopify-dev__search_docs_chunks",
+      "Bash(npm run *)"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "shopify-dev-mcp"
-  ],
-  "enableAllProjectMcpServers": true
+  ]
 }
