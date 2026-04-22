@@ -68,7 +68,7 @@ export default function ConfigPage() {
     config.storeMode as StoreMode,
   );
   const [ctaLabel, setCtaLabel] = useState<string>(config.ctaLabel);
-  const lookbookLocked = storeMode !== "FASHION";
+  const fashionOnlyLocked = storeMode !== "FASHION";
 
   useEffect(() => {
     if (!actionData) return;
@@ -124,8 +124,13 @@ export default function ConfigPage() {
               label="Stylist agent"
               name="stylistAgentEnabled"
               value="true"
-              details="Enable the styling agent for outfit and look suggestions."
+              details={
+                fashionOnlyLocked
+                  ? "Stylist agent is a fashion-only feature. Switch store mode to Fashion to enable it."
+                  : "Enable the styling agent for outfit and look suggestions."
+              }
               {...(config.stylistAgentEnabled ? { checked: true } : {})}
+              {...(fashionOnlyLocked ? { disabled: true } : {})}
             />
             <s-switch
               label="Commerce agent"
@@ -139,12 +144,12 @@ export default function ConfigPage() {
               name="lookbookEnabled"
               value="true"
               details={
-                lookbookLocked
+                fashionOnlyLocked
                   ? "Lookbook is a fashion-only feature. Switch store mode to Fashion to enable it."
                   : "Auto-generate shoppable lookbooks from your catalog."
               }
               {...(config.lookbookEnabled ? { checked: true } : {})}
-              {...(lookbookLocked ? { disabled: true } : {})}
+              {...(fashionOnlyLocked ? { disabled: true } : {})}
             />
           </s-stack>
         </s-section>

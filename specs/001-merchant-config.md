@@ -90,7 +90,10 @@ Add a new Prisma model `MerchantConfig` with these fields:
 
 \- Show a single-line description under each toggle explaining what it does.
 
-\- The lookbook toggle should be visually disabled (but still visible) when `storeMode` is not `FASHION`, with a tooltip: "Lookbook is a fashion-only feature."
+\- The lookbook toggle AND stylist agent toggle should both be visually disabled (but still visible) when `storeMode` is not `FASHION`. Both use `details=` helper text explaining why:
+  - Lookbook: "Lookbook is a fashion-only feature. Switch store mode to Fashion to enable it."
+  - Stylist agent: "Stylist agent is a fashion-only feature. Switch store mode to Fashion to enable it."
+- Same preservation rule applies to both: the stored value is preserved when greyed out. "Is this feature actually active" is evaluated at render/feature-gate time as `lookbookEnabled && storeMode === FASHION` or `stylistAgentEnabled && storeMode === FASHION`."
 
 
 
