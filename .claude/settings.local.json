@@ -3,7 +3,8 @@
     "allow": [
       "mcp__shopify-dev__learn_shopify_api",
       "mcp__shopify-dev__search_docs_chunks",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "mcp__shopify-dev-mcp__search_docs_chunks"
     ]
   },
   "enableAllProjectMcpServers": true,
