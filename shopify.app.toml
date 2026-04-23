@@ -2,7 +2,7 @@
 
 client_id = "6b6a2a30543f747e0120cd9e0f36f17f"
 name = "ai-stylist"
-application_url = "https://example.com"
+application_url = "https://web-production-3b1d7.up.railway.app"
 embedded = true
 
 [build]
@@ -36,4 +36,4 @@ api_version = "2026-07"
 scopes = "write_products"
 
 [auth]
-redirect_urls = [ "https://example.com/api/auth" ]
+redirect_urls = [ "https://web-production-3b1d7.up.railway.app/auth/callback" ]
