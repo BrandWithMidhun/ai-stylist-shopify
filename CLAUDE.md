@@ -13,11 +13,11 @@ An AI-powered conversion and personalization layer for Shopify stores. Provides:
 
 The goal is to increase conversion rate and AOV for merchants across fashion, electronics, furniture, beauty, and general commerce verticals.
 
-Full product spec lives in two project documents:
-- `shopify-app-agentic-commerce-instructions.md` — Shopify platform best practices & UCP/agentic commerce reference
-- `ai_stylist_shopify_agent_project_instructions.md` — Full product spec for this app
+Full product spec lives in the repo at:
+- `docs/product-spec.md` — Canonical product spec for this app. Update the "Shipped Features" table when a feature ships.
+- `docs/shopify-best-practices.md` — Shopify platform best practices & UCP/agentic commerce reference (if present).
 
-Treat those two documents as the source of truth for product decisions. If a conflict arises between this file and those docs, the project docs win and this file should be updated.
+Treat `docs/product-spec.md` as the source of truth for product decisions. If a conflict arises between this file and the product spec, the spec wins and this file should be updated.
 
 ## Architecture Decisions (locked)
 
