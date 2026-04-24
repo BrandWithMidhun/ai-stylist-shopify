@@ -86,6 +86,7 @@ model Product {
   shopifyUpdatedAt  DateTime
   syncedAt          DateTime  @default(now())
   deletedAt         DateTime?
+  recommendationExcluded Boolean @default(false)
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

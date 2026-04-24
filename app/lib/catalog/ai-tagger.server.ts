@@ -14,6 +14,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Product, ProductTag } from "@prisma/client";
 import { z } from "zod";
 import prisma from "../../db.server";
+import { STARTER_AXES, type StoreMode } from "./store-axes";
 
 const MODEL = "claude-sonnet-4-5";
 const MAX_TOKENS = 1024;
@@ -28,21 +29,6 @@ function getClient(): Anthropic | null {
   client = new Anthropic({ apiKey: key });
   return client;
 }
-
-type StoreMode =
-  | "FASHION"
-  | "ELECTRONICS"
-  | "FURNITURE"
-  | "BEAUTY"
-  | "GENERAL";
-
-const STARTER_AXES: Record<StoreMode, string[]> = {
-  FASHION: ["category", "style", "occasion", "color_family", "fit", "season"],
-  ELECTRONICS: ["category", "brand", "form_factor", "use_case", "price_tier"],
-  FURNITURE: ["category", "style", "material", "room", "size_class"],
-  BEAUTY: ["category", "skin_type", "concern", "ingredient_class", "finish"],
-  GENERAL: ["category", "color", "style", "use_case"],
-};
 
 const TagItemSchema = z.object({
   axis: z.string().min(1).max(64),
