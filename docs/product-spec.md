@@ -218,6 +218,7 @@ Phase 5 — Compliance and Launch Readiness: Accessibility audit, localization, 
 | 001.1 | Gate Stylist agent to Fashion mode | Shipped | 2 |
 | 002 | App uninstall webhook cleanup | Shipped | 1 / 5 |
 | 003 | GDPR compliance webhooks | Shipped | 5 |
+| 004 | Anthropic API foundation | Shipped | 2 |
 
 ---
 
