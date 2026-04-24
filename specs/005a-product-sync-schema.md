@@ -18,7 +18,7 @@ The data model must be category-agnostic from day one — the same schema has to
 ### Goals
 - Mirror Shopify products into Postgres with enough fidelity to drive tagging, filtering, and recommendations.
 - Store AI / Rule / Human tags with per-axis provenance and confidence.
-- Stay in sync via webhooks, with a manual "Sync catalog" escape hatch.
+- Merchant-triggered first sync (no silent background work — this is a paid app). Webhooks keep things in sync after.
 - Unblock Feature 005b (tagging UI that actually persists) and Feature 006 (Catalog Intelligence).
 
 ### Non-Goals
@@ -136,21 +136,32 @@ Append-only log of every tag change. Small schema, pays off massively in debuggi
 
 ## 4. Sync Strategy
 
-### 4.1 Initial Sync — Background on Install
+### 4.1 Initial Sync — Manual, Merchant-Triggered
 
-- New webhook subscription added in 005a: `app/uninstalled` already exists; add an **installation hook** that triggers an initial sync job.
-- On first OAuth completion for a shop, enqueue `syncCatalog(shopDomain)` — fire and forget.
+**No auto-sync on install.** Nothing runs silently. The merchant must click **Sync catalog** the first time they visit the intelligence page.
+
+Rationale:
+- This will be a paid app — heavy work (bulk fetch, storage, downstream AI tagging costs) shouldn't start without the merchant asking for it.
+- A merchant who installs, never opens the app, and uninstalls costs us nothing.
+- Clear first-action UX: one unmistakable button on the empty state.
+
+Behavior:
+- On install: webhooks are subscribed (products/create, products/update, products/delete, inventory_levels/update) so we don't miss events, but **no bulk sync runs**. Incoming webhooks for a shop with no prior sync are ignored (not stored) — the first full sync will pick up current state.
+- On first visit to intelligence page: if `MerchantConfig.lastFullSyncAt` is null, render the empty state (Section 6.1). No product list, no tagging UI.
+- On click **Sync catalog**: POST `/api/catalog/sync` → enqueues job → UI shows progress.
 - Uses Shopify Admin GraphQL `products` connection with cursor pagination, 100 products per page.
 - Writes into Product + ProductVariant in transactions of ~50 products each.
-- Stores `syncedAt` timestamp on MerchantConfig (`lastFullSyncAt`) so the UI can show "Last synced 15m ago".
+- On completion, sets `MerchantConfig.lastFullSyncAt`. UI transitions from empty state to normal product list.
 - Idempotent — re-running re-upserts, doesn't duplicate.
 
-### 4.2 Manual "Sync catalog" Button
+### 4.2 Subsequent Syncs — Same Button
 
-- In the intelligence page header: `Sync catalog · Last synced {relativeTime}`
-- Click → POST `/api/catalog/sync` → enqueues the same job, returns immediately with a jobId.
-- UI polls job status (`GET /api/catalog/sync/:jobId`) every 2s, shows progress: `Syncing · 340 / 1187`.
+After the first sync completes, the same button remains in the header as `Sync catalog · Last synced {relativeTime}`. Behavior is identical — merchant clicks when they want to reconcile.
+
+- Click → POST `/api/catalog/sync` → enqueues the same job, returns `{ jobId }`.
+- UI polls `GET /api/catalog/sync/:jobId` every 2s, shows progress: `Syncing · 340 / 1187`.
 - Disabled while a sync is already running for this shop.
+- Rate-limited: one sync per shop per 5 minutes (prevents accidental double-clicks spawning parallel jobs).
 
 ### 4.3 Ongoing Sync — Webhooks
 
@@ -188,34 +199,45 @@ All routes authenticate via Shopify session and scope everything by `shopDomain`
 
 ## 6. 005b Rework (What Changes in the Existing UI)
 
-The existing `/app/products/intelligence` page changes as follows — no new UI, just wiring the old one to real persistence:
+The existing `/app/products/intelligence` page changes as follows — no new UI surfaces beyond the first-run empty state, just wiring the old page to real persistence:
 
-### 6.1 Loader
-Reads from local `Product` table (not Shopify live), joins `ProductTag` rows, groups tags by axis per product. Remove any "pending only" filter — show everything by default with status pills.
+### 6.1 First-run empty state (new)
+When `MerchantConfig.lastFullSyncAt IS NULL`, the page renders a single-action empty state:
 
-### 6.2 Row status pill (new)
+- **Heading:** "Let's get your catalogue ready"
+- **Body:** "We'll mirror your Shopify products so the AI stylist can tag, group, and recommend them. Nothing runs until you start the sync."
+- **Primary button:** `Sync catalog` (prominent, centered)
+- **Secondary line:** "We'll subscribe to updates from Shopify after this, so new and changed products stay in sync automatically."
+
+No product list, no "Generate tags" controls, no filters visible while the empty state is active. After the first sync completes, the empty state is replaced permanently by the normal UI.
+
+### 6.2 Loader
+Reads from local `Product` table (not Shopify live), joins `ProductTag` rows, groups tags by axis per product. Remove any "pending only" filter — show everything by default with status pills. When `lastFullSyncAt IS NULL`, loader returns an empty product list and a flag telling the UI to render the empty state (Section 6.1).
+
+### 6.3 Row status pill (new)
 Each product row shows one of:
 - `Pending` — no tags exist
 - `AI Tagged` — tags exist, all `source='AI'`
 - `Rule Tagged` — at least one `source='RULE'` tag
 - `Human Reviewed` — at least one `source='HUMAN'` tag (highest precedence badge)
 
-### 6.3 "Generate tags" action
+### 6.4 "Generate tags" action
 Writes to `ProductTag` with `source='AI'`. Respects the `locked` flag — never overwrites human-locked axes. After successful generation, row stays visible, pill flips to `AI Tagged`, tags render inline.
 
-### 6.4 "Generate tags for all"
+### 6.5 "Generate tags for all"
 Parallelized with `p-limit` (concurrency: 5). Progress indicator. Per-product failure doesn't kill the batch — failed products stay `Pending`, errors logged.
 
-### 6.5 Filter dropdown (new, simple)
+### 6.6 Filter dropdown (new, simple)
 Status filter: `All / Pending / AI Tagged / Human Reviewed`. Client-side filter for v1.
 
 ## 7. Migration Plan
 
-1. Add schema to `prisma/schema.prisma`.
+1. Add schema to `prisma/schema.prisma` (Product, ProductVariant, ProductTag, ProductTagAudit + `lastFullSyncAt` on MerchantConfig).
 2. `npx prisma migrate dev --name add_product_and_tags`.
-3. Seed dev store: trigger manual sync for `ai-fashion-store.myshopify.com` via a one-off script.
-4. Verify in Prisma Studio: Product rows populated, ProductVariant rows populated, ProductTag empty (expected).
-5. Wire 005b loader to new schema, deploy, test generate → tag persists → row stays visible with pill.
+3. Start dev server, open intelligence page for `ai-fashion-store.myshopify.com` → should see empty state (no auto-sync).
+4. Click **Sync catalog** → watch progress → verify Product + ProductVariant rows populate in Prisma Studio. ProductTag remains empty (expected — no AI run yet).
+5. Click **Generate tags** on one product → verify ProductTag rows appear with `source='AI'`, row stays visible, pill flips to `AI Tagged`.
+6. Deploy to Railway, repeat verification on production URL.
 
 ## 8. Open Questions
 
@@ -226,13 +248,19 @@ Status filter: `All / Pending / AI Tagged / Human Reviewed`. Client-side filter 
 ## 9. Acceptance Criteria
 
 - [ ] Schema migrated, Prisma Studio shows Product / ProductVariant / ProductTag / ProductTagAudit tables.
-- [ ] Manual "Sync catalog" button in intelligence page header works end-to-end.
+- [ ] `MerchantConfig.lastFullSyncAt` field exists, nullable, defaults to null.
+- [ ] Fresh shop install does NOT auto-trigger sync (verified by installing on a new dev store or clearing `lastFullSyncAt` and reloading).
+- [ ] Intelligence page shows empty state when `lastFullSyncAt IS NULL` — no product list, no tagging controls, just the Sync catalog CTA.
+- [ ] Manual "Sync catalog" button works end-to-end, UI polls progress, transitions to normal view on completion.
+- [ ] `lastFullSyncAt` populated after first successful sync; empty state never shows again for that shop.
 - [ ] After sync, Product table contains all active + draft + archived products from the dev store.
 - [ ] Variants populated with correct inventory quantities.
+- [ ] Sync rate-limited: second click within 5 minutes returns 429 / disabled button.
 - [ ] `products/create` webhook tested (create a product in Shopify admin → appears in local DB within 10s).
 - [ ] `products/update` webhook tested.
 - [ ] `products/delete` webhook tested (soft-delete, ProductTags cascade).
 - [ ] `inventory_levels/update` webhook tested.
+- [ ] Webhooks received before first sync are safely ignored (don't crash, don't create orphan rows).
 - [ ] 005b loader reads from local DB, not live Shopify.
 - [ ] "Generate tags" on a single product writes `ProductTag` rows with `source='AI'`, row stays visible, pill flips to `AI Tagged`.
 - [ ] "Generate tags for all" processes batch with concurrency 5, no crashes on partial failure.
