@@ -21,7 +21,11 @@ export type CallClaudeResult =
 
 export async function callClaude(
   prompt: string,
-  options?: { maxTokens?: number; temperature?: number },
+  options?: {
+    maxTokens?: number;
+    temperature?: number;
+    prefill?: string;
+  },
 ): Promise<CallClaudeResult> {
   const trimmed = prompt?.trim();
   if (!trimmed) {
@@ -33,12 +37,21 @@ export async function callClaude(
     return { ok: false, error: "Anthropic API key not configured." };
   }
 
+  // prefill: Sonnet 4.5 pattern. Claude 4.6+ requires output_config.format — see claude-api skill when upgrading.
+  const prefill = options?.prefill;
+  const messages: Anthropic.MessageParam[] = [
+    { role: "user", content: trimmed },
+  ];
+  if (prefill !== undefined) {
+    messages.push({ role: "assistant", content: prefill });
+  }
+
   try {
     const response = await anthropic.messages.create({
       model: DEFAULT_MODEL,
       max_tokens: options?.maxTokens ?? DEFAULT_MAX_TOKENS,
       temperature: options?.temperature ?? DEFAULT_TEMPERATURE,
-      messages: [{ role: "user", content: trimmed }],
+      messages,
     });
 
     const textBlock = response.content.find(
@@ -47,7 +60,8 @@ export async function callClaude(
     if (!textBlock) {
       return { ok: false, error: "Claude returned no text content." };
     }
-    return { ok: true, text: textBlock.text };
+    const text = prefill !== undefined ? prefill + textBlock.text : textBlock.text;
+    return { ok: true, text };
   } catch (err) {
     return { ok: false, error: mapError(err) };
   }
