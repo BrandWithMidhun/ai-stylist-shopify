@@ -59,6 +59,104 @@ model MerchantConfig {
   lookbookEnabled      Boolean      @default(false)
   stylistAgentEnabled  Boolean      @default(false)
   commerceAgentEnabled Boolean      @default(true)
+  lastFullSyncAt       DateTime?
   createdAt            DateTime     @default(now())
   updatedAt            DateTime     @updatedAt
+}
+
+model Product {
+  id                String    @id @default(cuid())
+  shopDomain        String
+  shopifyId         String
+  handle            String
+  title             String
+  descriptionHtml   String?
+  productType       String?
+  vendor            String?
+  status            String
+  featuredImageUrl  String?
+  imageUrls         String[]
+  priceMin          Decimal?
+  priceMax          Decimal?
+  currency          String?
+  shopifyTags       String[]
+  totalInventory    Int?
+  inventoryStatus   String
+  shopifyCreatedAt  DateTime
+  shopifyUpdatedAt  DateTime
+  syncedAt          DateTime  @default(now())
+  deletedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  variants ProductVariant[]
+  tags     ProductTag[]
+
+  @@unique([shopDomain, shopifyId])
+  @@index([shopDomain, status])
+  @@index([shopDomain, inventoryStatus])
+  @@index([shopDomain, productType])
+  @@index([shopDomain, deletedAt])
+}
+
+model ProductVariant {
+  id                 String   @id @default(cuid())
+  productId          String
+  shopifyId          String
+  title              String
+  sku                String?
+  price              Decimal
+  compareAtPrice     Decimal?
+  inventoryQuantity  Int?
+  inventoryItemId    String?
+  availableForSale   Boolean
+  option1            String?
+  option2            String?
+  option3            String?
+  imageUrl           String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, shopifyId])
+  @@index([productId])
+  @@index([inventoryItemId])
+}
+
+model ProductTag {
+  id         String   @id @default(cuid())
+  productId  String
+  shopDomain String
+  axis       String
+  value      String
+  confidence Float?
+  source     String
+  locked     Boolean  @default(false)
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, axis, value])
+  @@index([shopDomain, axis, value])
+  @@index([productId])
+  @@index([shopDomain, source])
+}
+
+model ProductTagAudit {
+  id            String   @id @default(cuid())
+  productId     String
+  shopDomain    String
+  axis          String
+  action        String
+  previousValue String?
+  newValue      String?
+  source        String
+  actorId       String?
+  createdAt     DateTime @default(now())
+
+  @@index([productId, createdAt])
+  @@index([shopDomain, createdAt])
 }

@@ -7,6 +7,21 @@ export type ShopCleanupTask = {
 
 export const SHOP_CLEANUP_TASKS: ShopCleanupTask[] = [
   {
+    name: "productTagAudit",
+    deleteFn: (shop) =>
+      prisma.productTagAudit.deleteMany({ where: { shopDomain: shop } }),
+  },
+  {
+    name: "productTag",
+    deleteFn: (shop) =>
+      prisma.productTag.deleteMany({ where: { shopDomain: shop } }),
+  },
+  {
+    name: "product",
+    deleteFn: (shop) =>
+      prisma.product.deleteMany({ where: { shopDomain: shop } }),
+  },
+  {
     name: "session",
     deleteFn: (shop) => prisma.session.deleteMany({ where: { shop } }),
   },
