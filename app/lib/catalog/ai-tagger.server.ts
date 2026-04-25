@@ -14,6 +14,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Product, ProductTag } from "@prisma/client";
 import { z } from "zod";
 import prisma from "../../db.server";
+import { logAnthropicError } from "../anthropic.server";
 import { axisOptionsFor } from "./axis-options";
 import { STARTER_AXES, type StoreMode } from "./store-axes";
 
@@ -113,8 +114,7 @@ export async function generateTagsForProduct(params: {
     }
     text = block.text;
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error("[ai-tagger] Claude call failed", err);
+    logAnthropicError("[ai-tagger] Claude call failed", err);
     return { ok: false, error: describeAnthropicError(err) };
   }
 

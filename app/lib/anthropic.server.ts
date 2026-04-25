@@ -54,8 +54,7 @@ export async function callClaude(
 }
 
 function mapError(err: unknown): string {
-  // eslint-disable-next-line no-undef, no-console
-  console.error("[anthropic] callClaude failed", err);
+  logAnthropicError("[anthropic] callClaude failed", err);
 
   if (err instanceof Anthropic.APIConnectionError) {
     return "Could not reach Anthropic. Check your network and try again.";
@@ -77,4 +76,32 @@ function mapError(err: unknown): string {
     return `Claude request failed (status ${status ?? "unknown"}).`;
   }
   return "Unexpected error calling Claude.";
+}
+
+// Structured logger for Anthropic SDK errors. Surfaces status/type/message and
+// request_id (when present) on dedicated console.error lines so they're
+// trivially greppable in Railway runtime logs without leaking to the UI.
+export function logAnthropicError(label: string, err: unknown): void {
+  const fields: Record<string, unknown> = {};
+  if (err instanceof Anthropic.APIError) {
+    fields.kind = err.constructor.name;
+    fields.status = err.status;
+    fields.type = (err as { type?: unknown }).type;
+    fields.message = err.message;
+    const requestId = (err as { requestID?: unknown; request_id?: unknown })
+      .requestID ?? (err as { request_id?: unknown }).request_id;
+    if (requestId) fields.requestId = requestId;
+    const errorBody = (err as { error?: unknown }).error;
+    if (errorBody) fields.body = errorBody;
+  } else if (err instanceof Error) {
+    fields.kind = err.constructor.name;
+    fields.message = err.message;
+  } else {
+    fields.kind = "unknown";
+    fields.value = err;
+  }
+  // eslint-disable-next-line no-undef, no-console
+  console.error(label, fields);
+  // eslint-disable-next-line no-undef, no-console
+  console.error(label, "raw:", err);
 }
