@@ -4,6 +4,10 @@
 // Values for Gender / Product type / Colour come from
 // DashboardStats.filterOptions. Status / Stock / Recommendations are static
 // enums with counts.
+//
+// Counts are shop-wide (DashboardStats.tagStatusCounts /
+// stockStatusCounts / recommendationCounts), not derived from the loaded
+// product window, so they line up with the stats cards.
 
 export type StatusFilter =
   | "all"
@@ -48,21 +52,31 @@ export type FilterOptionSet = {
   colourFamilies: string[];
 };
 
+// Count types match DashboardStats.tagStatusCounts / stockStatusCounts /
+// recommendationCounts in stats.server.ts. Keys are camelCase; the snake_case
+// filter values (e.g. "ai_tagged") map to count keys via the *_CHOICES tables
+// below.
 export type StatusCounts = {
   all: number;
   pending: number;
-  any_tagged: number;
-  ai_tagged: number;
-  rule_tagged: number;
-  human_reviewed: number;
+  anyTagged: number;
+  aiTagged: number;
+  ruleTagged: number;
+  humanReviewed: number;
 };
 
 export type StockCounts = {
   all: number;
   live: number;
-  out_of_stock: number;
+  outOfStock: number;
   draft: number;
   archived: number;
+};
+
+export type RecommendationCounts = {
+  all: number;
+  included: number;
+  excluded: number;
 };
 
 type Props = {
@@ -71,32 +85,46 @@ type Props = {
   options: FilterOptionSet;
   statusCounts: StatusCounts;
   stockCounts: StockCounts;
+  recommendationCounts: RecommendationCounts;
 };
 
-const STATUS_CHOICES: Array<{ value: StatusFilter; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "pending", label: "Pending" },
-  { value: "any_tagged", label: "Any tagged" },
-  { value: "ai_tagged", label: "AI tagged" },
-  { value: "rule_tagged", label: "Rule tagged" },
-  { value: "human_reviewed", label: "Human reviewed" },
+const STATUS_CHOICES: Array<{
+  value: StatusFilter;
+  label: string;
+  countKey: keyof StatusCounts;
+}> = [
+  { value: "all", label: "All", countKey: "all" },
+  { value: "pending", label: "Pending", countKey: "pending" },
+  { value: "any_tagged", label: "Any tagged", countKey: "anyTagged" },
+  { value: "ai_tagged", label: "AI tagged", countKey: "aiTagged" },
+  { value: "rule_tagged", label: "Rule tagged", countKey: "ruleTagged" },
+  {
+    value: "human_reviewed",
+    label: "Human reviewed",
+    countKey: "humanReviewed",
+  },
 ];
 
-const STOCK_CHOICES: Array<{ value: StockFilter; label: string }> = [
-  { value: "all", label: "All" },
-  { value: "live", label: "Live" },
-  { value: "out_of_stock", label: "Out of stock" },
-  { value: "draft", label: "Draft" },
-  { value: "archived", label: "Archived" },
+const STOCK_CHOICES: Array<{
+  value: StockFilter;
+  label: string;
+  countKey: keyof StockCounts;
+}> = [
+  { value: "all", label: "All", countKey: "all" },
+  { value: "live", label: "Live", countKey: "live" },
+  { value: "out_of_stock", label: "Out of stock", countKey: "outOfStock" },
+  { value: "draft", label: "Draft", countKey: "draft" },
+  { value: "archived", label: "Archived", countKey: "archived" },
 ];
 
 const RECOMMENDATION_CHOICES: Array<{
   value: RecommendationFilter;
   label: string;
+  countKey: keyof RecommendationCounts;
 }> = [
-  { value: "all", label: "All" },
-  { value: "included", label: "Included" },
-  { value: "excluded", label: "Excluded" },
+  { value: "all", label: "All", countKey: "all" },
+  { value: "included", label: "Included", countKey: "included" },
+  { value: "excluded", label: "Excluded", countKey: "excluded" },
 ];
 
 export function FilterSidebar({
@@ -105,6 +133,7 @@ export function FilterSidebar({
   options,
   statusCounts,
   stockCounts,
+  recommendationCounts,
 }: Props) {
   const update = <K extends keyof FilterState>(
     key: K,
@@ -156,7 +185,7 @@ export function FilterSidebar({
             name="status-filter"
             selected={filters.status === c.value}
             label={c.label}
-            count={statusCounts[c.value]}
+            count={statusCounts[c.countKey]}
             onSelect={() => update("status", c.value)}
           />
         ))}
@@ -172,7 +201,7 @@ export function FilterSidebar({
             name="stock-filter"
             selected={filters.stock === c.value}
             label={c.label}
-            count={stockCounts[c.value]}
+            count={stockCounts[c.countKey]}
             onSelect={() => update("stock", c.value)}
           />
         ))}
@@ -188,6 +217,7 @@ export function FilterSidebar({
             name="rec-filter"
             selected={filters.recommendation === c.value}
             label={c.label}
+            count={recommendationCounts[c.countKey]}
             onSelect={() => update("recommendation", c.value)}
           />
         ))}

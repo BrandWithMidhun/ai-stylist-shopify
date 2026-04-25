@@ -39,30 +39,36 @@ export function productLimitIndicator(count: number): number {
   return count >= 500 ? 500 : count;
 }
 
+// @deprecated The dashboard now uses shop-wide counts from
+// DashboardStats.tagStatusCounts (computed in stats.server.ts) so the filter
+// sidebar matches the stat cards. Keep this helper around in case we add a
+// "show counts within current filter view" mode in the future, which would
+// derive counts from the loaded product window.
 export function deriveStatusCounts(products: ProductListItem[]): StatusCounts {
   const out: StatusCounts = {
     all: products.length,
     pending: 0,
-    any_tagged: 0,
-    ai_tagged: 0,
-    rule_tagged: 0,
-    human_reviewed: 0,
+    anyTagged: 0,
+    aiTagged: 0,
+    ruleTagged: 0,
+    humanReviewed: 0,
   };
   for (const p of products) {
     if (p.tagStatus === "pending") out.pending += 1;
-    else out.any_tagged += 1;
-    if (p.tagStatus === "ai_tagged") out.ai_tagged += 1;
-    if (p.tagStatus === "rule_tagged") out.rule_tagged += 1;
-    if (p.tagStatus === "human_reviewed") out.human_reviewed += 1;
+    else out.anyTagged += 1;
+    if (p.tagStatus === "ai_tagged") out.aiTagged += 1;
+    if (p.tagStatus === "rule_tagged") out.ruleTagged += 1;
+    if (p.tagStatus === "human_reviewed") out.humanReviewed += 1;
   }
   return out;
 }
 
+// @deprecated See deriveStatusCounts — same rationale.
 export function deriveStockCounts(products: ProductListItem[]): StockCounts {
   const out: StockCounts = {
     all: products.length,
     live: 0,
-    out_of_stock: 0,
+    outOfStock: 0,
     draft: 0,
     archived: 0,
   };
@@ -73,7 +79,7 @@ export function deriveStockCounts(products: ProductListItem[]): StockCounts {
     ) {
       out.live += 1;
     }
-    if (p.inventoryStatus === "OUT_OF_STOCK") out.out_of_stock += 1;
+    if (p.inventoryStatus === "OUT_OF_STOCK") out.outOfStock += 1;
     if (p.status === "DRAFT") out.draft += 1;
     if (p.status === "ARCHIVED") out.archived += 1;
   }

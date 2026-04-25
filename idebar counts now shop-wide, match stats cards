@@ -1,0 +1,106 @@
+warning: in the working copy of 'app/lib/catalog/stats.server.ts', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/app/lib/catalog/stats.server.ts b/app/lib/catalog/stats.server.ts[m
+[1mindex 47fbdee..a53622a 100644[m
+[1m--- a/app/lib/catalog/stats.server.ts[m
+[1m+++ b/app/lib/catalog/stats.server.ts[m
+[36m@@ -27,6 +27,31 @@[m [mexport type DashboardStats = {[m
+     productTypes: string[];[m
+     colourFamilies: string[];[m
+   };[m
+[32m+[m[32m  // Shop-wide counts for the FilterSidebar. Computed against the full catalog,[m
+[32m+[m[32m  // not the 500-product loader window, so the numbers track totalProducts.[m
+[32m+[m[32m  // Tag-status buckets follow computeTagStatus() priority (HUMAN > RULE > AI >[m
+[32m+[m[32m  // pending), so a product appears in exactly one of pending/aiTagged/[m
+[32m+[m[32m  // ruleTagged/humanReviewed.[m
+[32m+[m[32m  tagStatusCounts: {[m
+[32m+[m[32m    all: number;[m
+[32m+[m[32m    pending: number;[m
+[32m+[m[32m    anyTagged: number;[m
+[32m+[m[32m    aiTagged: number;[m
+[32m+[m[32m    ruleTagged: number;[m
+[32m+[m[32m    humanReviewed: number;[m
+[32m+[m[32m  };[m
+[32m+[m[32m  stockStatusCounts: {[m
+[32m+[m[32m    all: number;[m
+[32m+[m[32m    live: number;[m
+[32m+[m[32m    outOfStock: number;[m
+[32m+[m[32m    draft: number;[m
+[32m+[m[32m    archived: number;[m
+[32m+[m[32m  };[m
+[32m+[m[32m  recommendationCounts: {[m
+[32m+[m[32m    all: number;[m
+[32m+[m[32m    included: number;[m
+[32m+[m[32m    excluded: number;[m
+[32m+[m[32m  };[m
+ };[m
+ [m
+ export async function loadDashboardStats([m
+[36m@@ -43,6 +68,9 @@[m [mexport async function loadDashboardStats([m
+     pendingTag,[m
+     aiOrRuleTagged,[m
+     humanReviewed,[m
+[32m+[m[32m    aiTaggedExclusive,[m
+[32m+[m[32m    ruleTaggedExclusive,[m
+[32m+[m[32m    excludedFromRecs,[m
+     config,[m
+     genderTags,[m
+     colourTags,[m
+[36m@@ -73,6 +101,31 @@[m [mexport async function loadDashboardStats([m
+     prisma.product.count({[m
+       where: { ...baseWhere, tags: { some: { source: "HUMAN" } } },[m
+     }),[m
+[32m+[m[32m    // Filter bucket counts mirror computeTagStatus() priority. "AI tagged"[m
+[32m+[m[32m    // here means "has AI tag, no RULE tag, no HUMAN tag" so the count equals[m
+[32m+[m[32m    // the number of products applyFilters() returns when status="ai_tagged".[m
+[32m+[m[32m    prisma.product.count({[m
+[32m+[m[32m      where: {[m
+[32m+[m[32m        ...baseWhere,[m
+[32m+[m[32m        AND: [[m
+[32m+[m[32m          { tags: { some: { source: "AI" } } },[m
+[32m+[m[32m          { tags: { none: { source: "RULE" } } },[m
+[32m+[m[32m          { tags: { none: { source: "HUMAN" } } },[m
+[32m+[m[32m        ],[m
+[32m+[m[32m      },[m
+[32m+[m[32m    }),[m
+[32m+[m[32m    prisma.product.count({[m
+[32m+[m[32m      where: {[m
+[32m+[m[32m        ...baseWhere,[m
+[32m+[m[32m        AND: [[m
+[32m+[m[32m          { tags: { some: { source: "RULE" } } },[m
+[32m+[m[32m          { tags: { none: { source: "HUMAN" } } },[m
+[32m+[m[32m        ],[m
+[32m+[m[32m      },[m
+[32m+[m[32m    }),[m
+[32m+[m[32m    prisma.product.count({[m
+[32m+[m[32m      where: { ...baseWhere, recommendationExcluded: true },[m
+[32m+[m[32m    }),[m
+     prisma.merchantConfig.findUnique({[m
+       where: { shop: shopDomain },[m
+       select: { lastFullSyncAt: true },[m
+[36m@@ -121,6 +174,26 @@[m [mexport async function loadDashboardStats([m
+         .filter((v): v is string => v !== null),[m
+       colourFamilies: dedupe(colourTags.map((t) => t.value)),[m
+     },[m
+[32m+[m[32m    tagStatusCounts: {[m
+[32m+[m[32m      all: totalProducts,[m
+[32m+[m[32m      pending: pendingTag,[m
+[32m+[m[32m      anyTagged: totalProducts - pendingTag,[m
+[32m+[m[32m      aiTagged: aiTaggedExclusive,[m
+[32m+[m[32m      ruleTagged: ruleTaggedExclusive,[m
+[32m+[m[32m      humanReviewed,[m
+[32m+[m[32m    },[m
+[32m+[m[32m    stockStatusCounts: {[m
+[32m+[m[32m      all: totalProducts,[m
+[32m+[m[32m      live,[m
+[32m+[m[32m      outOfStock,[m
+[32m+[m[32m      draft,[m
+[32m+[m[32m      archived,[m
+[32m+[m[32m    },[m
+[32m+[m[32m    recommendationCounts: {[m
+[32m+[m[32m      all: totalProducts,[m
+[32m+[m[32m      included: totalProducts - excludedFromRecs,[m
+[32m+[m[32m      excluded: excludedFromRecs,[m
+[32m+[m[32m    },[m
+   };[m
+ }[m
+ [m

@@ -27,6 +27,31 @@ export type DashboardStats = {
     productTypes: string[];
     colourFamilies: string[];
   };
+  // Shop-wide counts for the FilterSidebar. Computed against the full catalog,
+  // not the 500-product loader window, so the numbers track totalProducts.
+  // Tag-status buckets follow computeTagStatus() priority (HUMAN > RULE > AI >
+  // pending), so a product appears in exactly one of pending/aiTagged/
+  // ruleTagged/humanReviewed.
+  tagStatusCounts: {
+    all: number;
+    pending: number;
+    anyTagged: number;
+    aiTagged: number;
+    ruleTagged: number;
+    humanReviewed: number;
+  };
+  stockStatusCounts: {
+    all: number;
+    live: number;
+    outOfStock: number;
+    draft: number;
+    archived: number;
+  };
+  recommendationCounts: {
+    all: number;
+    included: number;
+    excluded: number;
+  };
 };
 
 export async function loadDashboardStats(
@@ -43,6 +68,9 @@ export async function loadDashboardStats(
     pendingTag,
     aiOrRuleTagged,
     humanReviewed,
+    aiTaggedExclusive,
+    ruleTaggedExclusive,
+    excludedFromRecs,
     config,
     genderTags,
     colourTags,
@@ -72,6 +100,31 @@ export async function loadDashboardStats(
     }),
     prisma.product.count({
       where: { ...baseWhere, tags: { some: { source: "HUMAN" } } },
+    }),
+    // Filter bucket counts mirror computeTagStatus() priority. "AI tagged"
+    // here means "has AI tag, no RULE tag, no HUMAN tag" so the count equals
+    // the number of products applyFilters() returns when status="ai_tagged".
+    prisma.product.count({
+      where: {
+        ...baseWhere,
+        AND: [
+          { tags: { some: { source: "AI" } } },
+          { tags: { none: { source: "RULE" } } },
+          { tags: { none: { source: "HUMAN" } } },
+        ],
+      },
+    }),
+    prisma.product.count({
+      where: {
+        ...baseWhere,
+        AND: [
+          { tags: { some: { source: "RULE" } } },
+          { tags: { none: { source: "HUMAN" } } },
+        ],
+      },
+    }),
+    prisma.product.count({
+      where: { ...baseWhere, recommendationExcluded: true },
     }),
     prisma.merchantConfig.findUnique({
       where: { shop: shopDomain },
@@ -120,6 +173,26 @@ export async function loadDashboardStats(
         .map((r) => r.productType)
         .filter((v): v is string => v !== null),
       colourFamilies: dedupe(colourTags.map((t) => t.value)),
+    },
+    tagStatusCounts: {
+      all: totalProducts,
+      pending: pendingTag,
+      anyTagged: totalProducts - pendingTag,
+      aiTagged: aiTaggedExclusive,
+      ruleTagged: ruleTaggedExclusive,
+      humanReviewed,
+    },
+    stockStatusCounts: {
+      all: totalProducts,
+      live,
+      outOfStock,
+      draft,
+      archived,
+    },
+    recommendationCounts: {
+      all: totalProducts,
+      included: totalProducts - excludedFromRecs,
+      excluded: excludedFromRecs,
     },
   };
 }

@@ -17,8 +17,6 @@ import type { StoreMode } from "../../lib/catalog/store-axes";
 import {
   buildBatchLabel,
   buildSyncLabel,
-  deriveStatusCounts,
-  deriveStockCounts,
   productLimitIndicator,
 } from "../../lib/catalog/dashboard-helpers";
 import { useDebouncedValue } from "../../hooks/useDebouncedValue";
@@ -207,12 +205,6 @@ export function Dashboard({
   const [searchRaw, setSearchRaw] = useState("");
   const searchQuery = useDebouncedValue(searchRaw, 150);
 
-  const statusCounts = useMemo(
-    () => deriveStatusCounts(products),
-    [products],
-  );
-  const stockCounts = useMemo(() => deriveStockCounts(products), [products]);
-
   const filtered = useMemo(
     () => applyFilters(products, filters, searchQuery),
     [products, filters, searchQuery],
@@ -280,8 +272,9 @@ export function Dashboard({
             filters={filters}
             onChange={setFilters}
             options={stats.filterOptions}
-            statusCounts={statusCounts}
-            stockCounts={stockCounts}
+            statusCounts={stats.tagStatusCounts}
+            stockCounts={stats.stockStatusCounts}
+            recommendationCounts={stats.recommendationCounts}
           />
           <div>
             <div className="dash-list-header">
