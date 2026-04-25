@@ -7,6 +7,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFetcher, useRevalidator } from "react-router";
+import type { AxisOptions } from "../../lib/catalog/axis-options";
+import { axisOptionsFor } from "../../lib/catalog/axis-options";
 import type {
   ActiveSyncJob,
   ProductListItem,
@@ -65,6 +67,7 @@ type Props = {
   isSyncStarting: boolean;
   syncJob: SyncJobStatus | null;
   rateLimitMessage: string | null;
+  nodeAxesByNodeId: Record<string, AxisOptions>;
 };
 
 export function Dashboard({
@@ -76,6 +79,7 @@ export function Dashboard({
   isSyncStarting,
   syncJob,
   rateLimitMessage,
+  nodeAxesByNodeId,
 }: Props) {
   const revalidator = useRevalidator();
 
@@ -469,7 +473,11 @@ export function Dashboard({
       {editingProduct ? (
         <ProductEditDrawer
           product={editingProduct}
-          storeMode={storeMode as StoreMode}
+          axisOptions={
+            (editingProduct.taxonomyNodeId &&
+              nodeAxesByNodeId[editingProduct.taxonomyNodeId]) ||
+            axisOptionsFor(storeMode as StoreMode)
+          }
           open={true}
           saving={drawerSaving}
           onClose={handleCloseDrawer}

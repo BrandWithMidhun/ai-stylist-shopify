@@ -143,6 +143,7 @@ export default function ProductIntelligencePage() {
             : null
         }
         rateLimitMessage={rateLimitMessage}
+        nodeAxesByNodeId={data.nodeAxesByNodeId}
       />
     </s-page>
   );

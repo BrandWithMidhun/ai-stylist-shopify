@@ -148,6 +148,11 @@ function GuideStepCard({
           >
             {step.cta}
           </s-button>
+          {/* 006a Decision 8: discoverability link to rules. Lives on the
+              auto-tag card so the empty-catalog flow surfaces it. */}
+          {isAutoTagStep ? (
+            <s-link href="/app/intelligence/rules">Set up rules</s-link>
+          ) : null}
           {tooltipId ? (
             <>
               <s-icon type="info" interest-for={tooltipId} />

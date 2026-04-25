@@ -6,7 +6,13 @@
 // tagging is tolerant (user can re-run). Reconciliation (spec 4.4) is
 // non-blocking for 005a and will close any drift.
 
-export type JobKind = "sync" | "batch_tag";
+export type JobKind = "sync" | "batch_tag" | "rematch_taxonomy" | "apply_rules";
+
+// Per 006a Decision 5: only sync/batch_tag carry the 5-minute cooldown
+// (they hit Shopify GraphQL / Anthropic respectively). Re-match-all and
+// apply-all are pure DB ops with no upstream rate limit; we still dedupe
+// concurrent runs but skip the cooldown.
+const COOLDOWN_KINDS: ReadonlySet<JobKind> = new Set(["sync", "batch_tag"]);
 
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
 
@@ -24,11 +30,10 @@ export type Job = {
 };
 
 const JOBS = new Map<string, Job>();
-const ACTIVE_BY_SHOP = new Map<string, { sync?: string; batch_tag?: string }>();
-const LAST_COMPLETED_BY_SHOP = new Map<
-  string,
-  { sync?: Date; batch_tag?: Date }
->();
+type ActiveByKind = Partial<Record<JobKind, string>>;
+type LastByKind = Partial<Record<JobKind, Date>>;
+const ACTIVE_BY_SHOP = new Map<string, ActiveByKind>();
+const LAST_COMPLETED_BY_SHOP = new Map<string, LastByKind>();
 
 const RATE_LIMIT_MS = 5 * 60 * 1000; // 1 per shop per 5 minutes
 const RETENTION_MS = 60 * 1000; // keep finished jobs readable for 60s
@@ -45,15 +50,17 @@ export function checkRateLimit(
   if (active && JOBS.get(active)?.status === "running") {
     return { ok: false, reason: "already_running", retryAfterSeconds: 30 };
   }
-  const last = LAST_COMPLETED_BY_SHOP.get(shopDomain)?.[kind];
-  if (last) {
-    const elapsed = Date.now() - last.getTime();
-    if (elapsed < RATE_LIMIT_MS) {
-      return {
-        ok: false,
-        reason: "too_soon",
-        retryAfterSeconds: Math.ceil((RATE_LIMIT_MS - elapsed) / 1000),
-      };
+  if (COOLDOWN_KINDS.has(kind)) {
+    const last = LAST_COMPLETED_BY_SHOP.get(shopDomain)?.[kind];
+    if (last) {
+      const elapsed = Date.now() - last.getTime();
+      if (elapsed < RATE_LIMIT_MS) {
+        return {
+          ok: false,
+          reason: "too_soon",
+          retryAfterSeconds: Math.ceil((RATE_LIMIT_MS - elapsed) / 1000),
+        };
+      }
     }
   }
   return { ok: true };

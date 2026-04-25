@@ -87,17 +87,20 @@ model Product {
   syncedAt          DateTime  @default(now())
   deletedAt         DateTime?
   recommendationExcluded Boolean @default(false)
+  taxonomyNodeId    String?
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  variants ProductVariant[]
-  tags     ProductTag[]
+  variants     ProductVariant[]
+  tags         ProductTag[]
+  taxonomyNode TaxonomyNode? @relation(fields: [taxonomyNodeId], references: [id], onDelete: SetNull)
 
   @@unique([shopDomain, shopifyId])
   @@index([shopDomain, status])
   @@index([shopDomain, inventoryStatus])
   @@index([shopDomain, productType])
   @@index([shopDomain, deletedAt])
+  @@index([shopDomain, taxonomyNodeId])
 }
 
 model ProductVariant {
@@ -160,4 +163,51 @@ model ProductTagAudit {
 
   @@index([productId, createdAt])
   @@index([shopDomain, createdAt])
+}
+
+// Hierarchical category tree per shop. Roots have parentId=null. Each node
+// owns axisOverrides JSON ([{ axis, type, values?, order? }]) that augments
+// or overrides the storeMode-level axis vocabulary; getEffectiveAxes walks
+// node → root, merging children-win-on-conflict. matchKeywords drives the
+// naive keyword-scoring matcher (006a §4.3) that assigns each Product a
+// taxonomyNodeId at sync time.
+model TaxonomyNode {
+  id            String   @id @default(cuid())
+  shopDomain    String
+  parentId      String?
+  name          String
+  slug          String
+  position      Int      @default(0)
+  axisOverrides Json
+  matchKeywords String[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  parent   TaxonomyNode?  @relation("TaxonomyTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children TaxonomyNode[] @relation("TaxonomyTree")
+  products Product[]
+
+  @@unique([shopDomain, slug])
+  @@index([shopDomain, parentId])
+}
+
+// Deterministic if-this-then-that tag rules. conditions JSON matches the
+// Condition union in app/lib/catalog/rule-engine.server.ts (single condition
+// or any/all/not nesting). effects JSON is [{ axis, value }] with value as
+// string (single) or string[] (multi). Rules write source=RULE,
+// confidence=1.0, locked=false. Locking remains HUMAN-only.
+model TaggingRule {
+  id             String   @id @default(cuid())
+  shopDomain     String
+  name           String
+  description    String?
+  enabled        Boolean  @default(true)
+  priority       Int      @default(100)
+  taxonomyNodeId String?
+  conditions     Json
+  effects        Json
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([shopDomain, enabled, priority])
 }

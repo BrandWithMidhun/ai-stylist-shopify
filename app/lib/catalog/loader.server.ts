@@ -4,12 +4,15 @@
 // list + mode branching logic into a server-only helper.
 
 import prisma from "../../db.server";
+import type { AxisOptions } from "./axis-options";
 import { computeTagStatus, type TagStatus } from "./tag-status";
 import { getActiveJobId, getJob } from "./jobs.server";
 import {
   loadDashboardStats,
   type DashboardStats,
 } from "./stats.server";
+import { getEffectiveAxes } from "./taxonomy";
+import type { StoreMode } from "./store-axes";
 
 // TODO(005c-followup): 500 cap is the v1 ceiling. Add "Load more" pagination
 // once first merchants exceed this. Cursor pagination already exists in 005a.
@@ -24,6 +27,7 @@ export type ProductListItem = {
   featuredImageUrl: string | null;
   productType: string | null;
   recommendationExcluded: boolean;
+  taxonomyNodeId: string | null;
   tags: Array<{
     axis: string;
     value: string;
@@ -53,6 +57,12 @@ export type IntelligenceLoaderData =
       products: ProductListItem[];
       productLimit: number;
       activeSyncJob: ActiveSyncJob | null;
+      // Effective axis definitions per taxonomy node, pre-computed for the
+      // distinct nodeIds present in the loaded product window. Drawer looks
+      // up by product.taxonomyNodeId and falls back to storeMode axes when
+      // the product has no node yet (006a §4.2 / Decision G). O(nodes×depth)
+      // — fine while shops have <100 nodes / <5 depth.
+      nodeAxesByNodeId: Record<string, AxisOptions>;
     };
 
 export async function loadIntelligenceData(
@@ -82,6 +92,25 @@ export async function loadIntelligenceData(
     }),
   ]);
 
+  const distinctNodeIds = Array.from(
+    new Set(
+      products
+        .map((p) => p.taxonomyNodeId)
+        .filter((id): id is string => typeof id === "string"),
+    ),
+  );
+  const nodes =
+    distinctNodeIds.length === 0
+      ? []
+      : await prisma.taxonomyNode.findMany({
+          where: { shopDomain },
+        });
+  const storeMode = (config.storeMode ?? "GENERAL") as StoreMode;
+  const nodeAxesByNodeId: Record<string, AxisOptions> = {};
+  for (const id of distinctNodeIds) {
+    nodeAxesByNodeId[id] = getEffectiveAxes(id, nodes, storeMode);
+  }
+
   return {
     mode: "DASHBOARD",
     storeMode: config.storeMode ?? "GENERAL",
@@ -95,6 +124,7 @@ export async function loadIntelligenceData(
       featuredImageUrl: p.featuredImageUrl,
       productType: p.productType,
       recommendationExcluded: p.recommendationExcluded,
+      taxonomyNodeId: p.taxonomyNodeId,
       tags: p.tags.map((t) => ({
         axis: t.axis,
         value: t.value,
@@ -105,6 +135,7 @@ export async function loadIntelligenceData(
     })),
     productLimit: PRODUCT_LIMIT,
     activeSyncJob: activeJob,
+    nodeAxesByNodeId,
   };
 }
 

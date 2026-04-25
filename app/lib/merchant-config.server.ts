@@ -1,6 +1,8 @@
 import { z } from "zod";
 import type { MerchantConfig } from "@prisma/client";
 import prisma from "../db.server";
+import { seedTaxonomy } from "./catalog/taxonomy-seeds";
+import { seedRules } from "./catalog/rule-seeds";
 import {
   CTA_LABEL_MAX,
   CTA_PLACEMENTS,
@@ -63,11 +65,28 @@ export async function upsertMerchantConfig(
   shop: string,
   input: MerchantConfigInput,
 ): Promise<MerchantConfig> {
-  return prisma.merchantConfig.upsert({
+  const config = await prisma.merchantConfig.upsert({
     where: { shop },
     create: { shop, ...input },
     update: input,
   });
+
+  // 006a §4.1 / §5.5: when a merchant saves the config form, ensure
+  // taxonomy + rule seeds exist for the chosen storeMode. Both seeders
+  // bail on already-seeded shops (idempotent on subsequent calls) so
+  // re-saving the form (or switching storeMode and back) won't clobber
+  // merchant edits. We log silently rather than failing the form save —
+  // a seed failure here shouldn't block the merchant from updating CTA
+  // text or feature toggles.
+  try {
+    await seedTaxonomy(shop, input.storeMode as StoreMode);
+    await seedRules(shop, input.storeMode as StoreMode);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(`[merchant-config] seed failed for ${shop}:`, err);
+  }
+
+  return config;
 }
 
 function parseBoolField(value: FormDataEntryValue | null): boolean {

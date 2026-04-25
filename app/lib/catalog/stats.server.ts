@@ -75,6 +75,7 @@ export async function loadDashboardStats(
     genderTags,
     colourTags,
     productTypeRows,
+    activeRules,
   ] = await Promise.all([
     prisma.product.count({ where: baseWhere }),
     prisma.product.count({
@@ -148,6 +149,7 @@ export async function loadDashboardStats(
       select: { productType: true },
       orderBy: { productType: "asc" },
     }),
+    prisma.taggingRule.count({ where: { shopDomain, enabled: true } }),
   ]);
 
   const tagCoveragePercent =
@@ -164,7 +166,7 @@ export async function loadDashboardStats(
     pendingTag,
     aiOrRuleTagged,
     humanReviewed,
-    activeRules: 0,
+    activeRules,
     lastFullSyncAt: config?.lastFullSyncAt?.toISOString() ?? null,
     tagCoveragePercent,
     filterOptions: {

@@ -10,9 +10,8 @@
 //     mode=replace_all (server wraps delete+upsert in one $transaction).
 
 import { useEffect, useMemo, useState } from "react";
-import { axisOptionsFor } from "../../lib/catalog/axis-options";
+import type { AxisOptions } from "../../lib/catalog/axis-options";
 import type { ProductListItem } from "../../lib/catalog/loader.server";
-import type { StoreMode } from "../../lib/catalog/store-axes";
 import {
   AxisFieldMulti,
   AxisFieldSingle,
@@ -30,7 +29,9 @@ type DraftTag = { axis: string; value: string };
 
 type Props = {
   product: ProductListItem;
-  storeMode: StoreMode;
+  // 006a §4: caller computes effective axes from taxonomy node when set,
+  // falls back to axisOptionsFor(storeMode) otherwise.
+  axisOptions: AxisOptions;
   open: boolean;
   saving: boolean;
   onClose: () => void;
@@ -39,13 +40,12 @@ type Props = {
 
 export function ProductEditDrawer({
   product,
-  storeMode,
+  axisOptions,
   open,
   saving,
   onClose,
   onSave,
 }: Props) {
-  const axisOptions = axisOptionsFor(storeMode);
   const initial = useMemo(() => buildInitialState(product, axisOptions), [
     product,
     axisOptions,

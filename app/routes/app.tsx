@@ -24,6 +24,8 @@ export default function App() {
       <s-app-nav>
         <s-link href="/app/config">Configuration</s-link>
         <s-link href="/app/products/intelligence">Products</s-link>
+        <s-link href="/app/intelligence/taxonomy">Taxonomy</s-link>
+        <s-link href="/app/intelligence/rules">Rules</s-link>
         <s-link href="/app/ai-test">AI test</s-link>
         <s-link href="/app">Starter demo</s-link>
         <s-link href="/app/additional">Additional page</s-link>

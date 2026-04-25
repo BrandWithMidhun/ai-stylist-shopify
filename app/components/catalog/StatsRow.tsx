@@ -80,8 +80,8 @@ function buildCards(stats: DashboardStats) {
       id: "rules",
       label: "Active rules",
       value: stats.activeRules,
-      tone: "subdued" as const,
-      hint: "Coming in Feature 006",
+      tone: "info" as const,
+      href: "/app/intelligence/rules",
     },
   ];
 }

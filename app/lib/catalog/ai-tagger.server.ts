@@ -16,6 +16,7 @@ import { z } from "zod";
 import prisma from "../../db.server";
 import { logAnthropicError } from "../anthropic.server";
 import { axisOptionsFor } from "./axis-options";
+import { applyRules, type TagWrite } from "./rule-engine.server";
 import { STARTER_AXES, type StoreMode } from "./store-axes";
 
 const MODEL = "claude-sonnet-4-5";
@@ -53,6 +54,9 @@ export async function generateTagsForProduct(params: {
   product: Product & { tags: ProductTag[] };
   storeMode: StoreMode | null;
   actorId?: string | null;
+  // 006a §5.4: when set, restrict the AI prompt to these axes (rules
+  // already covered the rest). When undefined, default to STARTER_AXES.
+  axesNeeded?: readonly string[];
 }): Promise<GenerateResult> {
   const anthropic = getClient();
   if (!anthropic) {
@@ -60,7 +64,7 @@ export async function generateTagsForProduct(params: {
   }
 
   const mode: StoreMode = params.storeMode ?? "GENERAL";
-  const starterAxes = STARTER_AXES[mode];
+  const starterAxes = params.axesNeeded ?? STARTER_AXES[mode];
   const lockedAxes = new Set(
     params.product.tags.filter((t) => t.locked).map((t) => t.axis),
   );
@@ -223,7 +227,10 @@ function describeAnthropicError(err: unknown): string {
   return "Unexpected error calling Claude.";
 }
 
-// Used by the batch route.
+// Used by the batch route AND the per-product Generate route. Runs rules
+// first (006a §5.4), then calls Claude only for axes still pending. When
+// rules cover every requested axis the AI call is skipped entirely — proves
+// Decision E that net AI cost goes DOWN, not up.
 export async function generateTagsForProductById(params: {
   shopDomain: string;
   productId: string;
@@ -244,11 +251,66 @@ export async function generateTagsForProductById(params: {
     where: { shop: params.shopDomain },
     select: { storeMode: true },
   });
-  return generateTagsForProduct({
+  const mode: StoreMode = ((config?.storeMode ?? null) as StoreMode | null) ?? "GENERAL";
+
+  // Rules first. Pass the full starter-axis set; applyRules filters to
+  // axes the product doesn't already have a value on (purely additive).
+  const ruleResult = await applyRules({
     shopDomain: params.shopDomain,
     product,
-    storeMode: (config?.storeMode ?? null) as StoreMode | null,
+    axesNeeded: STARTER_AXES[mode],
     actorId: params.actorId ?? null,
   });
+
+  // Refresh tags from DB so the AI tagger sees the just-written rule tags.
+  // applyRules wrote them in its own transaction; reload the product to
+  // include them.
+  const refreshed =
+    ruleResult.tagsWritten.length > 0
+      ? await prisma.product.findFirst({
+          where: { id: product.id },
+          include: { tags: true },
+        })
+      : product;
+  if (!refreshed) {
+    return { ok: false, error: "Product not found." };
+  }
+
+  // Skip Claude entirely when rules already covered everything we need.
+  // Logged so a Railway tail can prove the cost-reduction claim.
+  if (ruleResult.axesStillNeeded.length === 0) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[rule-engine] rules covered all axes for product ${product.id}, skipping AI`,
+    );
+    return {
+      ok: true,
+      tags: ruleResult.tagsWritten.map((w) => toGeneratedTag(w)),
+      writtenCount: ruleResult.tagsWritten.length,
+    };
+  }
+
+  const aiResult = await generateTagsForProduct({
+    shopDomain: params.shopDomain,
+    product: refreshed,
+    storeMode: mode,
+    actorId: params.actorId ?? null,
+    axesNeeded: ruleResult.axesStillNeeded,
+  });
+
+  if (!aiResult.ok) return aiResult;
+
+  return {
+    ok: true,
+    tags: [
+      ...ruleResult.tagsWritten.map((w) => toGeneratedTag(w)),
+      ...aiResult.tags,
+    ],
+    writtenCount: ruleResult.tagsWritten.length + aiResult.writtenCount,
+  };
+}
+
+function toGeneratedTag(w: TagWrite): GeneratedTag {
+  return { axis: w.axis, value: w.value, confidence: w.confidence };
 }
 
