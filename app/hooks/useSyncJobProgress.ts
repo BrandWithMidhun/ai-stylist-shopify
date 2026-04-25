@@ -31,6 +31,9 @@ export type UseSyncJobProgressOptions = {
   intervalMs?: number;
 };
 
+const MAX_POLL_DURATION_MS = 10 * 60 * 1000;
+const MAX_CONSECUTIVE_FAILURES = 100;
+
 export function useSyncJobProgress(
   jobId: string | null,
   options: UseSyncJobProgressOptions = {},
@@ -39,6 +42,17 @@ export function useSyncJobProgress(
   const [snapshot, setSnapshot] = useState<JobSnapshot | null>(null);
   const samplesRef = useRef<Sample[]>([]);
   const firedRef = useRef<"none" | "success" | "failure">("none");
+
+  // Hold callbacks in refs so the polling effect does NOT re-subscribe each
+  // render. Without this, inline arrows in the caller create a new reference
+  // on every render, the effect tears down + re-creates, and each re-create
+  // fires an immediate poll — producing the 404 polling storm we hit before.
+  const onSuccessRef = useRef(onSuccess);
+  const onFailureRef = useRef(onFailure);
+  useEffect(() => {
+    onSuccessRef.current = onSuccess;
+    onFailureRef.current = onFailure;
+  });
 
   useEffect(() => {
     if (!jobId) {
@@ -50,6 +64,10 @@ export function useSyncJobProgress(
 
     let cancelled = false;
     let interval: ReturnType<typeof setInterval> | null = null;
+    let consecutiveFailures = 0;
+    let hasRecordedError = false;
+    const startedAt = Date.now();
+
     const stop = () => {
       if (interval !== null) {
         // eslint-disable-next-line no-undef
@@ -57,16 +75,58 @@ export function useSyncJobProgress(
         interval = null;
       }
     };
+
+    const finishSuccess = () => {
+      if (firedRef.current !== "none") return;
+      firedRef.current = "success";
+      onSuccessRef.current?.();
+    };
+
+    const finishFailure = (error: string | null) => {
+      if (firedRef.current !== "none") return;
+      firedRef.current = "failure";
+      onFailureRef.current?.(error);
+    };
+
     const poll = async () => {
+      if (cancelled) return;
+
+      if (Date.now() - startedAt > MAX_POLL_DURATION_MS) {
+        stop();
+        finishFailure("Sync polling timed out — please refresh");
+        return;
+      }
+
       try {
         const res = await fetch(`/api/catalog/sync/${jobId}`);
+        if (cancelled) return;
+
         if (res.status === 404) {
-          // Job retention expired — clear the snapshot and stop polling.
-          if (!cancelled) setSnapshot(null);
+          // Job is no longer in the in-memory registry. Either the sync
+          // completed and the >60s retention window expired, or the server
+          // restarted, or the jobId is invalid. Either way: stop polling
+          // and treat as terminal. Assume success when we never observed an
+          // error — the common case is that completion + retention purge
+          // raced ahead of our last successful poll.
           stop();
+          if (hasRecordedError) {
+            finishFailure("Job no longer tracked — please refresh");
+          } else {
+            finishSuccess();
+          }
           return;
         }
-        if (!res.ok) return;
+
+        if (!res.ok) {
+          consecutiveFailures += 1;
+          if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+            stop();
+            finishFailure("Sync polling failed — please refresh");
+          }
+          return;
+        }
+
+        consecutiveFailures = 0;
         const body = (await res.json()) as JobSnapshot;
         if (cancelled) return;
         samplesRef.current = pushSample(samplesRef.current, {
@@ -74,16 +134,20 @@ export function useSyncJobProgress(
           progress: body.progress,
         });
         setSnapshot(body);
-        if (body.status === "succeeded" && firedRef.current === "none") {
-          firedRef.current = "success";
-          onSuccess?.();
-        }
-        if (body.status === "failed" && firedRef.current === "none") {
-          firedRef.current = "failure";
-          onFailure?.(body.error ?? null);
+        if (body.status === "succeeded") {
+          stop();
+          finishSuccess();
+        } else if (body.status === "failed") {
+          hasRecordedError = true;
+          stop();
+          finishFailure(body.error ?? null);
         }
       } catch {
-        // next tick retries
+        consecutiveFailures += 1;
+        if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+          stop();
+          finishFailure("Sync polling failed — please refresh");
+        }
       }
     };
 
@@ -94,7 +158,7 @@ export function useSyncJobProgress(
       cancelled = true;
       stop();
     };
-  }, [jobId, intervalMs, onSuccess, onFailure]);
+  }, [jobId, intervalMs]);
 
   const total = snapshot?.total ?? 0;
   const eta = estimateRemaining(samplesRef.current, total);
