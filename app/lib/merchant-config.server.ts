@@ -46,6 +46,19 @@ export async function getMerchantConfig(
   return prisma.merchantConfig.findUnique({ where: { shop } });
 }
 
+// Defense-in-depth: guarantee the row exists before any downstream code reads
+// it. Schema defaults populate every column except shop, so create needs only
+// { shop }. Update is a no-op so a pre-existing row is untouched.
+export async function ensureMerchantConfig(
+  shop: string,
+): Promise<MerchantConfig> {
+  return prisma.merchantConfig.upsert({
+    where: { shop },
+    create: { shop },
+    update: {},
+  });
+}
+
 export async function upsertMerchantConfig(
   shop: string,
   input: MerchantConfigInput,
