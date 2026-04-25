@@ -104,9 +104,14 @@ export async function runCatalogSync(params: {
       cursor = page.pageInfo.endCursor;
     }
 
-    await prisma.merchantConfig.update({
+    // upsert (not update): on a fresh install the MerchantConfig row may not
+    // exist yet — products sync first, then this runs. All other fields have
+    // schema defaults, so create needs only { shop, lastFullSyncAt }.
+    const now = new Date();
+    await prisma.merchantConfig.upsert({
       where: { shop: shopDomain },
-      data: { lastFullSyncAt: new Date() },
+      create: { shop: shopDomain, lastFullSyncAt: now },
+      update: { lastFullSyncAt: now },
     });
 
     completeJob(jobId);
