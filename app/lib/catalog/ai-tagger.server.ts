@@ -14,6 +14,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Product, ProductTag } from "@prisma/client";
 import { z } from "zod";
 import prisma from "../../db.server";
+import { axisOptionsFor } from "./axis-options";
 import { STARTER_AXES, type StoreMode } from "./store-axes";
 
 const MODEL = "claude-sonnet-4-5";
@@ -63,9 +64,21 @@ export async function generateTagsForProduct(params: {
     params.product.tags.filter((t) => t.locked).map((t) => t.axis),
   );
 
+  // Pass per-axis "common values" as suggestions only — the model is NOT
+  // constrained to these. Tag-value hygiene / normalization is deferred to
+  // Feature 006. (Feature 005d clarification E: informed-only.)
+  const axisOptions = axisOptionsFor(mode);
+  const commonValuesByAxis: Record<string, readonly string[]> = {};
+  for (const [axis, def] of Object.entries(axisOptions)) {
+    if (def.type !== "text") {
+      commonValuesByAxis[axis] = def.values;
+    }
+  }
+
   const promptPayload = {
     storeMode: mode.toLowerCase(),
     starterAxes,
+    commonValuesByAxis,
     lockedAxes: Array.from(lockedAxes),
     product: {
       title: params.product.title,
@@ -76,7 +89,7 @@ export async function generateTagsForProduct(params: {
     },
   };
 
-  const systemPrompt = `You are a catalog tagging assistant for a ${mode.toLowerCase()} store. Tag the product along the provided starter axes. These are suggested axes — add more if the product clearly warrants them. Keep axis names snake_case and stable across products. Do NOT return tags for any axis in lockedAxes. Respond with JSON ONLY in the form {"tags":[{"axis":"...","value":"...","confidence":0.0}]} — confidence is 0.0–1.0.`;
+  const systemPrompt = `You are a catalog tagging assistant for a ${mode.toLowerCase()} store. Tag the product along the provided starter axes. These are suggested axes — add more if the product clearly warrants them. Keep axis names snake_case and stable across products. The commonValuesByAxis map gives you the values most often used for each axis on this storeMode — prefer reusing them when they fit, but you MAY return a different value if the product genuinely warrants one. Do NOT return tags for any axis in lockedAxes. Respond with JSON ONLY in the form {"tags":[{"axis":"...","value":"...","confidence":0.0}]} — confidence is 0.0–1.0.`;
 
   let text: string;
   try {

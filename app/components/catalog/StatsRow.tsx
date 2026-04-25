@@ -66,7 +66,7 @@ function buildCards(stats: DashboardStats) {
     },
     {
       id: "ai-rule",
-      label: "AI / Rule tagged",
+      label: "AI / Rule generated",
       value: stats.aiOrRuleTagged,
       tone: "info" as const,
     },

@@ -11,7 +11,15 @@ const TagInputSchema = z.object({
 
 const BodySchema = z.object({
   tags: z.array(TagInputSchema),
-  mode: z.enum(["merge", "replace_axis"]).default("merge"),
+  // - merge:        upsert incoming tags, leave others alone
+  // - replace_axis: for each incoming axis, delete any existing values not
+  //                 in the incoming set for that axis, then upsert
+  // - replace_all:  delete every existing tag not in the incoming set,
+  //                 then upsert. Used by the 005d drawer save (full tag
+  //                 set per axis). The whole operation runs in one
+  //                 transaction below so a partial failure can't leave a
+  //                 product half-tagged.
+  mode: z.enum(["merge", "replace_axis", "replace_all"]).default("merge"),
 });
 
 export const action = async ({ request, params }: ActionFunctionArgs) => {
@@ -79,6 +87,28 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
               },
             });
           }
+        }
+      }
+    } else if (mode === "replace_all") {
+      const existing = await tx.productTag.findMany({
+        where: { productId: product.id },
+        select: { id: true, axis: true, value: true, source: true },
+      });
+      for (const row of existing) {
+        if (!tags.some((t) => t.axis === row.axis && t.value === row.value)) {
+          await tx.productTag.delete({ where: { id: row.id } });
+          await tx.productTagAudit.create({
+            data: {
+              productId: product.id,
+              shopDomain: session.shop,
+              axis: row.axis,
+              action: "REMOVE",
+              previousValue: row.value,
+              newValue: null,
+              source: "HUMAN",
+              actorId,
+            },
+          });
         }
       }
     }

@@ -1,20 +1,21 @@
 // Starter axes per store mode. Shared between the AI tagger (which prompts
 // Claude to tag along these axes) and the intelligence dashboard (which uses
 // the list to compute per-product tag coverage on the ProductCard).
+//
+// As of Feature 005d the canonical vocabulary lives in axis-options.ts;
+// STARTER_AXES is now a derived view (just the axis names per mode).
 
-export type StoreMode =
-  | "FASHION"
-  | "ELECTRONICS"
-  | "FURNITURE"
-  | "BEAUTY"
-  | "GENERAL";
+import { AXIS_OPTIONS } from "./axis-options";
+import type { StoreMode } from "./store-axes-types";
+
+export type { StoreMode };
 
 export const STARTER_AXES: Record<StoreMode, readonly string[]> = {
-  FASHION: ["category", "style", "occasion", "color_family", "fit", "season"],
-  ELECTRONICS: ["category", "brand", "form_factor", "use_case", "price_tier"],
-  FURNITURE: ["category", "style", "material", "room", "size_class"],
-  BEAUTY: ["category", "skin_type", "concern", "ingredient_class", "finish"],
-  GENERAL: ["category", "color", "style", "use_case"],
+  FASHION: Object.keys(AXIS_OPTIONS.FASHION),
+  ELECTRONICS: Object.keys(AXIS_OPTIONS.ELECTRONICS),
+  FURNITURE: Object.keys(AXIS_OPTIONS.FURNITURE),
+  BEAUTY: Object.keys(AXIS_OPTIONS.BEAUTY),
+  GENERAL: Object.keys(AXIS_OPTIONS.GENERAL),
 };
 
 // Axes that represent a "colour family" concept across store modes.
@@ -22,6 +23,8 @@ export const STARTER_AXES: Record<StoreMode, readonly string[]> = {
 // (`color_family`) and GENERAL (`color`) stores.
 export const COLOUR_AXES: readonly string[] = ["color_family", "color"];
 
-export function expectedAxesFor(mode: StoreMode | null | undefined): readonly string[] {
+export function expectedAxesFor(
+  mode: StoreMode | null | undefined,
+): readonly string[] {
   return STARTER_AXES[mode ?? "GENERAL"];
 }

@@ -5,7 +5,7 @@
 // blocks with StatsRow, IntelligenceGuide, WorkflowBar, FilterSidebar,
 // ProductCard, and SyncToast.
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFetcher, useRevalidator } from "react-router";
 import type {
   ActiveSyncJob,
@@ -28,6 +28,7 @@ import {
 } from "./FilterSidebar";
 import { IntelligenceGuide } from "./IntelligenceGuide";
 import { ProductCard } from "./ProductCard";
+import { ProductEditDrawer } from "./ProductEditDrawer";
 import {
   ResetConfirmBar,
   buildResetError,
@@ -173,6 +174,121 @@ export function Dashboard({
     if (ok) revalidator.revalidate();
   };
 
+  // Per-card single-product Generate / Mark Reviewed and the edit drawer
+  // are wired here at the dashboard level so only one drawer mounts and so
+  // the loader can be revalidated after each mutation.
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
+  const [drawerSaving, setDrawerSaving] = useState(false);
+  const [productActionError, setProductActionError] = useState<string | null>(
+    null,
+  );
+
+  const editingProduct = useMemo(
+    () => products.find((p) => p.id === editingProductId) ?? null,
+    [products, editingProductId],
+  );
+
+  const markGenerating = useCallback((id: string, on: boolean) => {
+    setGeneratingIds((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const handleEdit = useCallback((id: string) => setEditingProductId(id), []);
+  const handleCloseDrawer = useCallback(() => setEditingProductId(null), []);
+
+  const handleGenerate = useCallback(
+    async (id: string) => {
+      markGenerating(id, true);
+      setProductActionError(null);
+      try {
+        const res = await fetch(`/api/products/${id}/tags/generate`, {
+          method: "POST",
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as
+            | { error?: string }
+            | null;
+          throw new Error(body?.error ?? `HTTP ${res.status}`);
+        }
+        revalidator.revalidate();
+      } catch (err) {
+        setProductActionError(
+          err instanceof Error ? err.message : "Could not generate tags.",
+        );
+      } finally {
+        markGenerating(id, false);
+      }
+    },
+    [markGenerating, revalidator],
+  );
+
+  const handleMarkReviewed = useCallback(
+    async (id: string) => {
+      setProductActionError(null);
+      try {
+        const res = await fetch(`/api/products/${id}/mark-reviewed`, {
+          method: "POST",
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as
+            | { error?: string }
+            | null;
+          throw new Error(body?.error ?? `HTTP ${res.status}`);
+        }
+        revalidator.revalidate();
+      } catch (err) {
+        setProductActionError(
+          err instanceof Error ? err.message : "Could not mark reviewed.",
+        );
+      }
+    },
+    [revalidator],
+  );
+
+  const handleSaveDrawer = useCallback(
+    async (tags: { axis: string; value: string }[]) => {
+      if (!editingProductId) return;
+      const id = editingProductId;
+      // Optimistic close — re-open with stale data is jarring; the
+      // revalidate below refreshes the card behind the drawer instead.
+      setEditingProductId(null);
+      setDrawerSaving(true);
+      setProductActionError(null);
+      try {
+        const res = await fetch(`/api/products/${id}/tags`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "replace_all",
+            tags: tags.map((t) => ({ ...t, locked: false })),
+          }),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => null)) as
+            | { error?: string }
+            | null;
+          throw new Error(body?.error ?? `HTTP ${res.status}`);
+        }
+        revalidator.revalidate();
+      } catch (err) {
+        setProductActionError(
+          err instanceof Error
+            ? `Couldn't save changes — ${err.message}`
+            : "Couldn't save changes — try again.",
+        );
+        setEditingProductId(id);
+      } finally {
+        setDrawerSaving(false);
+      }
+    },
+    [editingProductId, revalidator],
+  );
+
   // Toast visibility: appears when a sync is active OR just completed, until
   // the merchant dismisses it. Re-arms whenever a new sync starts.
   const [toastDismissed, setToastDismissed] = useState(false);
@@ -236,6 +352,16 @@ export function Dashboard({
           onDismiss={exclude.clearError}
         >
           <s-paragraph>{exclude.state.lastError}</s-paragraph>
+        </s-banner>
+      ) : null}
+      {productActionError ? (
+        <s-banner
+          tone="critical"
+          heading="Product action failed"
+          dismissible
+          onDismiss={() => setProductActionError(null)}
+        >
+          <s-paragraph>{productActionError}</s-paragraph>
         </s-banner>
       ) : null}
 
@@ -318,6 +444,10 @@ export function Dashboard({
                         storeMode={storeMode as StoreMode}
                         onToggleExclude={handleToggleExclude}
                         excludePending={exclude.state.pending.has(p.id)}
+                        onEdit={handleEdit}
+                        onGenerate={handleGenerate}
+                        onMarkReviewed={handleMarkReviewed}
+                        generating={generatingIds.has(p.id)}
                       />
                     );
                   })}
@@ -335,6 +465,17 @@ export function Dashboard({
         onCancel={handleCancelReset}
         onConfirm={handleConfirmReset}
       />
+
+      {editingProduct ? (
+        <ProductEditDrawer
+          product={editingProduct}
+          storeMode={storeMode as StoreMode}
+          open={true}
+          saving={drawerSaving}
+          onClose={handleCloseDrawer}
+          onSave={handleSaveDrawer}
+        />
+      ) : null}
     </>
   );
 }
