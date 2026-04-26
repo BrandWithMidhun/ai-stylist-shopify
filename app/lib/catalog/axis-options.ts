@@ -7,15 +7,15 @@
 //     (informed-only — the model is NOT constrained to these values; tag
 //     hygiene is deferred to Feature 006)
 //   - store-axes.ts: STARTER_AXES is derived from the keys of this map
+//   - rule-seeds.ts: seed rules MUST only write values that exist in this
+//     vocabulary (006a Decision 3)
 //
 // Adding a vertical = add one entry to AXIS_OPTIONS. Adding an axis to an
 // existing vertical = add one key to that vertical's object.
 //
 // Axis ordering inside each storeMode object is the order the drawer renders
-// fields. Reference screenshot 5 informed the FASHION ordering.
-//
-// Axis names stay snake_case and stable across storeModes where the concept
-// is shared (e.g. `category`, `color_family`).
+// fields. Axis names stay snake_case and stable across storeModes where the
+// concept is shared (e.g. `category`, `color_family`, `price_tier`).
 
 import type { StoreMode } from "./store-axes-types";
 
@@ -96,6 +96,29 @@ export const AXIS_OPTIONS: Record<StoreMode, AxisOptions> = {
       type: "single",
       values: ["statement_piece", "not_a_statement_piece"],
     },
+    material: {
+      type: "multi",
+      values: [
+        "cotton",
+        "linen",
+        "silk",
+        "denim",
+        "wool",
+        "polyester",
+        "leather",
+        "synthetic",
+        "blended",
+        "cashmere",
+      ],
+    },
+    size_range: {
+      type: "multi",
+      values: ["xs", "s", "m", "l", "xl", "xxl", "xxxl", "one_size"],
+    },
+    price_tier: {
+      type: "single",
+      values: ["budget", "mid_range", "premium", "luxury"],
+    },
   },
 
   ELECTRONICS: {
@@ -134,6 +157,36 @@ export const AXIS_OPTIONS: Record<StoreMode, AxisOptions> = {
     price_tier: {
       type: "single",
       values: ["budget", "mid_range", "premium", "flagship"],
+    },
+    connectivity: {
+      type: "multi",
+      values: [
+        "wifi",
+        "bluetooth",
+        "wired",
+        "cellular",
+        "nfc",
+        "usb_c",
+        "lightning",
+      ],
+    },
+    color: {
+      type: "single",
+      values: [
+        "black",
+        "white",
+        "grey",
+        "silver",
+        "gold",
+        "blue",
+        "red",
+        "multicolor",
+        "clear",
+      ],
+    },
+    target_user: {
+      type: "multi",
+      values: ["gamer", "professional", "casual", "student", "creator"],
     },
   },
 
@@ -193,6 +246,30 @@ export const AXIS_OPTIONS: Record<StoreMode, AxisOptions> = {
       type: "single",
       values: ["small", "medium", "large", "oversized"],
     },
+    color: {
+      type: "single",
+      values: [
+        "black",
+        "white",
+        "grey",
+        "blue",
+        "red",
+        "green",
+        "brown",
+        "beige",
+        "multicolor",
+        "natural_wood",
+        "metallic",
+      ],
+    },
+    assembly_required: {
+      type: "single",
+      values: ["yes", "no", "minimal", "professional"],
+    },
+    price_tier: {
+      type: "single",
+      values: ["budget", "mid_range", "premium", "luxury"],
+    },
   },
 
   BEAUTY: {
@@ -237,6 +314,161 @@ export const AXIS_OPTIONS: Record<StoreMode, AxisOptions> = {
       type: "single",
       values: ["matte", "dewy", "satin", "glossy", "natural"],
     },
+    hair_type: {
+      type: "multi",
+      values: [
+        "straight",
+        "wavy",
+        "curly",
+        "coily",
+        "fine",
+        "thick",
+        "damaged",
+        "colored",
+        "oily",
+        "dry",
+      ],
+    },
+    formulation: {
+      type: "single",
+      values: [
+        "cream",
+        "serum",
+        "oil",
+        "gel",
+        "lotion",
+        "spray",
+        "powder",
+        "stick",
+        "liquid",
+        "mask",
+      ],
+    },
+    price_tier: {
+      type: "single",
+      values: ["budget", "mid_range", "premium", "luxury"],
+    },
+  },
+
+  JEWELLERY: {
+    category: {
+      type: "single",
+      values: [
+        "ring",
+        "necklace",
+        "earrings",
+        "bracelet",
+        "pendant",
+        "bangle",
+        "anklet",
+        "brooch",
+        "mangalsutra",
+        "watch",
+        "nose_ring",
+        "set",
+      ],
+    },
+    metal: {
+      type: "single",
+      values: [
+        "gold",
+        "silver",
+        "platinum",
+        "rose_gold",
+        "white_gold",
+        "mixed_metal",
+        "alloy",
+        "brass",
+        "copper",
+        "fashion_metal",
+      ],
+    },
+    purity: {
+      type: "single",
+      values: [
+        "24k",
+        "22k",
+        "18k",
+        "14k",
+        "10k",
+        "925_silver",
+        "800_silver",
+        "oxidized",
+        "plated",
+        "costume",
+      ],
+    },
+    gemstone: {
+      type: "multi",
+      values: [
+        "diamond",
+        "ruby",
+        "emerald",
+        "sapphire",
+        "pearl",
+        "opal",
+        "topaz",
+        "amethyst",
+        "garnet",
+        "none",
+        "synthetic",
+        "simulated",
+        "other",
+      ],
+    },
+    craft_type: {
+      type: "multi",
+      values: [
+        "kundan",
+        "polki",
+        "meenakari",
+        "temple",
+        "oxidized",
+        "filigree",
+        "beaded",
+        "threadwork",
+        "plain",
+      ],
+    },
+    weight_grams: { type: "text" },
+    occasion: {
+      type: "multi",
+      values: [
+        "bridal",
+        "daily",
+        "festive",
+        "party",
+        "gift",
+        "traditional",
+        "office",
+        "religious",
+      ],
+    },
+    style: {
+      type: "single",
+      values: [
+        "traditional",
+        "contemporary",
+        "minimalist",
+        "statement",
+        "vintage",
+        "fusion",
+        "antique",
+        "fashion",
+      ],
+    },
+    target_audience: {
+      type: "single",
+      values: ["male", "female", "unisex", "kids", "infant"],
+    },
+    price_tier: {
+      type: "single",
+      values: ["budget", "mid_range", "premium", "luxury", "fine_jewellery"],
+    },
+    certification: {
+      type: "multi",
+      values: ["bis_hallmark", "gia", "igi", "hrd", "none"],
+    },
   },
 
   GENERAL: {
@@ -259,6 +491,12 @@ export const AXIS_OPTIONS: Record<StoreMode, AxisOptions> = {
     },
     style: { type: "text" },
     use_case: { type: "text" },
+    price_tier: {
+      type: "single",
+      values: ["budget", "mid_range", "premium", "luxury"],
+    },
+    size: { type: "text" },
+    target_audience: { type: "text" },
   },
 };
 

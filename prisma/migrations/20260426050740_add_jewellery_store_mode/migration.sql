@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "StoreMode" ADD VALUE 'JEWELLERY';

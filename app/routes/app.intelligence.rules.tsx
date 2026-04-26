@@ -20,18 +20,31 @@ import {
   type TestResult,
 } from "../components/intelligence/RuleEditor";
 import type { Condition, Effect } from "../lib/catalog/rule-types";
+import type { StoreMode } from "../lib/catalog/store-axes";
 
 type LoaderData = {
   rules: TaggingRule[];
   nodes: TaxonomyNode[];
   productCount: number;
+  storeMode: StoreMode;
+};
+
+// 006a §3.5: noun substitution for the rules empty-state copy. The rest of
+// the page stays industry-neutral.
+const EMPTY_STATE_NOUN: Record<StoreMode, string> = {
+  FASHION: "apparel",
+  ELECTRONICS: "devices",
+  FURNITURE: "furniture",
+  BEAUTY: "beauty",
+  JEWELLERY: "jewellery",
+  GENERAL: "products",
 };
 
 export const loader = async ({
   request,
 }: LoaderFunctionArgs): Promise<LoaderData> => {
   const { session } = await authenticate.admin(request);
-  const [rules, nodes, productCount] = await Promise.all([
+  const [rules, nodes, productCount, config] = await Promise.all([
     prisma.taggingRule.findMany({
       where: { shopDomain: session.shop },
       orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
@@ -41,8 +54,17 @@ export const loader = async ({
       orderBy: { slug: "asc" },
     }),
     prisma.product.count({ where: { shopDomain: session.shop, deletedAt: null } }),
+    prisma.merchantConfig.findUnique({
+      where: { shop: session.shop },
+      select: { storeMode: true },
+    }),
   ]);
-  return { rules, nodes, productCount };
+  return {
+    rules,
+    nodes,
+    productCount,
+    storeMode: (config?.storeMode ?? "GENERAL") as StoreMode,
+  };
 };
 
 const EMPTY_DRAFT: RuleDraft = {
@@ -59,7 +81,7 @@ const EMPTY_DRAFT: RuleDraft = {
 type FilterMode = "all" | "enabled" | "disabled";
 
 export default function RulesPage() {
-  const { rules, nodes, productCount } = useLoaderData<typeof loader>();
+  const { rules, nodes, productCount, storeMode } = useLoaderData<typeof loader>();
   const revalidator = useRevalidator();
 
   const [filter, setFilter] = useState<FilterMode>("all");
@@ -278,7 +300,7 @@ export default function RulesPage() {
       {isApplying && applyProgress.snapshot ? (
         <s-section>
           <div className="rules-progress">
-            <s-progress
+            <progress
               value={applyProgress.snapshot.progress}
               max={applyProgress.snapshot.total || 1}
             />
@@ -317,7 +339,25 @@ export default function RulesPage() {
         </div>
 
         <div className="rules-list">
-          {filtered.length === 0 ? (
+          {rules.length === 0 ? (
+            <s-box padding="base" borderWidth="base" borderRadius="base">
+              <s-stack direction="block" gap="small-200">
+                <s-heading>
+                  Set up rules to auto-tag your {EMPTY_STATE_NOUN[storeMode]} products
+                </s-heading>
+                <s-paragraph>
+                  Tag products with attributes that matter for filtering. Rules
+                  run before AI tagging, fill gaps deterministically, and never
+                  overwrite existing values.
+                </s-paragraph>
+                <s-stack direction="inline" gap="small-200">
+                  <s-button variant="primary" onClick={() => setDraft({ ...EMPTY_DRAFT })}>
+                    Create your first rule
+                  </s-button>
+                </s-stack>
+              </s-stack>
+            </s-box>
+          ) : filtered.length === 0 ? (
             <s-paragraph>No rules match these filters.</s-paragraph>
           ) : (
             filtered.map((r) => (

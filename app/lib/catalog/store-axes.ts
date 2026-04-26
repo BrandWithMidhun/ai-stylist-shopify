@@ -15,6 +15,7 @@ export const STARTER_AXES: Record<StoreMode, readonly string[]> = {
   ELECTRONICS: Object.keys(AXIS_OPTIONS.ELECTRONICS),
   FURNITURE: Object.keys(AXIS_OPTIONS.FURNITURE),
   BEAUTY: Object.keys(AXIS_OPTIONS.BEAUTY),
+  JEWELLERY: Object.keys(AXIS_OPTIONS.JEWELLERY),
   GENERAL: Object.keys(AXIS_OPTIONS.GENERAL),
 };
 

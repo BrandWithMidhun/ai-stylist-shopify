@@ -38,6 +38,7 @@ enum StoreMode {
   ELECTRONICS
   FURNITURE
   BEAUTY
+  JEWELLERY
   GENERAL
 }
 

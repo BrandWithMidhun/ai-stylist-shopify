@@ -18,24 +18,47 @@ import { useSyncJobProgress } from "../hooks/useSyncJobProgress";
 import { TaxonomyTree } from "../components/intelligence/TaxonomyTree";
 import { TaxonomyNodeEditor } from "../components/intelligence/TaxonomyNodeEditor";
 import type { TaxonomyAxisOverride } from "../lib/catalog/taxonomy";
+import type { StoreMode } from "../lib/catalog/store-axes";
 
 type LoaderData = {
   nodes: TaxonomyNode[];
+  storeMode: StoreMode;
+};
+
+// 006a §3.5 (multi-industry): empty-state copy adapts to the merchant's
+// chosen vertical. Industry-neutral tone — never names the catalog content
+// in tooltips/placeholders, only in the empty-state heading.
+const EMPTY_STATE_HEADING: Record<StoreMode, string> = {
+  FASHION: "Build your apparel taxonomy",
+  ELECTRONICS: "Build your devices taxonomy",
+  FURNITURE: "Build your furniture taxonomy",
+  BEAUTY: "Build your beauty taxonomy",
+  JEWELLERY: "Build your jewellery taxonomy",
+  GENERAL: "Build your product taxonomy",
 };
 
 export const loader = async ({
   request,
 }: LoaderFunctionArgs): Promise<LoaderData> => {
   const { session } = await authenticate.admin(request);
-  const nodes = await prisma.taxonomyNode.findMany({
-    where: { shopDomain: session.shop },
-    orderBy: [{ position: "asc" }, { name: "asc" }],
-  });
-  return { nodes };
+  const [nodes, config] = await Promise.all([
+    prisma.taxonomyNode.findMany({
+      where: { shopDomain: session.shop },
+      orderBy: [{ position: "asc" }, { name: "asc" }],
+    }),
+    prisma.merchantConfig.findUnique({
+      where: { shop: session.shop },
+      select: { storeMode: true },
+    }),
+  ]);
+  return {
+    nodes,
+    storeMode: (config?.storeMode ?? "GENERAL") as StoreMode,
+  };
 };
 
 export default function TaxonomyPage() {
-  const { nodes } = useLoaderData<typeof loader>();
+  const { nodes, storeMode } = useLoaderData<typeof loader>();
   const revalidator = useRevalidator();
 
   const [selectedId, setSelectedId] = useState<string | null>(
@@ -208,7 +231,7 @@ export default function TaxonomyPage() {
       {isRematching && rematchProgress.snapshot ? (
         <s-section>
           <div className="tax-progress">
-            <s-progress
+            <progress
               value={rematchProgress.snapshot.progress}
               max={rematchProgress.snapshot.total || 1}
             />
@@ -221,9 +244,21 @@ export default function TaxonomyPage() {
       ) : null}
       <s-section>
         {nodes.length === 0 ? (
-          <s-paragraph>
-            No taxonomy yet. Save your storeMode in Configuration to seed a default tree, or add a root node below.
-          </s-paragraph>
+          <s-box padding="base" borderWidth="base" borderRadius="base">
+            <s-stack direction="block" gap="small-200">
+              <s-heading>{EMPTY_STATE_HEADING[storeMode]}</s-heading>
+              <s-paragraph>
+                Group your products by type. Save your store type in
+                Configuration to seed a default tree, or add a root category
+                below to start from scratch.
+              </s-paragraph>
+              <s-stack direction="inline" gap="small-200">
+                <s-button onClick={() => triggerAddNode(null)}>
+                  Add a category
+                </s-button>
+              </s-stack>
+            </s-stack>
+          </s-box>
         ) : null}
         <div className="tax-page-layout">
           <TaxonomyTree

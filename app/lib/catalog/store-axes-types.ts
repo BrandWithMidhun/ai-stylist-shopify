@@ -6,4 +6,5 @@ export type StoreMode =
   | "ELECTRONICS"
   | "FURNITURE"
   | "BEAUTY"
+  | "JEWELLERY"
   | "GENERAL";

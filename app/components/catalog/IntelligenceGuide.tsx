@@ -49,12 +49,15 @@ const STEPS: Step[] = [
 ];
 
 type LegendItem = { label: string; body: string };
+// Industry-neutral legend (006a §3.5 multi-industry expansion). Describes
+// the *idea* behind axes rather than naming fashion-coded examples, so the
+// copy holds up across electronics / furniture / beauty / jewellery shops.
 const LEGEND: LegendItem[] = [
-  { label: "Occasion", body: "When the product is worn (work, weekend, evening)." },
-  { label: "Category", body: "What the product is (shirt, dress, jacket)." },
-  { label: "Style type", body: "The overall mood (classic, streetwear, minimalist)." },
-  { label: "Fit", body: "How it sits on the body (regular, slim, oversized)." },
-  { label: "Statement piece", body: "Whether it anchors an outfit or supports one." },
+  { label: "Category", body: "What the product is — its primary type or function." },
+  { label: "Attributes", body: "Material, colour, size and other intrinsic facts about the product." },
+  { label: "Use case", body: "When and where the product is used or worn." },
+  { label: "Audience", body: "Who the product is made for (gender, age, skill level, etc.)." },
+  { label: "Tier", body: "Where the product sits on price, quality or premium ladder." },
 ];
 
 type Props = {

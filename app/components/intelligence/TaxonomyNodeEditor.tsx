@@ -122,7 +122,7 @@ export function TaxonomyNodeEditor({ node, allNodes, saving, onSave }: Props) {
             value={keywordsRaw}
             label="Match keywords"
             label-accessibility-visibility="exclusive"
-            placeholder="kurta, kurti"
+            placeholder="keyword, another keyword"
             onInput={(e: Event) =>
               setKeywordsRaw((e.currentTarget as HTMLInputElement).value)
             }

@@ -231,10 +231,9 @@ export function RuleEditor({ draft, taxonomyNodes, saving, onCancel, onSave, onT
               setEnabled((e.currentTarget as HTMLInputElement).checked)
             }
           />
-          <s-text-field
+          <s-number-field
             value={priority}
             label="Priority"
-            type="number"
             onInput={(e: Event) => setPriority((e.currentTarget as HTMLInputElement).value)}
           />
         </s-stack>
@@ -412,19 +411,17 @@ function SimpleConditionEditor({
       </s-select>
       {condition.kind === "price_range" ? (
         <>
-          <s-text-field
+          <s-number-field
             value={condition.min === undefined ? "" : String(condition.min)}
             label="Min"
-            type="number"
             onInput={(e: Event) => {
               const v = (e.currentTarget as HTMLInputElement).value;
               onChange({ ...condition, min: v === "" ? undefined : Number(v) });
             }}
           />
-          <s-text-field
+          <s-number-field
             value={condition.max === undefined ? "" : String(condition.max)}
             label="Max"
-            type="number"
             onInput={(e: Event) => {
               const v = (e.currentTarget as HTMLInputElement).value;
               onChange({ ...condition, max: v === "" ? undefined : Number(v) });

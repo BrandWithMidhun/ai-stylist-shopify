@@ -5,6 +5,7 @@ export const STORE_MODES = [
   "ELECTRONICS",
   "FURNITURE",
   "BEAUTY",
+  "JEWELLERY",
   "GENERAL",
 ] as const;
 export type StoreMode = (typeof STORE_MODES)[number];

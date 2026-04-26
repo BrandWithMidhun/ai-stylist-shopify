@@ -25,6 +25,7 @@ const STORE_MODE_OPTIONS: { value: StoreMode; label: string }[] = [
   { value: "ELECTRONICS", label: "Electronics" },
   { value: "FURNITURE", label: "Furniture" },
   { value: "BEAUTY", label: "Beauty" },
+  { value: "JEWELLERY", label: "Jewellery" },
   { value: "GENERAL", label: "General commerce" },
 ];
 
