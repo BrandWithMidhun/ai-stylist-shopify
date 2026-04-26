@@ -164,6 +164,11 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         timestamp: agentResult.message.timestamp,
         suggestions: agentResult.message.suggestions,
         products: agentResult.message.products,
+        // 008 Phase 3: lets the widget distinguish "no tool call" (small
+        // talk) from "tool ran but returned nothing" (empty state UI).
+        // toolCalls is debug-only on the agent output, but this single flag
+        // is part of the wire contract.
+        searched: agentResult.debug.toolCalls > 0,
       },
     },
     { status: 200, headers },

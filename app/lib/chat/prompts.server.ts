@@ -5,11 +5,17 @@
 // new mode is one entry in MODE_CONTEXT.
 
 import type { MerchantConfig } from "@prisma/client";
-import { getEffectiveAgentName } from "../merchant-config.server";
-import type { StoreMode } from "../merchant-config";
+import {
+  getEffectiveAgentName,
+  getEffectiveShopName,
+} from "../merchant-config.server";
+import {
+  DEFAULT_CHAT_WELCOME_MESSAGE,
+  type StoreMode,
+} from "../merchant-config";
 
 export function buildSystemPrompt(config: MerchantConfig): string {
-  const shopName = deriveShopName(config.shop);
+  const shopName = getEffectiveShopName(config);
   const agentName = getEffectiveAgentName(config);
 
   const base = `You are ${agentName}, a shopping assistant for ${shopName}. Your job is to help customers find products they'll love.
@@ -26,24 +32,42 @@ If you don't know something, say so. Don't make up product details.`;
   return `${base}\n\n${modeContext}`;
 }
 
-// Derive a human-readable shop name from the myshopify domain. The schema
-// has no shopName column (deferred); strip the .myshopify.com tail and
-// title-case the remainder. Falls back to "this store" if the input is
-// missing or doesn't follow the expected pattern.
-export function deriveShopName(shopDomain: string | null | undefined): string {
-  if (!shopDomain) return "this store";
-  const trimmed = shopDomain.trim().toLowerCase();
-  const stem = trimmed.endsWith(".myshopify.com")
-    ? trimmed.slice(0, -".myshopify.com".length)
-    : trimmed;
-  if (!stem) return "this store";
-  // Replace dashes with spaces, title-case word starts.
-  return stem
-    .split("-")
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+// Mode-aware welcome message templates per spec §3.2. Placeholders:
+//   {agentName} — resolved via getEffectiveAgentName
+//   {shopName}  — resolved via getEffectiveShopName
+// If the merchant has overridden chatWelcomeMessage to anything other than
+// the legacy default, that override wins (placeholders still get replaced
+// for forward-compat). New shops, and shops still on the default copy,
+// pick up the mode-aware template automatically.
+export function getWelcomeMessage(config: MerchantConfig): string {
+  const agentName = getEffectiveAgentName(config);
+  const shopName = getEffectiveShopName(config);
+
+  const merchantOverride = config.chatWelcomeMessage?.trim();
+  const template =
+    merchantOverride && merchantOverride !== DEFAULT_CHAT_WELCOME_MESSAGE
+      ? merchantOverride
+      : WELCOME_TEMPLATES[config.storeMode as StoreMode];
+
+  return template
+    .replaceAll("{agentName}", agentName)
+    .replaceAll("{shopName}", shopName);
 }
+
+const WELCOME_TEMPLATES: Record<StoreMode, string> = {
+  FASHION:
+    "Hi, I'm {agentName} from {shopName}. How can I help you find your next favorite piece?",
+  JEWELLERY:
+    "Hi, I'm {agentName} from {shopName}. How can I help you find your next favorite piece?",
+  ELECTRONICS:
+    "Hi, I'm {agentName} from {shopName}. What can I help you find today?",
+  FURNITURE:
+    "Hi, I'm {agentName} from {shopName}. Let me help you find the perfect piece for your space.",
+  BEAUTY:
+    "Hi, I'm {agentName} from {shopName}. Looking for something in particular?",
+  GENERAL:
+    "Hi, I'm {agentName} from {shopName}. What can I help you find?",
+};
 
 const MODE_CONTEXT: Record<StoreMode, (shopName: string) => string> = {
   FASHION: (shopName) =>

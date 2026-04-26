@@ -10,7 +10,9 @@ import {
   CTA_PLACEMENTS,
   DEFAULT_CHAT_PRIMARY_COLOR,
   DEFAULT_CHAT_WELCOME_MESSAGE,
+  SHOP_DISPLAY_NAME_MAX,
   STORE_MODES,
+  deriveShopNameFromDomain,
   getDefaultAgentName,
   type CtaPlacement,
   type StoreMode,
@@ -34,6 +36,18 @@ export function getEffectiveAgentName(config: MerchantConfig): string {
   );
 }
 
+// Resolve the effective shop name for chat copy: a merchant override wins,
+// otherwise we fall back to a name derived from the myshopify domain.
+// Used by the system prompt, welcome message, and metafield sync — every
+// place chat copy needs to address the customer with a real-feeling shop
+// name instead of the raw domain.
+export function getEffectiveShopName(config: MerchantConfig): string {
+  return (
+    config.shopDisplayName?.trim() ||
+    deriveShopNameFromDomain(config.shop)
+  );
+}
+
 
 export const merchantConfigFormSchema = z.object({
   storeMode: z.enum(STORE_MODES),
@@ -42,6 +56,11 @@ export const merchantConfigFormSchema = z.object({
     .string()
     .trim()
     .max(60)
+    .nullable(),
+  shopDisplayName: z
+    .string()
+    .trim()
+    .max(SHOP_DISPLAY_NAME_MAX)
     .nullable(),
   chatPrimaryColor: z
     .string()
@@ -71,6 +90,7 @@ export function defaultMerchantConfig(shop: string): MerchantConfigInput & {
     storeMode: "GENERAL" satisfies StoreMode,
     chatWidgetEnabled: true,
     chatAgentName: null,
+    shopDisplayName: null,
     chatPrimaryColor: DEFAULT_CHAT_PRIMARY_COLOR,
     chatWelcomeMessage: DEFAULT_CHAT_WELCOME_MESSAGE,
     ctaEnabled: true,
@@ -140,10 +160,16 @@ export function parseFormData(formData: FormData): MerchantConfigInput {
     typeof rawAgentName === "string" && rawAgentName.trim() !== ""
       ? rawAgentName.trim()
       : null;
+  const rawShopDisplayName = formData.get("shopDisplayName");
+  const shopDisplayName =
+    typeof rawShopDisplayName === "string" && rawShopDisplayName.trim() !== ""
+      ? rawShopDisplayName.trim()
+      : null;
   return merchantConfigFormSchema.parse({
     storeMode: formData.get("storeMode"),
     chatWidgetEnabled: parseBoolField(formData.get("chatWidgetEnabled")),
     chatAgentName: agentName,
+    shopDisplayName,
     chatPrimaryColor: formData.get("chatPrimaryColor") ?? "",
     chatWelcomeMessage: formData.get("chatWelcomeMessage") ?? "",
     ctaEnabled: parseBoolField(formData.get("ctaEnabled")),

@@ -22,8 +22,10 @@
     window.__AISTYLIST_CONFIG__ = {
       shopDomain: {{ shop.permanent_domain | json }},
       agentName: {{ chat_config.agentName | default: "AI Assistant" | json }},
+      shopName: {{ chat_config.shopName | default: "this store" | json }},
       primaryColor: {{ chat_config.primaryColor | default: "#000000" | json }},
       welcomeMessage: {{ chat_config.welcomeMessage | default: "Hi! I'm your shopping assistant. How can I help you today?" | json }},
+      welcomeChips: {{ chat_config.welcomeChips | default: empty | json }},
       ctaLabel: {{ chat_config.ctaLabel | default: "" | json }},
       configVersion: {{ chat_config.version | default: 0 | json }},
       chatEndpoint: "https://web-production-3b1d7.up.railway.app/api/chat/message"

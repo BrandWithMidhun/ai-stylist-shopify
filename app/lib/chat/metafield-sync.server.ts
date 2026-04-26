@@ -12,7 +12,13 @@
 // Postgres save stand — the metafield will be backfilled on next save.
 
 import type { MerchantConfig } from "@prisma/client";
-import { getEffectiveAgentName } from "../merchant-config.server";
+import {
+  getEffectiveAgentName,
+  getEffectiveShopName,
+} from "../merchant-config.server";
+import type { StoreMode } from "../merchant-config";
+import { getWelcomeMessage } from "./prompts.server";
+import { getWelcomeChips } from "./suggestions.server";
 
 const CURRENT_APP_INSTALLATION_QUERY = `#graphql
   query CurrentAppInstallationId {
@@ -31,15 +37,20 @@ const METAFIELDS_SET_MUTATION = `#graphql
 
 // Bump if the payload shape changes — the storefront widget can fall back
 // to defaults for older versions during a rolling deploy.
-export const CHAT_CONFIG_METAFIELD_VERSION = 1;
+//
+// version 2 (008 Phase 3): adds shopName, welcomeChips, and switches
+// welcomeMessage to a mode-aware computed string (no longer raw DB value).
+export const CHAT_CONFIG_METAFIELD_VERSION = 2;
 export const CHAT_CONFIG_METAFIELD_NAMESPACE = "ai_stylist";
 export const CHAT_CONFIG_METAFIELD_KEY = "chat_config";
 
 export interface ChatConfigPayload {
   storeMode: string;
   agentName: string;
+  shopName: string;
   primaryColor: string;
   welcomeMessage: string;
+  welcomeChips: string[];
   chatWidgetEnabled: boolean;
   ctaEnabled: boolean;
   ctaLabel: string;
@@ -53,8 +64,10 @@ export function buildChatConfigPayload(config: MerchantConfig): ChatConfigPayloa
   return {
     storeMode: config.storeMode,
     agentName: getEffectiveAgentName(config),
+    shopName: getEffectiveShopName(config),
     primaryColor: config.chatPrimaryColor,
-    welcomeMessage: config.chatWelcomeMessage,
+    welcomeMessage: getWelcomeMessage(config),
+    welcomeChips: getWelcomeChips(config.storeMode as StoreMode),
     chatWidgetEnabled: config.chatWidgetEnabled,
     ctaEnabled: config.ctaEnabled,
     ctaLabel: config.ctaLabel,

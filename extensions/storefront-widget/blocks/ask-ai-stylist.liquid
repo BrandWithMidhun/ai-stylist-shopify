@@ -1,21 +1,27 @@
 {%- comment -%}
   AI Stylist — App Block (merchant-placeable CTA on product pages).
 
-  Renders an "Ask AI Stylist" button that opens the chat widget with
-  product context. The widget itself is provided by the storefront-widget
-  App Embed; this block only supplies a click target and product payload.
+  008 Phase 3 redesign: small dark pill (~140-180px wide), sparkle icon on
+  the left, white text. Defers visually to the theme's primary Add-to-Cart
+  button while still standing out as a discovery CTA.
 
   Variant fallback chain (matches v1 spec):
     1. Liquid renders product.selected_or_first_available_variant.id as data attr
     2. JS reads data attr as initial value
     3. On click, JS overrides with window.ShopifyAnalytics?.meta?.selectedVariantId
        if present (default themes), else keeps liquid value (custom themes)
+
+  Default label resolves from the metafield-synced agentName ("Ask Aria" for
+  fashion/jewellery, "Ask AI Assistant" otherwise). Merchant can override
+  the entire label via the block setting.
 {%- endcomment -%}
 
 {%- liquid
-  assign btn_label = block.settings.cta_label | default: 'Ask AI Stylist'
-  assign style = block.settings.button_style | default: 'outline'
-  assign show_icon = block.settings.show_icon
+  assign chat_config = app.metafields.ai_stylist.chat_config.value
+  assign agent_name = chat_config.agentName | default: 'Aria'
+  assign default_label = 'Ask ' | append: agent_name
+  assign btn_label = block.settings.cta_label | default: default_label
+  assign primary = block.settings.primary_color | default: '#18181b'
   assign variant_id = product.selected_or_first_available_variant.id
   assign featured_image = product.featured_image | image_url: width: 200
 -%}
@@ -23,7 +29,7 @@
 <div class="aistylist-cta-wrap" {{ block.shopify_attributes }}>
   <button
     type="button"
-    class="aistylist-cta aistylist-cta--{{ style }}"
+    class="aistylist-cta"
     data-aistylist-cta
     data-product-handle="{{ product.handle }}"
     data-product-title="{{ product.title | escape }}"
@@ -31,61 +37,67 @@
     data-variant-id="{{ variant_id }}"
     aria-label="{{ btn_label | escape }}"
   >
-    {%- if show_icon -%}
-      <svg class="aistylist-cta__icon" width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M21 12a8 8 0 0 1-11.5 7.2L3 21l1.8-6.5A8 8 0 1 1 21 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M12 7v3M12 13v.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+    <span class="aistylist-cta__avatar" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+        <path d="M12 2.5l1.7 5.1 5.1 1.7-5.1 1.7L12 16l-1.7-5.1-5.1-1.7 5.1-1.7L12 2.5zM18.5 14l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9.9-2.6zM5 16l.7 1.9 1.9.7-1.9.7L5 21.3l-.7-1.9-1.9-.7 1.9-.7L5 16z"/>
       </svg>
-    {%- endif -%}
+    </span>
     <span class="aistylist-cta__label">{{ btn_label | escape }}</span>
   </button>
 </div>
 
 <style>
   .aistylist-cta-wrap {
-    /* Match the visual rhythm of typical Shopify cart-action stacks: full
-       width, vertical breathing room above/below so the button sits between
-       variant pickers and Add to Cart without crowding either. */
+    /* Right-aligned pill that floats below the standard add-to-bag area
+       per spec §3.7. On narrow screens it falls back to its natural width
+       so it doesn't crowd small viewports. */
+    display: flex;
+    justify-content: flex-end;
     margin: 12px 0;
-    width: 100%;
   }
   .aistylist-cta {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 8px;
-    width: 100%;
-    justify-content: center;
-    /* Padding tuned to sit close to standard theme button height without
-       outsizing Add to Cart. */
-    padding: 13px 24px;
-    /* Inherit theme button radius if available (Dawn et al. expose
-       --buttons-radius / --button-border-radius). 4px fallback keeps the
-       outline button visually subordinate to filled theme primaries. */
-    border-radius: var(--buttons-radius, var(--button-border-radius, 4px));
+    /* Compact: ~140-180px wide depending on label length. Padding tuned to
+       sit visually below typical cart-action stacks without crowding them. */
+    padding: 10px 16px;
+    border-radius: 999px;
     font: inherit;
-    font-weight: 500;
+    font-weight: 600;
+    font-size: 13px;
     line-height: 1.2;
     cursor: pointer;
-    transition: transform 150ms ease, background-color 200ms ease, color 200ms ease;
-    /* Outline style — subordinate "discovery" CTA, defers to Add to Cart. */
-    border: 1px solid {{ block.settings.primary_color | default: '#000000' }};
-    background: transparent;
-    color: {{ block.settings.primary_color | default: '#000000' }};
-  }
-  .aistylist-cta--filled {
-    background: {{ block.settings.primary_color | default: '#000000' }};
+    transition: transform 150ms ease, opacity 200ms ease;
+    border: 1px solid {{ primary }};
+    background: {{ primary }};
     color: #ffffff;
+    white-space: nowrap;
   }
-  .aistylist-cta:hover {
-    background: {{ block.settings.primary_color | default: '#000000' }};
-    color: #ffffff;
-  }
+  .aistylist-cta:hover { opacity: 0.9; }
   .aistylist-cta:focus-visible {
-    outline: 2px solid {{ block.settings.primary_color | default: '#000000' }};
+    outline: 2px solid {{ primary }};
     outline-offset: 2px;
   }
   .aistylist-cta:active { transform: scale(0.98); }
-  .aistylist-cta__icon { flex-shrink: 0; }
+  .aistylist-cta__avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+  .aistylist-cta__avatar svg {
+    width: 16px;
+    height: 16px;
+  }
+  @media (max-width: 640px) {
+    /* On small screens go full width — keeps the CTA tappable without
+       being cramped against the right edge. */
+    .aistylist-cta-wrap { justify-content: stretch; }
+    .aistylist-cta { width: 100%; justify-content: center; }
+  }
 </style>
 
 <script src="{{ 'cta-button.js' | asset_url }}" defer></script>
@@ -102,29 +114,13 @@
       "type": "text",
       "id": "cta_label",
       "label": "Button label",
-      "default": "Ask AI Stylist"
-    },
-    {
-      "type": "checkbox",
-      "id": "show_icon",
-      "label": "Show chat icon",
-      "default": true
-    },
-    {
-      "type": "select",
-      "id": "button_style",
-      "label": "Button style",
-      "options": [
-        { "value": "outline", "label": "Outline" },
-        { "value": "filled", "label": "Filled" }
-      ],
-      "default": "outline"
+      "info": "Leave blank to use 'Ask {agentName}' from your chat config."
     },
     {
       "type": "color",
       "id": "primary_color",
       "label": "Primary color",
-      "default": "#000000"
+      "default": "#18181b"
     }
   ]
 }

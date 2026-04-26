@@ -11,6 +11,8 @@ import { authenticate } from "../shopify.server";
 import {
   CHAT_WELCOME_MESSAGE_MAX,
   CTA_LABEL_MAX,
+  SHOP_DISPLAY_NAME_MAX,
+  deriveShopNameFromDomain,
   getDefaultAgentName,
   type CtaPlacement,
   type StoreMode,
@@ -92,6 +94,9 @@ export default function ConfigPage() {
   const [chatAgentName, setChatAgentName] = useState<string>(
     config.chatAgentName ?? "",
   );
+  const [shopDisplayName, setShopDisplayName] = useState<string>(
+    config.shopDisplayName ?? "",
+  );
   const [chatPrimaryColor, setChatPrimaryColor] = useState<string>(
     config.chatPrimaryColor,
   );
@@ -100,6 +105,7 @@ export default function ConfigPage() {
   );
   const fashionOnlyLocked = storeMode !== "FASHION";
   const agentNamePlaceholder = getDefaultAgentName(storeMode);
+  const shopNamePlaceholder = deriveShopNameFromDomain(config.shop);
 
   useEffect(() => {
     if (!actionData) return;
@@ -205,6 +211,18 @@ export default function ConfigPage() {
               onInput={(event: Event) => {
                 const target = event.currentTarget as HTMLInputElement;
                 setChatAgentName(target.value);
+              }}
+            />
+            <s-text-field
+              label="Shop name (shown in chat)"
+              name="shopDisplayName"
+              value={shopDisplayName}
+              placeholder={shopNamePlaceholder}
+              max-length={SHOP_DISPLAY_NAME_MAX}
+              details="How your shop is referred to in chat. Leave blank to use the auto-detected name."
+              onInput={(event: Event) => {
+                const target = event.currentTarget as HTMLInputElement;
+                setShopDisplayName(target.value);
               }}
             />
             <s-color-field
