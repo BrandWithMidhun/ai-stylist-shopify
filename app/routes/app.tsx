@@ -17,11 +17,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // must exist before the widget loads on a customer's browser. The
   // metafieldsSet mutation upserts (idempotent on subsequent calls), so
   // running this on every /app/* load is cheap and self-healing — if a
-  // prior write failed (missing scope, transient error), the next visit
-  // catches it. Failures are logged but never block the merchant from
-  // reaching the admin UI; e.g., immediately after the scope expansion
-  // deploys, the merchant lands here without the new write_app_metafields
-  // grant and we want them to see the re-auth banner.
+  // prior write failed (transient error), the next visit catches it.
+  // Failures are logged but never block the merchant from reaching the
+  // admin UI.
   try {
     await syncChatConfigMetafield(admin, config);
   } catch (err) {

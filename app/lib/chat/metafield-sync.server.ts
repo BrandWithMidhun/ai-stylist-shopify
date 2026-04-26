@@ -1,9 +1,11 @@
 // Single source of truth for storefront chat config: writes a JSON
 // app-data metafield on the AppInstallation that the theme app extension
-// reads via {{ app.metafields.ai_stylist.chat_config.value }}. App-data
-// metafields are isolated per AppInstallation, hidden from the Shopify
-// admin, and require the write_app_metafields/read_app_metafields scopes
-// declared in shopify.app.toml.
+// reads via {{ app.metafields.ai_stylist.chat_config.value }}.
+//
+// NOTE: AppInstallation-owned metafields don't require any explicit access
+// scopes — the AppInstallation owner provides automatic isolation, so only
+// this app can read or write its own installation's metafields (per
+// https://shopify.dev/docs/apps/build/metafields).
 //
 // Throws on Shopify errors (network, GraphQL, userErrors). Callers in the
 // /app/config save path catch the throw, surface a toast, and let the
@@ -86,7 +88,7 @@ interface MetafieldsSetResponse {
 }
 
 export class MetafieldSyncError extends Error {
-  readonly code: "missing_scope" | "graphql_error" | "user_error";
+  readonly code: "graphql_error" | "user_error";
   constructor(code: MetafieldSyncError["code"], message: string) {
     super(message);
     this.code = code;
@@ -105,10 +107,7 @@ export async function syncChatConfigMetafield(
 
   if (installationJson.errors?.length) {
     const message = installationJson.errors.map((e) => e.message).join("; ");
-    throw new MetafieldSyncError(
-      isMissingScopeMessage(message) ? "missing_scope" : "graphql_error",
-      message,
-    );
+    throw new MetafieldSyncError("graphql_error", message);
   }
   const ownerId = installationJson.data?.currentAppInstallation?.id;
   if (!ownerId) {
@@ -136,10 +135,7 @@ export async function syncChatConfigMetafield(
 
   if (setJson.errors?.length) {
     const message = setJson.errors.map((e) => e.message).join("; ");
-    throw new MetafieldSyncError(
-      isMissingScopeMessage(message) ? "missing_scope" : "graphql_error",
-      message,
-    );
+    throw new MetafieldSyncError("graphql_error", message);
   }
   const userErrors = setJson.data?.metafieldsSet?.userErrors ?? [];
   if (userErrors.length) {
@@ -148,18 +144,4 @@ export async function syncChatConfigMetafield(
       userErrors.map((e) => `${e.field?.join(".") ?? ""}: ${e.message}`).join("; "),
     );
   }
-}
-
-// Heuristic: missing-scope errors come back as 403/access-denied messages
-// from the Shopify GraphQL gateway. Used to differentiate "merchant needs
-// to grant new scopes" from generic GraphQL failures so the UI can prompt
-// a reload rather than a generic retry.
-function isMissingScopeMessage(message: string): boolean {
-  const lower = message.toLowerCase();
-  return (
-    lower.includes("access denied") ||
-    lower.includes("not approved") ||
-    lower.includes("scope") ||
-    lower.includes("403")
-  );
 }

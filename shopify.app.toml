@@ -49,7 +49,7 @@ api_version = "2026-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,read_inventory,write_app_metafields,read_app_metafields"
+scopes = "write_products,read_inventory"
 
 [auth]
 redirect_urls = [ "https://web-production-3b1d7.up.railway.app/auth/callback" ]

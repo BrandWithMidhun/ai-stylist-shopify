@@ -21,10 +21,7 @@ import {
   parseFormData,
   upsertMerchantConfig,
 } from "../lib/merchant-config.server";
-import {
-  MetafieldSyncError,
-  syncChatConfigMetafield,
-} from "../lib/chat/metafield-sync.server";
+import { syncChatConfigMetafield } from "../lib/chat/metafield-sync.server";
 
 const STORE_MODE_OPTIONS: { value: StoreMode; label: string }[] = [
   { value: "FASHION", label: "Fashion" },
@@ -68,20 +65,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   // Postgres save succeeded — push to the storefront metafield. Failures
   // here surface a non-blocking warning: the merchant's data is safe, the
   // storefront just won't reflect this save until the next successful
-  // sync. missing_scope means the new write_app_metafields scope hasn't
-  // been granted yet (post-deploy re-auth), so prompt a reload.
+  // sync.
   try {
     await syncChatConfigMetafield(admin, config);
     return { ok: true as const, syncWarning: null };
   } catch (err) {
-    const code = err instanceof MetafieldSyncError ? err.code : "graphql_error";
     // eslint-disable-next-line no-console
     console.error(`[config] metafield sync failed for ${session.shop}:`, err);
-    const syncWarning =
-      code === "missing_scope"
-        ? "Storefront sync requires app permissions. Please reload to grant access."
-        : "Saved to database. Storefront sync pending — try saving again in a moment.";
-    return { ok: true as const, syncWarning };
+    return {
+      ok: true as const,
+      syncWarning:
+        "Saved to database. Storefront sync pending — try saving again in a moment.",
+    };
   }
 };
 
