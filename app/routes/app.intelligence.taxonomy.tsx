@@ -246,19 +246,22 @@ export default function TaxonomyPage() {
         .tax-page-layout { display: grid; grid-template-columns: 320px 1fr; gap: 16px; }
         @media (max-width: 900px) { .tax-page-layout { grid-template-columns: 1fr; } }
         .tax-toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+        .tax-actions { display: flex; gap: 8px; align-items: center; padding: 12px 0; margin-bottom: 8px; }
         .tax-progress { display: flex; align-items: center; gap: 8px; }
       `}</style>
-      <s-stack slot="primary-action" direction="inline" gap="small-200">
-        <s-button
-          onClick={() => setConfirmReset(true)}
-          {...(resetting ? { loading: true } : {})}
-        >
-          Reset to defaults
-        </s-button>
-        <s-button onClick={triggerRematch} {...(isRematching ? { loading: true } : {})}>
-          Re-match all products
-        </s-button>
-      </s-stack>
+      <div className="tax-actions">
+        <s-stack direction="inline" gap="small-200">
+          <s-button
+            onClick={() => setConfirmReset(true)}
+            {...(resetting ? { loading: true } : {})}
+          >
+            Reset to defaults
+          </s-button>
+          <s-button onClick={triggerRematch} {...(isRematching ? { loading: true } : {})}>
+            Re-match all products
+          </s-button>
+        </s-stack>
+      </div>
       {confirmReset ? (
         <s-banner tone="warning" heading={`Reset to ${storeModeLabel} defaults?`}>
           <s-paragraph>

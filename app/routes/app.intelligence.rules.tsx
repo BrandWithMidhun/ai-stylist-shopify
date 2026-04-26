@@ -286,27 +286,30 @@ export default function RulesPage() {
     <s-page heading="Tagging rules">
       <style>{`
         .rules-toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+        .rules-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 12px 0; margin-bottom: 8px; }
         .rules-list { display: flex; flex-direction: column; gap: 8px; }
         .rules-progress { display: flex; align-items: center; gap: 8px; }
       `}</style>
 
-      <s-stack slot="primary-action" direction="inline" gap="small-200">
-        <s-button
-          onClick={() => setConfirmReset(true)}
-          {...(resetting ? { loading: true } : {})}
-        >
-          Reset to defaults
-        </s-button>
-        <s-button
-          onClick={() => setConfirmApplyAll(true)}
-          {...(isApplying ? { loading: true } : {})}
-        >
-          Apply all rules
-        </s-button>
-        <s-button variant="primary" onClick={() => setDraft({ ...EMPTY_DRAFT })}>
-          Create rule
-        </s-button>
-      </s-stack>
+      <div className="rules-actions">
+        <s-stack direction="inline" gap="small-200">
+          <s-button
+            onClick={() => setConfirmReset(true)}
+            {...(resetting ? { loading: true } : {})}
+          >
+            Reset to defaults
+          </s-button>
+          <s-button
+            onClick={() => setConfirmApplyAll(true)}
+            {...(isApplying ? { loading: true } : {})}
+          >
+            Apply all rules
+          </s-button>
+          <s-button variant="primary" onClick={() => setDraft({ ...EMPTY_DRAFT })}>
+            Create rule
+          </s-button>
+        </s-stack>
+      </div>
 
       {error ? (
         <s-banner tone="critical" heading="Action failed" dismissible onDismiss={() => setError(null)}>
