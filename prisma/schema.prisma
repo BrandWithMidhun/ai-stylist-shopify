@@ -14,21 +14,21 @@ datasource db {
 }
 
 model Session {
-  id            String    @id
-  shop          String
-  state         String
-  isOnline      Boolean   @default(false)
-  scope         String?
-  expires       DateTime?
-  accessToken   String
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?
-  accountOwner  Boolean   @default(false)
-  locale        String?
-  collaborator  Boolean?  @default(false)
-  emailVerified Boolean?  @default(false)
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
 }
@@ -49,56 +49,106 @@ enum CtaPlacement {
 }
 
 model MerchantConfig {
-  id                   String       @id @default(cuid())
-  shop                 String       @unique
-  storeMode            StoreMode    @default(GENERAL)
-  chatWidgetEnabled    Boolean      @default(true)
-  chatAgentName        String?
-  shopDisplayName      String?
-  chatPrimaryColor     String       @default("#000000")
-  chatWelcomeMessage   String       @default("Hi! I'm your shopping assistant. How can I help you today?")
-  ctaEnabled           Boolean      @default(true)
-  ctaLabel             String       @default("Need help choosing?")
-  ctaPlacement         CtaPlacement @default(PRODUCT_PAGE)
-  quizEnabled          Boolean      @default(true)
-  lookbookEnabled      Boolean      @default(false)
-  stylistAgentEnabled  Boolean      @default(false)
-  commerceAgentEnabled Boolean      @default(true)
-  lastFullSyncAt       DateTime?
-  createdAt            DateTime     @default(now())
-  updatedAt            DateTime     @updatedAt
+  id                       String       @id @default(cuid())
+  shop                     String       @unique
+  storeMode                StoreMode    @default(GENERAL)
+  chatWidgetEnabled        Boolean      @default(true)
+  chatAgentName            String?
+  shopDisplayName          String?
+  chatPrimaryColor         String       @default("#000000")
+  // 011a: optional 2-stop linear gradient. When chatPrimaryColorEnd is null,
+  // the widget renders a solid color (current behavior).
+  chatPrimaryColorEnd      String?
+  chatPrimaryGradientAngle Int          @default(135)
+  chatWelcomeMessage       String       @default("Hi! I'm your shopping assistant. How can I help you today?")
+  ctaEnabled               Boolean      @default(true)
+  ctaLabel                 String       @default("Need help choosing?")
+  ctaPlacement             CtaPlacement @default(PRODUCT_PAGE)
+  quizEnabled              Boolean      @default(true)
+  lookbookEnabled          Boolean      @default(false)
+  stylistAgentEnabled      Boolean      @default(false)
+  commerceAgentEnabled     Boolean      @default(true)
+  lastFullSyncAt           DateTime?
+  createdAt                DateTime     @default(now())
+  updatedAt                DateTime     @updatedAt
+}
+
+// 011a: Quiz state machine.
+//
+// Anonymous-only in v1: keyed by (shopDomain, sessionId) where sessionId is
+// the cookie UUID from the storefront widget. No customer account linking.
+//
+// v1 limitation: storeMode change after a quiz is COMPLETED orphans the
+// existing row (different storeMode = different unique key). Acceptable —
+// completed profile is no longer reachable, fresh quiz starts on next try.
+// v2 could prompt the user to retake when storeMode changes.
+enum QuizState {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+model QuizSession {
+  id                 String       @id @default(cuid())
+  shopDomain         String
+  sessionId          String // anonymous cookie UUID from widget
+  storeMode          StoreMode
+  state              QuizState    @default(NOT_STARTED)
+  startedAt          DateTime?
+  completedAt        DateTime?
+  currentQuestionKey String?
+  answers            QuizAnswer[]
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  @@unique([shopDomain, sessionId, storeMode])
+  @@index([shopDomain, sessionId])
+}
+
+model QuizAnswer {
+  id          String   @id @default(cuid())
+  sessionId   String // FK to QuizSession.id (NOT the cookie UUID)
+  questionKey String
+  answerKey   String? // single-select
+  answerKeys  String[] // multi-select
+  answeredAt  DateTime @default(now())
+
+  session QuizSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, questionKey])
 }
 
 model Product {
-  id                String    @id @default(cuid())
-  shopDomain        String
-  shopifyId         String
-  handle            String
-  title             String
-  descriptionHtml   String?
-  productType       String?
-  vendor            String?
-  status            String
-  featuredImageUrl  String?
-  imageUrls         String[]
-  priceMin          Decimal?
-  priceMax          Decimal?
-  currency          String?
-  shopifyTags       String[]
-  totalInventory    Int?
-  inventoryStatus   String
-  shopifyCreatedAt  DateTime
-  shopifyUpdatedAt  DateTime
-  syncedAt          DateTime  @default(now())
-  deletedAt         DateTime?
-  recommendationExcluded Boolean @default(false)
-  taxonomyNodeId    String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                     String    @id @default(cuid())
+  shopDomain             String
+  shopifyId              String
+  handle                 String
+  title                  String
+  descriptionHtml        String?
+  productType            String?
+  vendor                 String?
+  status                 String
+  featuredImageUrl       String?
+  imageUrls              String[]
+  priceMin               Decimal?
+  priceMax               Decimal?
+  currency               String?
+  shopifyTags            String[]
+  totalInventory         Int?
+  inventoryStatus        String
+  shopifyCreatedAt       DateTime
+  shopifyUpdatedAt       DateTime
+  syncedAt               DateTime  @default(now())
+  deletedAt              DateTime?
+  recommendationExcluded Boolean   @default(false)
+  taxonomyNodeId         String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   variants     ProductVariant[]
   tags         ProductTag[]
-  taxonomyNode TaxonomyNode? @relation(fields: [taxonomyNodeId], references: [id], onDelete: SetNull)
+  taxonomyNode TaxonomyNode?    @relation(fields: [taxonomyNodeId], references: [id], onDelete: SetNull)
 
   @@unique([shopDomain, shopifyId])
   @@index([shopDomain, status])
@@ -109,22 +159,22 @@ model Product {
 }
 
 model ProductVariant {
-  id                 String   @id @default(cuid())
-  productId          String
-  shopifyId          String
-  title              String
-  sku                String?
-  price              Decimal
-  compareAtPrice     Decimal?
-  inventoryQuantity  Int?
-  inventoryItemId    String?
-  availableForSale   Boolean
-  option1            String?
-  option2            String?
-  option3            String?
-  imageUrl           String?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                String   @id @default(cuid())
+  productId         String
+  shopifyId         String
+  title             String
+  sku               String?
+  price             Decimal
+  compareAtPrice    Decimal?
+  inventoryQuantity Int?
+  inventoryItemId   String?
+  availableForSale  Boolean
+  option1           String?
+  option2           String?
+  option3           String?
+  imageUrl          String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 

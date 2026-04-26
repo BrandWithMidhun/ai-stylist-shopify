@@ -18,7 +18,11 @@ import {
 } from "../merchant-config.server";
 import type { StoreMode } from "../merchant-config";
 import { getWelcomeMessage } from "./prompts.server";
-import { getWelcomeChips } from "./suggestions.server";
+import {
+  getQuizCompletionPrompt,
+  getQuizEntryLabel,
+  getWelcomeChipsForWidget,
+} from "./suggestions.server";
 
 const CURRENT_APP_INSTALLATION_QUERY = `#graphql
   query CurrentAppInstallationId {
@@ -40,7 +44,11 @@ const METAFIELDS_SET_MUTATION = `#graphql
 //
 // version 2 (008 Phase 3): adds shopName, welcomeChips, and switches
 // welcomeMessage to a mode-aware computed string (no longer raw DB value).
-export const CHAT_CONFIG_METAFIELD_VERSION = 2;
+// version 3 (011a): adds primaryColorEnd + primaryGradientAngle (gradient
+// support), quizEnabled + quizEntry + quizCompletionPrompt (quiz runtime),
+// and drops welcomeChips[3] when quizEnabled (4-chip layout = 1 quiz +
+// first 3 welcome chips).
+export const CHAT_CONFIG_METAFIELD_VERSION = 3;
 export const CHAT_CONFIG_METAFIELD_NAMESPACE = "ai_stylist";
 export const CHAT_CONFIG_METAFIELD_KEY = "chat_config";
 
@@ -49,6 +57,10 @@ export interface ChatConfigPayload {
   agentName: string;
   shopName: string;
   primaryColor: string;
+  // 011a v3: nullable end color + angle. When primaryColorEnd is null the
+  // widget renders a solid color (back-compat for v2 readers).
+  primaryColorEnd: string | null;
+  primaryGradientAngle: number;
   welcomeMessage: string;
   welcomeChips: string[];
   chatWidgetEnabled: boolean;
@@ -57,23 +69,35 @@ export interface ChatConfigPayload {
   stylistEnabled: boolean;
   lookbookEnabled: boolean;
   commerceEnabled: boolean;
+  // 011a v3: quiz runtime config. quizEntry is null when quizEnabled is
+  // false; widget hides the entry chip in that case.
+  quizEnabled: boolean;
+  quizEntry: { label: string } | null;
+  quizCompletionPrompt: string;
   version: number;
 }
 
 export function buildChatConfigPayload(config: MerchantConfig): ChatConfigPayload {
+  const storeMode = config.storeMode as StoreMode;
+  const quizEnabled = config.quizEnabled;
   return {
     storeMode: config.storeMode,
     agentName: getEffectiveAgentName(config),
     shopName: getEffectiveShopName(config),
     primaryColor: config.chatPrimaryColor,
+    primaryColorEnd: config.chatPrimaryColorEnd,
+    primaryGradientAngle: config.chatPrimaryGradientAngle,
     welcomeMessage: getWelcomeMessage(config),
-    welcomeChips: getWelcomeChips(config.storeMode as StoreMode),
+    welcomeChips: getWelcomeChipsForWidget(storeMode, quizEnabled),
     chatWidgetEnabled: config.chatWidgetEnabled,
     ctaEnabled: config.ctaEnabled,
     ctaLabel: config.ctaLabel,
     stylistEnabled: config.stylistAgentEnabled,
     lookbookEnabled: config.lookbookEnabled,
     commerceEnabled: config.commerceAgentEnabled,
+    quizEnabled,
+    quizEntry: quizEnabled ? { label: getQuizEntryLabel(storeMode) } : null,
+    quizCompletionPrompt: getQuizCompletionPrompt(storeMode),
     version: CHAT_CONFIG_METAFIELD_VERSION,
   };
 }

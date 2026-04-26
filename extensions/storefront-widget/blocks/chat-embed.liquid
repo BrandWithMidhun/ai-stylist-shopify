@@ -21,14 +21,21 @@
   <script>
     window.__AISTYLIST_CONFIG__ = {
       shopDomain: {{ shop.permanent_domain | json }},
+      storeMode: {{ chat_config.storeMode | default: "GENERAL" | json }},
       agentName: {{ chat_config.agentName | default: "AI Assistant" | json }},
       shopName: {{ chat_config.shopName | default: "this store" | json }},
       primaryColor: {{ chat_config.primaryColor | default: "#000000" | json }},
+      primaryColorEnd: {{ chat_config.primaryColorEnd | default: empty | json }},
+      primaryGradientAngle: {{ chat_config.primaryGradientAngle | default: 135 | json }},
       welcomeMessage: {{ chat_config.welcomeMessage | default: "Hi! I'm your shopping assistant. How can I help you today?" | json }},
       welcomeChips: {{ chat_config.welcomeChips | default: empty | json }},
       ctaLabel: {{ chat_config.ctaLabel | default: "" | json }},
+      quizEnabled: {{ chat_config.quizEnabled | default: false | json }},
+      quizEntry: {{ chat_config.quizEntry | default: empty | json }},
+      quizCompletionPrompt: {{ chat_config.quizCompletionPrompt | default: "Show me recommendations based on my profile" | json }},
       configVersion: {{ chat_config.version | default: 0 | json }},
-      chatEndpoint: "https://web-production-3b1d7.up.railway.app/api/chat/message"
+      chatEndpoint: "https://web-production-3b1d7.up.railway.app/api/chat/message",
+      quizEndpoint: "https://web-production-3b1d7.up.railway.app/api/quiz"
     };
   </script>
   <script src="{{ 'chat-widget.js' | asset_url }}" defer></script>

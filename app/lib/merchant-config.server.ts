@@ -4,10 +4,13 @@ import prisma from "../db.server";
 import { seedTaxonomy } from "./catalog/taxonomy-seeds";
 import { seedRules } from "./catalog/rule-seeds";
 import {
+  CHAT_GRADIENT_ANGLE_MAX,
+  CHAT_GRADIENT_ANGLE_MIN,
   CHAT_PRIMARY_COLOR_REGEX,
   CHAT_WELCOME_MESSAGE_MAX,
   CTA_LABEL_MAX,
   CTA_PLACEMENTS,
+  DEFAULT_CHAT_GRADIENT_ANGLE,
   DEFAULT_CHAT_PRIMARY_COLOR,
   DEFAULT_CHAT_WELCOME_MESSAGE,
   SHOP_DISPLAY_NAME_MAX,
@@ -66,6 +69,17 @@ export const merchantConfigFormSchema = z.object({
     .string()
     .trim()
     .regex(CHAT_PRIMARY_COLOR_REGEX, "Use a 6-digit hex like #000000."),
+  // 011a: 2-stop gradient. End color null = solid color (gradient off).
+  chatPrimaryColorEnd: z
+    .string()
+    .trim()
+    .regex(CHAT_PRIMARY_COLOR_REGEX, "Use a 6-digit hex like #000000.")
+    .nullable(),
+  chatPrimaryGradientAngle: z
+    .number()
+    .int()
+    .min(CHAT_GRADIENT_ANGLE_MIN)
+    .max(CHAT_GRADIENT_ANGLE_MAX),
   chatWelcomeMessage: z
     .string()
     .trim()
@@ -92,6 +106,8 @@ export function defaultMerchantConfig(shop: string): MerchantConfigInput & {
     chatAgentName: null,
     shopDisplayName: null,
     chatPrimaryColor: DEFAULT_CHAT_PRIMARY_COLOR,
+    chatPrimaryColorEnd: null,
+    chatPrimaryGradientAngle: DEFAULT_CHAT_GRADIENT_ANGLE,
     chatWelcomeMessage: DEFAULT_CHAT_WELCOME_MESSAGE,
     ctaEnabled: true,
     ctaLabel: "Need help choosing?",
@@ -165,12 +181,29 @@ export function parseFormData(formData: FormData): MerchantConfigInput {
     typeof rawShopDisplayName === "string" && rawShopDisplayName.trim() !== ""
       ? rawShopDisplayName.trim()
       : null;
+  // Gradient toggle drives whether the end color persists. When the
+  // checkbox is off, we explicitly nullify chatPrimaryColorEnd so a stale
+  // value from a prior save doesn't keep rendering as a gradient.
+  const gradientEnabled = parseBoolField(formData.get("chatPrimaryGradientEnabled"));
+  const rawEndColor = formData.get("chatPrimaryColorEnd");
+  const endColor =
+    gradientEnabled && typeof rawEndColor === "string" && rawEndColor.trim() !== ""
+      ? rawEndColor.trim()
+      : null;
+  const rawAngle = formData.get("chatPrimaryGradientAngle");
+  const angleNum =
+    typeof rawAngle === "string" && rawAngle.trim() !== ""
+      ? Number(rawAngle)
+      : DEFAULT_CHAT_GRADIENT_ANGLE;
+
   return merchantConfigFormSchema.parse({
     storeMode: formData.get("storeMode"),
     chatWidgetEnabled: parseBoolField(formData.get("chatWidgetEnabled")),
     chatAgentName: agentName,
     shopDisplayName,
     chatPrimaryColor: formData.get("chatPrimaryColor") ?? "",
+    chatPrimaryColorEnd: endColor,
+    chatPrimaryGradientAngle: Number.isFinite(angleNum) ? angleNum : DEFAULT_CHAT_GRADIENT_ANGLE,
     chatWelcomeMessage: formData.get("chatWelcomeMessage") ?? "",
     ctaEnabled: parseBoolField(formData.get("ctaEnabled")),
     ctaLabel: formData.get("ctaLabel") ?? "",

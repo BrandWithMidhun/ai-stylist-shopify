@@ -28,6 +28,11 @@
   var HISTORY_LIMIT = 10; // last N messages sent with each request
   var SCROLL_THRESHOLD_PX = 100;
   var DEFAULT_PRIMARY_COLOR = "#000000";
+  var DEFAULT_GRADIENT_ANGLE = 135;
+  // 011a: quiz API base. Each route appends /start, /answer, /skip, /profile.
+  // Leave trailing slash off; quizPath() concatenates.
+  var DEFAULT_QUIZ_ENDPOINT = "/api/quiz";
+  var DEFAULT_STORE_MODE = "GENERAL";
   var DEFAULT_WELCOME =
     "Hi! I'm your shopping assistant. How can I help you today?";
   // Defensive fallbacks only. The Liquid template injects agentName + shopName
@@ -93,11 +98,16 @@
 
   // ────────── styles (inline so they live inside shadow DOM) ──────────
   var STYLES = [
-    ":host { all: initial; --aistylist-primary: " + DEFAULT_PRIMARY_COLOR + "; --aistylist-fg-on-primary: #ffffff; --aistylist-bg: #ffffff; --aistylist-text: #18181b; --aistylist-muted: #71717a; --aistylist-faint: #999999; --aistylist-surface: #f4f4f5; --aistylist-border: #e4e4e7; --aistylist-online: #22c55e; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; color: var(--aistylist-text); position: fixed; bottom: 0; right: 0; z-index: 999998; pointer-events: none; }",
+    // 011a: --aistylist-primary stays a plain color (used by border-color,
+    // outline, color rules where gradients are illegal CSS). The new
+    // --aistylist-primary-bg is used everywhere a background-image gradient
+    // makes sense (buttons, bubbles, user message bg). When merchant has
+    // not opted into gradient, both vars hold the same color.
+    ":host { all: initial; --aistylist-primary: " + DEFAULT_PRIMARY_COLOR + "; --aistylist-primary-bg: " + DEFAULT_PRIMARY_COLOR + "; --aistylist-fg-on-primary: #ffffff; --aistylist-bg: #ffffff; --aistylist-text: #18181b; --aistylist-muted: #71717a; --aistylist-faint: #999999; --aistylist-surface: #f4f4f5; --aistylist-border: #e4e4e7; --aistylist-online: #22c55e; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif; color: var(--aistylist-text); position: fixed; bottom: 0; right: 0; z-index: 999998; pointer-events: none; }",
     ":host *, :host *::before, :host *::after { box-sizing: border-box; }",
     ".bubble, .panel, .chip, .send, .close, .min, .icon-btn, .pill, .new-msg, .empty-cta, .retry, .seeall { pointer-events: auto; }",
     // bubble
-    ".bubble { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 50%; background: var(--aistylist-primary); color: var(--aistylist-fg-on-primary); border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; transition: transform 150ms ease, opacity 200ms ease, box-shadow 200ms ease; }",
+    ".bubble { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 50%; background: var(--aistylist-primary-bg); color: var(--aistylist-fg-on-primary); border: none; cursor: pointer; box-shadow: 0 4px 16px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; transition: transform 150ms ease, opacity 200ms ease, box-shadow 200ms ease; }",
     ".bubble:hover { transform: scale(1.05); box-shadow: 0 6px 22px rgba(0,0,0,0.2); }",
     ".bubble:active { transform: scale(0.95); }",
     ".bubble svg { width: 26px; height: 26px; }",
@@ -131,7 +141,7 @@
     ".message { max-width: 85%; padding: 10px 14px; line-height: 1.4; font-size: 14px; word-wrap: break-word; animation: aistylist-msg-in 250ms ease-out; }",
     "@keyframes aistylist-msg-in { from { opacity: 0; transform: scale(0.9) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }",
     ".message.assistant { align-self: flex-start; background: var(--aistylist-surface); color: var(--aistylist-text); border-radius: 16px 16px 16px 4px; }",
-    ".message.user { align-self: flex-end; background: var(--aistylist-primary); color: var(--aistylist-fg-on-primary); border-radius: 16px 16px 4px 16px; }",
+    ".message.user { align-self: flex-end; background: var(--aistylist-primary-bg); color: var(--aistylist-fg-on-primary); border-radius: 16px 16px 4px 16px; }",
     // suggested label (008 Phase 3) — sits above welcome chips
     ".suggested-label { font-size: 11px; font-weight: 600; color: var(--aistylist-faint); text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px 6px; }",
     ".suggested-label:empty { display: none; }",
@@ -147,10 +157,11 @@
     ".seeall { font-size: 12px; color: var(--aistylist-muted); text-decoration: none; font-family: inherit; background: none; border: none; padding: 0; cursor: pointer; }",
     ".seeall:hover { color: var(--aistylist-text); }",
     // product cards (008 Phase 3 redesign — AI Pick badge, larger images, stacked pill buttons)
-    ".cards { display: flex; gap: 10px; padding: 4px 0 8px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; align-self: stretch; }",
-    ".cards::-webkit-scrollbar { height: 4px; }",
-    ".cards::-webkit-scrollbar-thumb { background: var(--aistylist-border); border-radius: 2px; }",
-    ".card { width: 240px; flex: 0 0 240px; scroll-snap-align: start; background: var(--aistylist-bg); border: 1px solid var(--aistylist-border); border-radius: 16px; overflow: hidden; padding: 12px; display: flex; flex-direction: column; gap: 10px; transition: box-shadow 200ms ease, transform 150ms ease; }",
+    // 011a: switched from horizontal scroll-snap to a 2-column grid on all
+    // viewports (per spec §7). Cards wrap to multiple rows when 4+ products
+    // returned. Title/button sizing tightened slightly to fit narrower cards.
+    ".cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; padding: 4px 0 8px; align-self: stretch; }",
+    ".card { background: var(--aistylist-bg); border: 1px solid var(--aistylist-border); border-radius: 16px; overflow: hidden; padding: 10px; display: flex; flex-direction: column; gap: 8px; transition: box-shadow 200ms ease, transform 150ms ease; min-width: 0; }",
     "@media (hover: hover) { .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); } }",
     ".card__media { position: relative; width: 100%; aspect-ratio: 1 / 1; background: var(--aistylist-surface); border-radius: 12px; overflow: hidden; cursor: pointer; }",
     ".card__media img { width: 100%; height: 100%; object-fit: cover; display: block; }",
@@ -159,34 +170,36 @@
     ".card__badge { position: absolute; top: 8px; left: 8px; display: inline-flex; align-items: center; gap: 4px; background: var(--aistylist-bg); color: var(--aistylist-text); font-size: 11px; font-weight: 600; padding: 4px 8px; border-radius: 999px; box-shadow: 0 1px 3px rgba(0,0,0,0.12); pointer-events: none; }",
     ".card__badge svg { width: 11px; height: 11px; }",
     ".card__info { display: flex; flex-direction: column; gap: 4px; }",
-    ".card__title { font-size: 14px; font-weight: 600; line-height: 1.3; color: var(--aistylist-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; min-height: 2.6em; cursor: pointer; }",
+    ".card__title { font-size: 13px; font-weight: 600; line-height: 1.3; color: var(--aistylist-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; min-height: 2.6em; cursor: pointer; }",
     ".card__price-row { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }",
-    ".card__price { font-size: 16px; font-weight: 700; color: var(--aistylist-text); }",
+    ".card__price { font-size: 14px; font-weight: 700; color: var(--aistylist-text); }",
     ".card__price.muted { font-weight: 500; color: var(--aistylist-muted); font-size: 13px; }",
     ".card__compare { font-size: 13px; color: var(--aistylist-faint); text-decoration: line-through; }",
     ".card__actions { display: flex; flex-direction: column; gap: 6px; margin-top: 2px; }",
-    ".card__btn { display: flex; align-items: center; justify-content: center; gap: 6px; font-family: inherit; font-size: 13px; font-weight: 600; padding: 10px 12px; border-radius: 999px; cursor: pointer; transition: opacity 150ms ease, transform 150ms ease, background-color 150ms ease; }",
+    ".card__btn { display: flex; align-items: center; justify-content: center; gap: 4px; font-family: inherit; font-size: 12px; font-weight: 600; padding: 8px 10px; border-radius: 999px; cursor: pointer; transition: opacity 150ms ease, transform 150ms ease, background-color 150ms ease; min-height: 36px; }",
     ".card__btn:active { transform: scale(0.98); }",
     ".card__btn svg { width: 14px; height: 14px; }",
-    ".card__btn.add { background: var(--aistylist-primary); border: 1px solid var(--aistylist-primary); color: var(--aistylist-fg-on-primary); }",
+    ".card__btn.add { background: var(--aistylist-primary-bg); border: 1px solid var(--aistylist-primary); color: var(--aistylist-fg-on-primary); }",
     ".card__btn.add[aria-disabled='true'] { background: var(--aistylist-surface); border-color: var(--aistylist-border); color: var(--aistylist-muted); cursor: not-allowed; opacity: 1; }",
     ".card__btn.add[aria-busy='true'] { opacity: 0.7; cursor: wait; }",
     ".card__btn.view { background: var(--aistylist-bg); border: 1px solid var(--aistylist-border); color: var(--aistylist-text); }",
     ".card__btn.view:hover { background: var(--aistylist-surface); }",
-    "@media (min-width: 641px) { .cards { flex-wrap: wrap; overflow-x: visible; } .card { flex: 0 0 calc(50% - 5px); width: auto; } }",
+    // 011a: cards stay 2-column on desktop within the panel. The grid defined
+    // above already produces 2 columns at panel widths from ~280px upwards;
+    // no desktop override needed.
     // empty state (008 Phase 3 §3.9)
     ".empty-state { align-self: stretch; padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; }",
     ".empty-state__icon { color: var(--aistylist-muted); }",
     ".empty-state__icon svg { width: 36px; height: 36px; opacity: 0.5; }",
     ".empty-state__text { color: var(--aistylist-muted); font-size: 13px; }",
-    ".empty-cta { display: inline-block; background: var(--aistylist-primary); color: var(--aistylist-fg-on-primary); border: none; border-radius: 999px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; font-family: inherit; }",
+    ".empty-cta { display: inline-block; background: var(--aistylist-primary-bg); color: var(--aistylist-fg-on-primary); border: none; border-radius: 999px; padding: 9px 18px; font-size: 13px; font-weight: 600; cursor: pointer; text-decoration: none; font-family: inherit; }",
     ".empty-cta:hover { opacity: 0.9; }",
     // error badge (008 Phase 3 §3.10)
     ".error-badge { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; background: rgba(239,68,68,0.08); color: #b91c1c; font-size: 11px; font-weight: 500; padding: 4px 10px; border-radius: 999px; margin-top: 4px; }",
     ".error-badge svg { width: 12px; height: 12px; }",
     ".error-badge .retry { background: none; border: none; color: inherit; cursor: pointer; font: inherit; padding: 0 0 0 4px; text-decoration: underline; }",
     // toast (cart confirmation)
-    ".toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); background: var(--aistylist-primary); color: var(--aistylist-fg-on-primary); padding: 10px 18px; border-radius: 999px; font-size: 13px; font-weight: 500; box-shadow: 0 6px 20px rgba(0,0,0,0.2); opacity: 0; pointer-events: none; transition: opacity 200ms ease, transform 200ms ease; z-index: 999999; max-width: calc(100vw - 32px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }",
+    ".toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); background: var(--aistylist-primary-bg); color: var(--aistylist-fg-on-primary); padding: 10px 18px; border-radius: 999px; font-size: 13px; font-weight: 500; box-shadow: 0 6px 20px rgba(0,0,0,0.2); opacity: 0; pointer-events: none; transition: opacity 200ms ease, transform 200ms ease; z-index: 999999; max-width: calc(100vw - 32px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }",
     ".toast.show { opacity: 1; transform: translate(-50%, 0); }",
     // suggestions
     ".suggestions { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 10px; }",
@@ -205,15 +218,59 @@
     ".icon-btn svg { width: 18px; height: 18px; }",
     ".input { flex: 1; min-width: 0; border: none; background: transparent; padding: 8px 6px; font-size: 14px; outline: none; font-family: inherit; color: var(--aistylist-text); }",
     ".input::placeholder { color: var(--aistylist-muted); }",
-    ".send { background: var(--aistylist-primary); color: var(--aistylist-fg-on-primary); border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity 150ms ease, transform 150ms ease; }",
+    ".send { background: var(--aistylist-primary-bg); color: var(--aistylist-fg-on-primary); border: none; width: 36px; height: 36px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: opacity 150ms ease, transform 150ms ease; }",
     ".send:hover:not([aria-disabled='true']) { transform: scale(1.05); }",
     ".send:active:not([aria-disabled='true']) { transform: scale(0.95); }",
     ".send[aria-disabled='true'] { opacity: 0.4; cursor: not-allowed; }",
     ".send svg { width: 16px; height: 16px; }",
     // disclaimer footer (008 Phase 3 §3.5)
     ".disclaimer { font-size: 11px; color: var(--aistylist-faint); text-align: center; padding: 6px 16px 12px; }",
+    // 011a: quiz mode UI. The panel uses [data-mode] to swap which sections
+    // render. Chat-only nodes hide when data-mode != "chat"; quiz-only and
+    // completion-only nodes show only in their respective modes. This keeps
+    // markup co-located with chat (no overlay) and preserves chat scroll
+    // position when bouncing back from quiz.
+    ".panel[data-mode='quiz'] .messages, .panel[data-mode='quiz'] .input-wrap, .panel[data-mode='quiz'] .disclaimer, .panel[data-mode='quiz'] .suggestions, .panel[data-mode='quiz'] .suggested-label, .panel[data-mode='quiz'] .new-msg, .panel[data-mode='quiz'] .context-pill { display: none !important; }",
+    ".panel[data-mode='completion'] .messages, .panel[data-mode='completion'] .input-wrap, .panel[data-mode='completion'] .disclaimer, .panel[data-mode='completion'] .suggestions, .panel[data-mode='completion'] .suggested-label, .panel[data-mode='completion'] .new-msg, .panel[data-mode='completion'] .context-pill { display: none !important; }",
+    ".quiz-progress, .quiz-body, .quiz-completion { display: none; }",
+    ".panel[data-mode='quiz'] .quiz-progress, .panel[data-mode='quiz'] .quiz-body { display: flex; }",
+    ".panel[data-mode='completion'] .quiz-completion { display: flex; }",
+    // progress header
+    ".quiz-progress { flex-direction: column; gap: 6px; padding: 12px 16px 8px; border-bottom: 1px solid rgba(0,0,0,0.06); }",
+    ".quiz-progress__label { font-size: 12px; font-weight: 600; color: var(--aistylist-muted); }",
+    ".quiz-progress__bar { width: 100%; height: 4px; background: var(--aistylist-surface); border-radius: 999px; overflow: hidden; }",
+    ".quiz-progress__fill { height: 100%; background: var(--aistylist-primary-bg); border-radius: 999px; transition: width 250ms ease; }",
+    // body (question + options + skip)
+    ".quiz-body { flex: 1; flex-direction: column; padding: 20px; overflow-y: auto; gap: 16px; }",
+    ".quiz-question { font-size: 19px; font-weight: 600; color: var(--aistylist-text); line-height: 1.3; }",
+    ".quiz-help { font-size: 13px; color: var(--aistylist-muted); margin-top: -10px; }",
+    ".quiz-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }",
+    ".quiz-option { background: var(--aistylist-bg); border: 1.5px solid var(--aistylist-border); border-radius: 12px; padding: 14px 12px; min-height: 56px; font-size: 14px; font-weight: 500; color: var(--aistylist-text); cursor: pointer; font-family: inherit; text-align: center; line-height: 1.3; transition: border-color 150ms ease, background-color 150ms ease, transform 100ms ease; display: flex; align-items: center; justify-content: center; gap: 6px; }",
+    "@media (hover: hover) { .quiz-option:hover:not(.selected) { border-color: var(--aistylist-primary); } }",
+    ".quiz-option:active { transform: scale(0.98); }",
+    ".quiz-option.selected { background: var(--aistylist-primary-bg); border-color: var(--aistylist-primary); color: var(--aistylist-fg-on-primary); }",
+    ".quiz-option .check { width: 14px; height: 14px; }",
+    ".quiz-continue { background: var(--aistylist-primary-bg); color: var(--aistylist-fg-on-primary); border: none; border-radius: 999px; padding: 12px 20px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; transition: opacity 150ms ease, transform 150ms ease; align-self: stretch; }",
+    ".quiz-continue:active { transform: scale(0.98); }",
+    ".quiz-continue[aria-disabled='true'] { opacity: 0.4; cursor: not-allowed; }",
+    ".quiz-skip { background: none; border: none; color: var(--aistylist-muted); font-size: 13px; cursor: pointer; padding: 8px; font-family: inherit; align-self: center; text-decoration: underline; text-underline-offset: 2px; }",
+    ".quiz-skip:hover { color: var(--aistylist-text); }",
+    // completion screen
+    ".quiz-completion { flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px; text-align: center; }",
+    ".quiz-completion__icon { width: 56px; height: 56px; border-radius: 50%; background: var(--aistylist-primary-bg); color: var(--aistylist-fg-on-primary); display: flex; align-items: center; justify-content: center; }",
+    ".quiz-completion__icon svg { width: 28px; height: 28px; }",
+    ".quiz-completion__heading { font-size: 20px; font-weight: 600; color: var(--aistylist-text); }",
+    ".quiz-completion__sub { font-size: 14px; color: var(--aistylist-muted); max-width: 280px; line-height: 1.4; }",
+    ".quiz-completion__cta { background: var(--aistylist-primary-bg); color: var(--aistylist-fg-on-primary); border: none; border-radius: 999px; padding: 12px 24px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; min-width: 220px; transition: opacity 150ms ease, transform 150ms ease; }",
+    ".quiz-completion__cta:active { transform: scale(0.98); }",
+    ".quiz-completion__edit { background: none; border: none; color: var(--aistylist-muted); font-size: 13px; cursor: pointer; padding: 6px; font-family: inherit; text-decoration: underline; text-underline-offset: 2px; }",
+    ".quiz-completion__edit:hover { color: var(--aistylist-text); }",
+    // quiz entry chip — sparkle prefix on the first welcome chip slot when
+    // quizEnabled. .chip.quiz-chip wraps the existing .chip styling.
+    ".chip.quiz-chip { display: inline-flex; align-items: center; gap: 6px; }",
+    ".chip.quiz-chip svg { width: 14px; height: 14px; color: var(--aistylist-primary); flex-shrink: 0; }",
     // new-message pill
-    ".new-msg { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); background: var(--aistylist-primary); color: var(--aistylist-fg-on-primary); border: none; border-radius: 999px; padding: 6px 14px; font-size: 12px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); opacity: 0; pointer-events: none; transition: opacity 200ms ease; font-family: inherit; }",
+    ".new-msg { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); background: var(--aistylist-primary-bg); color: var(--aistylist-fg-on-primary); border: none; border-radius: 999px; padding: 6px 14px; font-size: 12px; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); opacity: 0; pointer-events: none; transition: opacity 200ms ease; font-family: inherit; }",
     ".new-msg.visible { opacity: 1; pointer-events: auto; }",
     // mobile
     "@media (max-width: 640px) {",
@@ -222,7 +279,11 @@
     "  .panel { width: 100vw; height: 100vh; max-width: 100vw; max-height: 100vh; bottom: 0; right: 0; border-radius: 0; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }",
     "  @supports (height: 100dvh) { .panel { height: 100dvh; max-height: 100dvh; } }",
     "  .header { padding: 12px 14px; }",
-    "  .card { width: 80%; flex: 0 0 80%; }",
+    // 011a: mobile cards use the same 2-col grid (no override needed). The
+    // grid container is defined unconditionally above. Tighten quiz body
+    // padding to leave more vertical room for options.
+    "  .quiz-body { padding: 16px; }",
+    "  .quiz-question { font-size: 17px; }",
     "}",
     "@media (prefers-reduced-motion: reduce) {",
     "  .bubble.pulse { animation: none; }",
@@ -291,6 +352,18 @@
     '<path d="M12 3l10 18H2L12 3z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>' +
     '<path d="M12 10v4M12 17v.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
     "</svg>";
+  // 011a: small checkmark for selected multi-select options.
+  var ICON_CHECK =
+    '<svg class="check" viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<path d="M5 12l5 5 9-11" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>' +
+    "</svg>";
+  // 011a: target/dart icon for the quiz completion screen.
+  var ICON_TARGET =
+    '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+    '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/>' +
+    '<circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.8"/>' +
+    '<circle cx="12" cy="12" r="2" fill="currentColor"/>' +
+    "</svg>";
 
   // ────────── component ──────────
   class AIStylistWidget extends HTMLElement {
@@ -309,15 +382,39 @@
       var welcomeChips = Array.isArray(config.welcomeChips) && config.welcomeChips.length > 0
         ? config.welcomeChips.slice(0)
         : FALLBACK_WELCOME_CHIPS.slice(0);
+      // 011a: quiz + gradient config. Defensive defaults so a v2 metafield
+      // (no quiz/gradient fields) renders identical to pre-011a behavior.
+      var primaryColorEnd =
+        typeof config.primaryColorEnd === "string" && /^#[0-9a-f]{6}$/i.test(config.primaryColorEnd)
+          ? config.primaryColorEnd
+          : null;
+      var gradientAngle =
+        typeof config.primaryGradientAngle === "number" && config.primaryGradientAngle >= 0 && config.primaryGradientAngle <= 360
+          ? config.primaryGradientAngle
+          : DEFAULT_GRADIENT_ANGLE;
+      var quizEntry =
+        config.quizEntry && typeof config.quizEntry === "object" && typeof config.quizEntry.label === "string"
+          ? { label: config.quizEntry.label }
+          : null;
       this._config = {
         shopDomain: config.shopDomain || (window.Shopify && window.Shopify.shop) || "",
+        storeMode: typeof config.storeMode === "string" ? config.storeMode : DEFAULT_STORE_MODE,
         primaryColor: config.primaryColor || DEFAULT_PRIMARY_COLOR,
+        primaryColorEnd: primaryColorEnd,
+        primaryGradientAngle: gradientAngle,
         welcomeMessage: config.welcomeMessage || DEFAULT_WELCOME,
         agentName: rawAgentName || DEFAULT_AGENT_NAME,
         shopName: rawShopName || DEFAULT_SHOP_NAME,
         agentSubtitle: DEFAULT_AGENT_SUBTITLE,
         welcomeChips: welcomeChips,
+        quizEnabled: config.quizEnabled === true && quizEntry !== null,
+        quizEntry: quizEntry,
+        quizCompletionPrompt:
+          typeof config.quizCompletionPrompt === "string" && config.quizCompletionPrompt.length > 0
+            ? config.quizCompletionPrompt
+            : "Show me recommendations based on my profile",
         chatEndpoint: config.chatEndpoint || "/api/chat/message",
+        quizEndpoint: config.quizEndpoint || DEFAULT_QUIZ_ENDPOINT,
       };
 
       this._state = {
@@ -328,6 +425,19 @@
         inputValue: "",
         newMsgPillVisible: false,
         lastUserQuery: "",
+        // 011a: 'chat' | 'quiz' | 'completion'. CSS data-mode attribute on
+        // .panel toggles which sections are visible. _setMode() is the only
+        // path that mutates this so panel visibility stays in sync.
+        mode: "chat",
+        // Quiz runtime state. Populated when /api/quiz/start succeeds; reset
+        // on completion/skip.
+        quiz: {
+          state: "NOT_STARTED",
+          currentQuestion: null,
+          selectedAnswers: [],   // for multi-select: array of option keys
+          currentIndex: 0,
+          total: 0,
+        },
       };
 
       this._previouslyFocused = null;
@@ -343,12 +453,20 @@
       style.textContent = STYLES;
       root.appendChild(style);
 
-      // host-level CSS variable for merchant primary color (cascades into all
-      // selectors that reference --aistylist-primary).
+      // 011a: --aistylist-primary stays a real color (used by border-color,
+      // outline, color rules). --aistylist-primary-bg is what backgrounds
+      // reference — set to either the same color or a linear-gradient(...)
+      // when the merchant has opted into a 2-stop gradient.
+      var primaryBg = this._config.primaryColorEnd
+        ? "linear-gradient(" + this._config.primaryGradientAngle + "deg, " +
+          this._config.primaryColor + ", " + this._config.primaryColorEnd + ")"
+        : this._config.primaryColor;
       this.style.setProperty("--aistylist-primary", this._config.primaryColor);
+      this.style.setProperty("--aistylist-primary-bg", primaryBg);
       var hostStyle = document.createElement("style");
       hostStyle.textContent =
-        ":host { --aistylist-primary: " + this._config.primaryColor + "; }";
+        ":host { --aistylist-primary: " + this._config.primaryColor +
+        "; --aistylist-primary-bg: " + primaryBg + "; }";
       root.appendChild(hostStyle);
 
       var agentName = this._config.agentName;
@@ -368,6 +486,11 @@
       panel.setAttribute("role", "dialog");
       panel.setAttribute("aria-modal", "true");
       panel.setAttribute("aria-label", "Chat with " + agentName);
+      // 011a: data-mode toggles which sections render. CSS hides chat-only
+      // nodes when mode != "chat" and shows quiz-only nodes when mode ==
+      // "quiz" or "completion". Single attribute mutation = whole-panel
+      // visibility swap, no JS conditional rendering.
+      panel.setAttribute("data-mode", "chat");
       panel.innerHTML =
         '<div class="header">' +
         '  <div class="avatar" aria-hidden="true">' + ICON_SPARKLE + '</div>' +
@@ -380,6 +503,13 @@
         '    <button class="close" aria-label="Close chat">' + ICON_CLOSE + "</button>" +
         "  </div>" +
         "</div>" +
+        // 011a: quiz progress + body. Hidden via CSS unless data-mode="quiz".
+        '<div class="quiz-progress" data-role="quiz-progress">' +
+        '  <div class="quiz-progress__label" data-role="quiz-progress-label"></div>' +
+        '  <div class="quiz-progress__bar"><div class="quiz-progress__fill" data-role="quiz-progress-fill" style="width: 0%"></div></div>' +
+        "</div>" +
+        '<div class="quiz-body" data-role="quiz-body" aria-live="polite"></div>' +
+        '<div class="quiz-completion" data-role="quiz-completion"></div>' +
         '<div class="context-pill" data-role="context-pill">' +
         '  <img alt="" data-role="context-image">' +
         '  <div class="context-pill__text">' +
@@ -415,6 +545,12 @@
       this._contextImg = panel.querySelector('[data-role="context-image"]');
       this._contextTitle = panel.querySelector('[data-role="context-title"]');
       this._newMsgPill = panel.querySelector('[data-role="new-msg"]');
+      // 011a: quiz mode roles
+      this._quizProgressEl = panel.querySelector('[data-role="quiz-progress"]');
+      this._quizProgressLabel = panel.querySelector('[data-role="quiz-progress-label"]');
+      this._quizProgressFill = panel.querySelector('[data-role="quiz-progress-fill"]');
+      this._quizBodyEl = panel.querySelector('[data-role="quiz-body"]');
+      this._quizCompletionEl = panel.querySelector('[data-role="quiz-completion"]');
       var nameEl = panel.querySelector('[data-role="agent-name"]');
       if (nameEl) nameEl.textContent = agentName;
       var subtitleEl = panel.querySelector('[data-role="agent-subtitle"]');
@@ -849,13 +985,34 @@
     _renderSuggestions(chips, isWelcome) {
       this._suggestionsEl.innerHTML = "";
       this._suggestionsEl.classList.toggle("welcome", !!isWelcome);
+      var hasContent = (isWelcome && chips && chips.length > 0) ||
+        (isWelcome && this._config.quizEnabled && this._config.quizEntry);
       if (this._suggestedLabelEl) {
-        this._suggestedLabelEl.textContent = (isWelcome && chips && chips.length > 0)
-          ? "SUGGESTED"
-          : "";
+        this._suggestedLabelEl.textContent = hasContent ? "SUGGESTED" : "";
       }
-      if (!chips || chips.length === 0) return;
+      if (!hasContent) return;
       var self = this;
+
+      // 011a: quiz entry chip prepended on welcome only. Server sends a
+      // 3-chip welcomeChips array when quizEnabled, so 1 quiz chip + 3 chat
+      // chips = the spec's 4-chip 2x2 grid. Quiz cannot be triggered after
+      // first user message (v1 limitation per spec §4.1) — chip is hidden
+      // automatically because isWelcome flips false on subsequent messages.
+      if (isWelcome && this._config.quizEnabled && this._config.quizEntry) {
+        var quizBtn = document.createElement("button");
+        quizBtn.className = "chip quiz-chip";
+        quizBtn.type = "button";
+        quizBtn.innerHTML = ICON_SPARKLE + "<span></span>";
+        quizBtn.querySelector("span").textContent = this._config.quizEntry.label;
+        quizBtn.addEventListener("click", function () {
+          self._suggestionsEl.innerHTML = "";
+          if (self._suggestedLabelEl) self._suggestedLabelEl.textContent = "";
+          self._handleStartQuiz();
+        });
+        this._suggestionsEl.appendChild(quizBtn);
+      }
+
+      if (!chips || chips.length === 0) return;
       chips.forEach(function (text) {
         var btn = document.createElement("button");
         btn.className = "chip";
@@ -868,6 +1025,298 @@
         });
         self._suggestionsEl.appendChild(btn);
       });
+    }
+
+    // ────────── quiz mode (011a) ──────────
+    //
+    // Lifecycle:
+    //   _handleStartQuiz()    -> POST /quiz/start, _setMode("quiz"), _renderQuizQuestion(q)
+    //   _renderQuizQuestion() -> paints question + options grid + skip link
+    //   _handleQuizSelect()   -> single-select: immediately POST /quiz/answer
+    //                            multi-select: toggle selection, show Continue
+    //   _handleQuizContinue() -> POST /quiz/answer with selectedAnswers
+    //   _handleQuizSkip()     -> POST /quiz/skip, _setMode("chat")
+    //   _renderQuizCompletion()-> shown after server returns { complete: true }
+    //   _handleSeeRecs()      -> _setMode("chat") + _sendUserMessage(quizCompletionPrompt)
+    //   _handleEditAnswers()  -> POST /quiz/skip { mode: "reset" }, restart from Q1
+    _setMode(mode) {
+      this._state.mode = mode;
+      this._panel.setAttribute("data-mode", mode);
+    }
+
+    _quizPath(suffix) {
+      // quizEndpoint may include trailing slash; normalise.
+      var base = this._config.quizEndpoint.replace(/\/$/, "");
+      return base + suffix;
+    }
+
+    _quizPost(suffix, body) {
+      return fetch(this._quizPath(suffix), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        credentials: "omit",
+      }).then(function (res) {
+        if (!res.ok) throw new Error("quiz_" + res.status);
+        return res.json();
+      });
+    }
+
+    _quizBaseBody() {
+      return {
+        sessionId: this._sessionId,
+        shopDomain: this._config.shopDomain,
+        storeMode: this._config.storeMode,
+      };
+    }
+
+    _handleStartQuiz() {
+      var self = this;
+      this._setMode("quiz");
+      this._renderQuizLoading();
+      this._quizPost("/start", this._quizBaseBody())
+        .then(function (data) {
+          if (data.complete) {
+            // Already completed in this session: jump straight to completion.
+            self._renderQuizCompletion();
+            self._setMode("completion");
+            return;
+          }
+          self._state.quiz.total = data.total || data.expectedQuestionCount || 1;
+          self._state.quiz.currentIndex = data.currentIndex || 0;
+          self._state.quiz.currentQuestion = data.question;
+          self._state.quiz.selectedAnswers = [];
+          self._renderQuizQuestion();
+        })
+        .catch(function () {
+          self._showToast("Couldn't start the quiz — try again", 3000);
+          self._setMode("chat");
+        });
+    }
+
+    _renderQuizLoading() {
+      this._quizBodyEl.innerHTML = "";
+      var node = document.createElement("div");
+      node.className = "typing";
+      node.style.alignSelf = "center";
+      node.innerHTML = "<span></span><span></span><span></span>";
+      this._quizBodyEl.appendChild(node);
+      this._updateQuizProgress(0, 1);
+    }
+
+    _updateQuizProgress(current, total) {
+      var safeTotal = Math.max(total, 1);
+      // Cap visual fill at 95% until completion screen — see spec §3.7
+      // (branching makes exact progress unknowable).
+      var pct = Math.min(95, Math.round(((current + 1) / safeTotal) * 100));
+      if (this._quizProgressFill) this._quizProgressFill.style.width = pct + "%";
+      if (this._quizProgressLabel) {
+        this._quizProgressLabel.textContent =
+          "Style profile · " + (current + 1) + " of " + safeTotal;
+      }
+    }
+
+    _renderQuizQuestion() {
+      var q = this._state.quiz.currentQuestion;
+      if (!q) return;
+      this._updateQuizProgress(this._state.quiz.currentIndex, this._state.quiz.total);
+
+      this._quizBodyEl.innerHTML = "";
+
+      var heading = document.createElement("div");
+      heading.className = "quiz-question";
+      heading.textContent = q.text;
+      this._quizBodyEl.appendChild(heading);
+
+      if (q.helpText) {
+        var help = document.createElement("div");
+        help.className = "quiz-help";
+        help.textContent = q.helpText;
+        this._quizBodyEl.appendChild(help);
+      }
+
+      var grid = document.createElement("div");
+      grid.className = "quiz-options";
+      this._quizBodyEl.appendChild(grid);
+
+      var self = this;
+      var isMulti = q.type === "multi_select";
+      this._state.quiz.selectedAnswers = [];
+
+      q.options.forEach(function (opt) {
+        var btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "quiz-option";
+        btn.setAttribute("data-key", opt.key);
+        btn.textContent = (opt.emoji ? opt.emoji + " " : "") + opt.label;
+        btn.addEventListener("click", function () {
+          if (isMulti) {
+            self._toggleMultiSelect(btn, opt.key);
+          } else {
+            // Single-select submits immediately on tap.
+            self._submitAnswer(q.key, opt.key, null);
+          }
+        });
+        grid.appendChild(btn);
+      });
+
+      if (isMulti) {
+        var continueBtn = document.createElement("button");
+        continueBtn.type = "button";
+        continueBtn.className = "quiz-continue";
+        continueBtn.textContent = "Continue";
+        continueBtn.setAttribute("aria-disabled", "true");
+        continueBtn.addEventListener("click", function () {
+          if (continueBtn.getAttribute("aria-disabled") === "true") return;
+          self._submitAnswer(q.key, null, self._state.quiz.selectedAnswers.slice());
+        });
+        this._quizBodyEl.appendChild(continueBtn);
+        this._quizContinueBtn = continueBtn;
+      } else {
+        this._quizContinueBtn = null;
+      }
+
+      var skip = document.createElement("button");
+      skip.type = "button";
+      skip.className = "quiz-skip";
+      skip.textContent = "Skip for now";
+      skip.addEventListener("click", function () { self._handleQuizSkip(); });
+      this._quizBodyEl.appendChild(skip);
+    }
+
+    _toggleMultiSelect(btn, key) {
+      var idx = this._state.quiz.selectedAnswers.indexOf(key);
+      if (idx === -1) {
+        this._state.quiz.selectedAnswers.push(key);
+        btn.classList.add("selected");
+        // Inject checkmark only if not already present.
+        if (!btn.querySelector(".check")) {
+          btn.insertAdjacentHTML("afterbegin", ICON_CHECK);
+        }
+      } else {
+        this._state.quiz.selectedAnswers.splice(idx, 1);
+        btn.classList.remove("selected");
+        var check = btn.querySelector(".check");
+        if (check) check.remove();
+      }
+      if (this._quizContinueBtn) {
+        var disabled = this._state.quiz.selectedAnswers.length === 0;
+        this._quizContinueBtn.setAttribute("aria-disabled", disabled ? "true" : "false");
+      }
+    }
+
+    _submitAnswer(questionKey, answerKey, answerKeys) {
+      var self = this;
+      var body = this._quizBaseBody();
+      body.questionKey = questionKey;
+      if (answerKey != null) body.answerKey = answerKey;
+      if (answerKeys != null) body.answerKeys = answerKeys;
+
+      // Disable the body during the round-trip so a double-tap doesn't
+      // double-submit. Visual: add a subtle dimming via dataset.
+      this._quizBodyEl.style.pointerEvents = "none";
+
+      this._quizPost("/answer", body)
+        .then(function (data) {
+          self._quizBodyEl.style.pointerEvents = "";
+          if (data.complete) {
+            self._renderQuizCompletion();
+            self._setMode("completion");
+            return;
+          }
+          self._state.quiz.currentIndex = data.currentIndex || self._state.quiz.currentIndex + 1;
+          self._state.quiz.currentQuestion = data.question;
+          self._state.quiz.selectedAnswers = [];
+          self._renderQuizQuestion();
+        })
+        .catch(function () {
+          self._quizBodyEl.style.pointerEvents = "";
+          self._showToast("Couldn't save your answer — try again", 3000);
+        });
+    }
+
+    _handleQuizSkip() {
+      var self = this;
+      var body = this._quizBaseBody();
+      body.mode = "skip";
+      this._quizPost("/skip", body)
+        .catch(function () { /* skip is fire-and-forget UX-wise */ })
+        .then(function () {
+          self._setMode("chat");
+          // Friendly nudge per spec §4.5.
+          self._appendMessage({
+            id: "skip-" + Date.now(),
+            role: "assistant",
+            content: "No problem — I'll remember what you've told me so far. Let me know if you want to continue.",
+            timestamp: Date.now(),
+            suggestions: [],
+          });
+        });
+    }
+
+    _renderQuizCompletion() {
+      var self = this;
+      this._updateQuizProgress(this._state.quiz.total - 1, this._state.quiz.total);
+      // Force fill to 100% on completion (overrides 95% cap).
+      if (this._quizProgressFill) this._quizProgressFill.style.width = "100%";
+
+      this._quizCompletionEl.innerHTML = "";
+
+      var icon = document.createElement("div");
+      icon.className = "quiz-completion__icon";
+      icon.innerHTML = ICON_TARGET;
+      this._quizCompletionEl.appendChild(icon);
+
+      var heading = document.createElement("div");
+      heading.className = "quiz-completion__heading";
+      heading.textContent = "Profile complete";
+      this._quizCompletionEl.appendChild(heading);
+
+      var sub = document.createElement("div");
+      sub.className = "quiz-completion__sub";
+      sub.textContent = "I've learned your style. Let me find you something perfect.";
+      this._quizCompletionEl.appendChild(sub);
+
+      var cta = document.createElement("button");
+      cta.type = "button";
+      cta.className = "quiz-completion__cta";
+      cta.textContent = "See my recommendations";
+      cta.addEventListener("click", function () { self._handleSeeRecs(); });
+      this._quizCompletionEl.appendChild(cta);
+
+      var edit = document.createElement("button");
+      edit.type = "button";
+      edit.className = "quiz-completion__edit";
+      edit.textContent = "Edit my answers";
+      edit.addEventListener("click", function () { self._handleEditAnswers(); });
+      this._quizCompletionEl.appendChild(edit);
+    }
+
+    _handleSeeRecs() {
+      // Spec §4.4: exit quiz mode, send a mode-aware kickoff prompt as a
+      // visible user message. Agent reads QuizProfile from session lookup
+      // (007 wiring) and returns personalized response.
+      this._setMode("chat");
+      // Suggestions from the welcome chip flow are no longer relevant
+      // post-quiz; clear them so the chat opens with just the user message.
+      this._suggestionsEl.innerHTML = "";
+      if (this._suggestedLabelEl) this._suggestedLabelEl.textContent = "";
+      this._sendUserMessage(this._config.quizCompletionPrompt);
+    }
+
+    _handleEditAnswers() {
+      var self = this;
+      var body = this._quizBaseBody();
+      body.mode = "reset";
+      this._quizPost("/skip", body)
+        .then(function () {
+          // Restart from Q1 — calling /start after reset returns the root
+          // question because resetSession cleared currentQuestionKey.
+          self._handleStartQuiz();
+        })
+        .catch(function () {
+          self._showToast("Couldn't reset your answers — try again", 3000);
+        });
     }
 
     // ────────── send flow ──────────

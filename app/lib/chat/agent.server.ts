@@ -16,6 +16,8 @@ import { logAnthropicError } from "../anthropic.server";
 import {
   ensureMerchantConfig,
 } from "../merchant-config.server";
+import type { StoreMode } from "../merchant-config";
+import { getQuizProfile } from "../quiz/engine.server";
 import {
   matchResponse,
   type ProductContext,
@@ -91,7 +93,23 @@ export async function runAgent(input: AgentInput): Promise<AgentOutput> {
     return fallback(input, config, "missing_api_key", startedAt);
   }
 
-  const system = buildSystemPrompt(config);
+  // 011a: per-session quiz profile lookup. Returns null when no quiz has
+  // been started or the user is on a different storeMode (orphaned row).
+  // Failures are non-fatal — degrade to no-profile prompt rather than
+  // surfacing a 500 to the storefront.
+  let quizProfile = null;
+  try {
+    quizProfile = await getQuizProfile({
+      shopDomain: input.shopDomain,
+      sessionId: input.sessionId,
+      storeMode: config.storeMode as StoreMode,
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-undef, no-console
+    console.warn("[chat:agent] quiz profile lookup failed:", err);
+  }
+
+  const system = buildSystemPrompt(config, quizProfile);
   const tools = buildToolList(config);
 
   // Convert widget history (text-only) into Anthropic message params.

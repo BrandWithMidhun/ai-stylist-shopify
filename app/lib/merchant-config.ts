@@ -3,6 +3,11 @@ export const SHOP_DISPLAY_NAME_MAX = 60;
 export const CHAT_WELCOME_MESSAGE_MAX = 280;
 export const CHAT_PRIMARY_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
 export const DEFAULT_CHAT_PRIMARY_COLOR = "#000000";
+// 011a: gradient end color is optional (null when off). When set, must
+// match the same 6-digit hex format as the start color.
+export const DEFAULT_CHAT_GRADIENT_ANGLE = 135;
+export const CHAT_GRADIENT_ANGLE_MIN = 0;
+export const CHAT_GRADIENT_ANGLE_MAX = 360;
 export const DEFAULT_CHAT_WELCOME_MESSAGE =
   "Hi! I'm your shopping assistant. How can I help you today?";
 

@@ -219,6 +219,7 @@ Phase 5 — Compliance and Launch Readiness: Accessibility audit, localization, 
 | 002 | App uninstall webhook cleanup | Shipped | 1 / 5 |
 | 003 | GDPR compliance webhooks | Shipped | 5 |
 | 004 | Anthropic API foundation | Shipped | 2 |
+| 011a | Onboarding quiz runtime + gradient color + mobile grid | Shipped | 3 |
 
 ---
 

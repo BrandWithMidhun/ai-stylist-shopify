@@ -60,6 +60,50 @@ export function getWelcomeChips(storeMode: StoreMode): string[] {
   return WELCOME_CHIPS_BY_MODE[storeMode];
 }
 
+// Mode-aware label for the quiz entry chip (spec §4.1). Returned via the
+// metafield as `quizEntry.label`; widget renders it as a sparkle-prefixed
+// chip with a quiz-mode click handler.
+const QUIZ_ENTRY_LABEL_BY_MODE: Record<StoreMode, string> = {
+  FASHION: "Find my perfect style",
+  JEWELLERY: "Find my perfect style",
+  ELECTRONICS: "Help me find the right device",
+  FURNITURE: "Find my perfect piece",
+  BEAUTY: "Build my routine",
+  GENERAL: "Help me get personalized recs",
+};
+
+export function getQuizEntryLabel(storeMode: StoreMode): string {
+  return QUIZ_ENTRY_LABEL_BY_MODE[storeMode];
+}
+
+// Mode-aware kickoff prompt sent automatically on "See my recommendations"
+// (spec §4.4). The widget posts this as a normal user message so the agent
+// returns a personalized response — see public-route docs and runAgent.
+const QUIZ_COMPLETION_PROMPT_BY_MODE: Record<StoreMode, string> = {
+  FASHION: "Show me what fits my style",
+  JEWELLERY: "Show me pieces that match my taste",
+  ELECTRONICS: "Show me devices that suit my needs",
+  FURNITURE: "Show me pieces that fit my space",
+  BEAUTY: "Show me products for my routine",
+  GENERAL: "Show me recommendations based on my profile",
+};
+
+export function getQuizCompletionPrompt(storeMode: StoreMode): string {
+  return QUIZ_COMPLETION_PROMPT_BY_MODE[storeMode];
+}
+
+// When quizEnabled is true, the welcome chip slot 4 is dropped and replaced
+// at the front by the quiz chip (handled client-side). Server returns only
+// the first 3 chips so the v3 metafield payload + widget rendering combine
+// to a clean 2x2 grid (per execution plan §A).
+export function getWelcomeChipsForWidget(
+  storeMode: StoreMode,
+  quizEnabled: boolean,
+): string[] {
+  const chips = getWelcomeChips(storeMode);
+  return quizEnabled ? chips.slice(0, 3) : chips;
+}
+
 // Refinement chips offered after Claude returns products. Steers the user
 // into a follow-up search that materially changes the result set.
 const REFINEMENT_CHIPS = [

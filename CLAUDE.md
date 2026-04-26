@@ -49,7 +49,8 @@ Treat `docs/product-spec.md` as the source of truth for product decisions. If a 
 These Prisma models exist or will exist in this order:
 
 - `Session` — ships with the template, handles Shopify OAuth. Do not modify structure without reason.
-- `MerchantConfig` — per-shop config: store mode (fashion/electronics/furniture/beauty/general), feature toggles, CTA text, CTA placement.
+- `MerchantConfig` — per-shop config: store mode (fashion/electronics/furniture/beauty/general), feature toggles, CTA text, CTA placement, chat primary color (+ optional gradient end color and angle from 011a).
+- `QuizSession` + `QuizAnswer` — onboarding quiz state per anonymous session (cookie UUID), keyed by `(shopDomain, sessionId, storeMode)`. Answers feed into `QuizProfile` (derived in `engine.server.ts`) which the chat agent reads on every turn for personalized recs.
 - `UserProfile` — quiz answers, image analysis results, preferences. Keyed to a shop customer or an anonymous session.
 - `ChatSession` + `ChatMessage` — chat history with the AI agents.
 - `ProductEnrichment` — AI-generated tags and attributes, keyed to Shopify product GID.

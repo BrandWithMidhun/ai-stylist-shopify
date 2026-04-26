@@ -3,6 +3,11 @@
 // The base prompt is universal (identity, tool-usage rules, tone). The mode
 // context is appended to give Claude the vocabulary of the store. Adding a
 // new mode is one entry in MODE_CONTEXT.
+//
+// 011a: optional quizProfile arg appends a "What we know about this
+// shopper" block when the user has completed (or partially completed) the
+// onboarding quiz. The block is capped at ~300 tokens to avoid prompt
+// bloat from a future regression in deriveProfile.
 
 import type { MerchantConfig } from "@prisma/client";
 import {
@@ -13,8 +18,14 @@ import {
   DEFAULT_CHAT_WELCOME_MESSAGE,
   type StoreMode,
 } from "../merchant-config";
+import type { QuizProfile } from "../quiz/types";
 
-export function buildSystemPrompt(config: MerchantConfig): string {
+const PROFILE_BLOCK_MAX_CHARS = 1200; // ~300 tokens at 4 chars/token
+
+export function buildSystemPrompt(
+  config: MerchantConfig,
+  quizProfile?: QuizProfile | null,
+): string {
   const shopName = getEffectiveShopName(config);
   const agentName = getEffectiveAgentName(config);
 
@@ -29,7 +40,77 @@ Tone: friendly, concise, helpful. Avoid emoji. Avoid sales-y language.
 If you don't know something, say so. Don't make up product details.`;
 
   const modeContext = MODE_CONTEXT[config.storeMode as StoreMode](shopName);
-  return `${base}\n\n${modeContext}`;
+  const profileBlock = renderProfileBlock(quizProfile);
+  return profileBlock
+    ? `${base}\n\n${modeContext}\n\n${profileBlock}`
+    : `${base}\n\n${modeContext}`;
+}
+
+// Renders a compact bullet list of profile facts for the system prompt.
+// Returns empty string when profile is null/empty (caller skips the
+// block entirely). The "Use this profile when relevant" closing line per
+// execution plan addition C lets Claude prioritize the user's current
+// request when it conflicts with the profile (e.g., shopping for someone
+// else).
+function renderProfileBlock(profile: QuizProfile | null | undefined): string {
+  if (!profile) return "";
+  const lines: string[] = [];
+  const push = (label: string, value: string | string[] | undefined) => {
+    if (value == null) return;
+    if (Array.isArray(value)) {
+      if (value.length === 0) return;
+      lines.push(`- ${label}: ${value.join(", ")}`);
+    } else if (value.length > 0) {
+      lines.push(`- ${label}: ${value}`);
+    }
+  };
+
+  push("Gender", profile.gender);
+  push("Age range", profile.ageRange);
+  push("Body type", profile.bodyType);
+  push("Fit preference", profile.fitPreference);
+  push("Lifestyle", profile.lifestyle);
+  push("Style vibe", profile.styleVibe);
+  push("Occasions", profile.occasions);
+  push("Color preferences", profile.colorPreferences);
+  push("Shopping for", profile.shoppingFor);
+  push("Occasion", profile.occasion);
+  push("Metal preference", profile.metalPreference);
+  push("Jewellery style", profile.jewelleryStyle);
+  push("Gemstones", profile.gemstones);
+  push("Use case", profile.useCase);
+  push("Platform", profile.platform);
+  push("Skill level", profile.skillLevel);
+  push("Product categories", profile.productCategories);
+  push("Brand loyalty", profile.brandLoyalty);
+  push("Room", profile.room);
+  push("Space size", profile.spaceSize);
+  push("Furniture style", profile.furnitureStyle);
+  push("Permanence", profile.permanence);
+  push("Furniture categories", profile.furnitureCategories);
+  push("Skin / hair type", profile.skinType);
+  push("Concerns", profile.concerns);
+  push("Routine complexity", profile.routineComplexity);
+  push("Ingredient preferences", profile.ingredientPreferences);
+  push("Beauty categories", profile.beautyCategories);
+  push("Intent", profile.intent);
+  push("Notes", profile.freeText);
+  push("Budget tier", profile.budgetTier);
+
+  if (lines.length === 0) return "";
+
+  const heading = profile.completed
+    ? "## What we know about this shopper"
+    : "## What we know about this shopper (partial profile)";
+  const body = lines.join("\n");
+  const closer =
+    "Use this profile when relevant. If the user's request doesn't match their profile (e.g., shopping for someone else), prioritize the request over the profile. Do not reference these facts back to the user verbatim.";
+
+  let block = `${heading}\n${body}\n\n${closer}`;
+  if (block.length > PROFILE_BLOCK_MAX_CHARS) {
+    block = block.slice(0, PROFILE_BLOCK_MAX_CHARS) + "…";
+  }
+  return block;
 }
 
 // Mode-aware welcome message templates per spec §3.2. Placeholders:

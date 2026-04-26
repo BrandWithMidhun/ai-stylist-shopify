@@ -9,8 +9,11 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import {
+  CHAT_GRADIENT_ANGLE_MAX,
+  CHAT_GRADIENT_ANGLE_MIN,
   CHAT_WELCOME_MESSAGE_MAX,
   CTA_LABEL_MAX,
+  DEFAULT_CHAT_GRADIENT_ANGLE,
   SHOP_DISPLAY_NAME_MAX,
   deriveShopNameFromDomain,
   getDefaultAgentName,
@@ -99,6 +102,19 @@ export default function ConfigPage() {
   );
   const [chatPrimaryColor, setChatPrimaryColor] = useState<string>(
     config.chatPrimaryColor,
+  );
+  // 011a: gradient toggle drives end-color/angle visibility. When toggle is
+  // off, end color is treated as null on save (parseFormData zeroes it out)
+  // — see merchant-config.server.ts. Local state holds a draft color so
+  // toggling on/off without saving doesn't lose the user's pick mid-edit.
+  const [gradientEnabled, setGradientEnabled] = useState<boolean>(
+    config.chatPrimaryColorEnd != null,
+  );
+  const [chatPrimaryColorEnd, setChatPrimaryColorEnd] = useState<string>(
+    config.chatPrimaryColorEnd ?? "#9333EA",
+  );
+  const [chatPrimaryGradientAngle, setChatPrimaryGradientAngle] = useState<number>(
+    config.chatPrimaryGradientAngle,
   );
   const [chatWelcomeMessage, setChatWelcomeMessage] = useState<string>(
     config.chatWelcomeMessage,
@@ -235,6 +251,63 @@ export default function ConfigPage() {
                 setChatPrimaryColor(target.value);
               }}
             />
+            <s-switch
+              label="Use gradient"
+              name="chatPrimaryGradientEnabled"
+              value="true"
+              details="Render the primary color as a 2-stop linear gradient instead of a solid color."
+              {...(gradientEnabled ? { checked: true } : {})}
+              onChange={(event: Event) => {
+                const target = event.currentTarget as HTMLInputElement;
+                setGradientEnabled(target.checked);
+              }}
+            />
+            {gradientEnabled ? (
+              <>
+                <s-color-field
+                  label="Gradient end color"
+                  name="chatPrimaryColorEnd"
+                  value={chatPrimaryColorEnd}
+                  details="The second color of the gradient."
+                  onChange={(event: Event) => {
+                    const target = event.currentTarget as HTMLInputElement;
+                    setChatPrimaryColorEnd(target.value);
+                  }}
+                />
+                <s-text-field
+                  label="Gradient angle (degrees)"
+                  name="chatPrimaryGradientAngle"
+                  type="number"
+                  min={CHAT_GRADIENT_ANGLE_MIN}
+                  max={CHAT_GRADIENT_ANGLE_MAX}
+                  value={String(chatPrimaryGradientAngle)}
+                  details={`0–360°. Default ${DEFAULT_CHAT_GRADIENT_ANGLE}° (top-left → bottom-right).`}
+                  onInput={(event: Event) => {
+                    const target = event.currentTarget as HTMLInputElement;
+                    const v = Number(target.value);
+                    if (Number.isFinite(v)) setChatPrimaryGradientAngle(v);
+                  }}
+                />
+                {/*
+                  Tiny preview swatch. Polaris web components don't currently
+                  expose a generic gradient swatch primitive, so this single
+                  display-only div renders the live gradient using inline
+                  styles. Scoped narrowly: a 56x56 rounded square that mirrors
+                  the chat bubble visual. Documented exception to the
+                  "Polaris-only" rule in CLAUDE.md.
+                */}
+                <div
+                  aria-hidden="true"
+                  style={{
+                    width: "56px",
+                    height: "56px",
+                    borderRadius: "12px",
+                    background: `linear-gradient(${chatPrimaryGradientAngle}deg, ${chatPrimaryColor}, ${chatPrimaryColorEnd})`,
+                    border: "1px solid #e4e4e7",
+                  }}
+                />
+              </>
+            ) : null}
             <s-text-area
               label="Welcome message"
               name="chatWelcomeMessage"
