@@ -53,6 +53,7 @@ model MerchantConfig {
   shop                 String       @unique
   storeMode            StoreMode    @default(GENERAL)
   chatWidgetEnabled    Boolean      @default(true)
+  chatAgentName        String?
   ctaEnabled           Boolean      @default(true)
   ctaLabel             String       @default("Need help choosing?")
   ctaPlacement         CtaPlacement @default(PRODUCT_PAGE)

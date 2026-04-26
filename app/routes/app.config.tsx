@@ -10,6 +10,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import {
   CTA_LABEL_MAX,
+  getDefaultAgentName,
   type CtaPlacement,
   type StoreMode,
 } from "../lib/merchant-config";
@@ -69,7 +70,11 @@ export default function ConfigPage() {
     config.storeMode as StoreMode,
   );
   const [ctaLabel, setCtaLabel] = useState<string>(config.ctaLabel);
+  const [chatAgentName, setChatAgentName] = useState<string>(
+    config.chatAgentName ?? "",
+  );
   const fashionOnlyLocked = storeMode !== "FASHION";
+  const agentNamePlaceholder = getDefaultAgentName(storeMode);
 
   useEffect(() => {
     if (!actionData) return;
@@ -153,6 +158,25 @@ export default function ConfigPage() {
               {...(fashionOnlyLocked ? { disabled: true } : {})}
             />
           </s-stack>
+        </s-section>
+
+        <s-section heading="Chat agent">
+          <s-paragraph>
+            This is your preferred agent name. To use it on the storefront,
+            also set &quot;Agent name override&quot; in the theme editor App
+            Embed settings.
+          </s-paragraph>
+          <s-text-field
+            label="Agent name"
+            name="chatAgentName"
+            value={chatAgentName}
+            placeholder={agentNamePlaceholder}
+            details="Shown in the chat widget header. Leave blank to use the default for your store type."
+            onInput={(event: Event) => {
+              const target = event.currentTarget as HTMLInputElement;
+              setChatAgentName(target.value);
+            }}
+          />
         </s-section>
 
         <s-section heading="CTA configuration">

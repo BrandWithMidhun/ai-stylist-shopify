@@ -16,3 +16,17 @@ export const CTA_PLACEMENTS = [
   "COLLECTION",
 ] as const;
 export type CtaPlacement = (typeof CTA_PLACEMENTS)[number];
+
+// Mode-aware default for the chat agent name shown in the storefront widget
+// header. Fashion/Jewellery default to "AI Stylist"; everything else gets the
+// generic "AI Assistant". Pure (no DB) so it lives here and can be imported
+// from both server loaders and client components.
+export function getDefaultAgentName(storeMode: StoreMode): string {
+  switch (storeMode) {
+    case "FASHION":
+    case "JEWELLERY":
+      return "AI Stylist";
+    default:
+      return "AI Assistant";
+  }
+}

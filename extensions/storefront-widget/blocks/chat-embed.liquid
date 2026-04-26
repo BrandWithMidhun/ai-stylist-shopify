@@ -9,17 +9,27 @@
   for the chat fetch. Surfaces in v2 if real merchants hit it.
 {%- endcomment -%}
 
+{%- comment -%}
+  Agent name duality (007 follow-up): the merchant's preferred agent name
+  is set in /app/config (chatAgentName), but the storefront widget can't
+  read MerchantConfig directly without an extra fetch on every page load.
+  v1 resolution: the theme editor `agent_name_override` below is the
+  authoritative source for the storefront. Merchants must set both for now.
+  v2 will sync chatAgentName to an app metafield so the widget can read it
+  without a fetch — at which point this duality goes away.
+{%- endcomment -%}
 {%- if block.settings.enable_widget -%}
   <script>
     window.__AISTYLIST_CONFIG__ = {
       shopDomain: {{ shop.permanent_domain | json }},
       primaryColor: {{ block.settings.primary_color | json }},
       welcomeMessage: {{ block.settings.welcome_message | json }},
+      agentName: "{{ block.settings.agent_name_override | default: '' | escape }}",
       chatEndpoint: "https://web-production-3b1d7.up.railway.app/api/chat/message"
     };
   </script>
   <script src="{{ 'chat-widget.js' | asset_url }}" defer></script>
-  <aistylist-widget aria-label="Chat with AI Stylist"></aistylist-widget>
+  <aistylist-widget></aistylist-widget>
 {%- endif -%}
 
 {% schema %}
@@ -38,6 +48,12 @@
       "id": "primary_color",
       "label": "Primary color",
       "default": "#000000"
+    },
+    {
+      "type": "text",
+      "id": "agent_name_override",
+      "label": "Agent name override",
+      "info": "Custom agent name. Leave blank to use the merchant's configured default."
     },
     {
       "type": "textarea",

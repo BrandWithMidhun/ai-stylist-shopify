@@ -7,6 +7,7 @@ import {
   CTA_LABEL_MAX,
   CTA_PLACEMENTS,
   STORE_MODES,
+  getDefaultAgentName,
   type CtaPlacement,
   type StoreMode,
 } from "./merchant-config";
@@ -17,9 +18,28 @@ import {
 // on storefront"). chatWidgetEnabled is reserved for a future v2 admin-side
 // kill switch that will gate the embed regardless of theme editor state.
 
+// Resolve the effective agent name for a merchant: their chatAgentName
+// override (trimmed, non-empty) wins; otherwise fall back to the storeMode
+// default. NOTE: as of 007, this value is *advisory* — it represents the
+// merchant's preferred name in the admin, but the storefront widget reads
+// from the theme editor App Embed setting (agent_name_override) instead. v2
+// will sync this value to an app metafield so the widget can read it without
+// an extra fetch.
+export function getEffectiveAgentName(config: MerchantConfig): string {
+  return (
+    config.chatAgentName?.trim() ||
+    getDefaultAgentName(config.storeMode as StoreMode)
+  );
+}
+
 export const merchantConfigFormSchema = z.object({
   storeMode: z.enum(STORE_MODES),
   chatWidgetEnabled: z.boolean(),
+  chatAgentName: z
+    .string()
+    .trim()
+    .max(60)
+    .nullable(),
   ctaEnabled: z.boolean(),
   ctaLabel: z.string().trim().min(1).max(CTA_LABEL_MAX),
   ctaPlacement: z.enum(CTA_PLACEMENTS),
@@ -38,6 +58,7 @@ export function defaultMerchantConfig(shop: string): MerchantConfigInput & {
     shop,
     storeMode: "GENERAL" satisfies StoreMode,
     chatWidgetEnabled: true,
+    chatAgentName: null,
     ctaEnabled: true,
     ctaLabel: "Need help choosing?",
     ctaPlacement: "PRODUCT_PAGE" satisfies CtaPlacement,
@@ -100,9 +121,15 @@ function parseBoolField(value: FormDataEntryValue | null): boolean {
 }
 
 export function parseFormData(formData: FormData): MerchantConfigInput {
+  const rawAgentName = formData.get("chatAgentName");
+  const agentName =
+    typeof rawAgentName === "string" && rawAgentName.trim() !== ""
+      ? rawAgentName.trim()
+      : null;
   return merchantConfigFormSchema.parse({
     storeMode: formData.get("storeMode"),
     chatWidgetEnabled: parseBoolField(formData.get("chatWidgetEnabled")),
+    chatAgentName: agentName,
     ctaEnabled: parseBoolField(formData.get("ctaEnabled")),
     ctaLabel: formData.get("ctaLabel") ?? "",
     ctaPlacement: formData.get("ctaPlacement"),

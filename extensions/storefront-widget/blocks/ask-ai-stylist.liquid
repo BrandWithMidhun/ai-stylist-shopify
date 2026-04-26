@@ -42,20 +42,33 @@
 </div>
 
 <style>
-  .aistylist-cta-wrap { margin: 12px 0; }
+  .aistylist-cta-wrap {
+    /* Match the visual rhythm of typical Shopify cart-action stacks: full
+       width, vertical breathing room above/below so the button sits between
+       variant pickers and Add to Cart without crowding either. */
+    margin: 12px 0;
+    width: 100%;
+  }
   .aistylist-cta {
-    display: inline-flex;
+    display: flex;
     align-items: center;
     gap: 8px;
     width: 100%;
     justify-content: center;
-    padding: 12px 20px;
-    border-radius: 8px;
+    /* Padding tuned to sit close to standard theme button height without
+       outsizing Add to Cart. */
+    padding: 13px 24px;
+    /* Inherit theme button radius if available (Dawn et al. expose
+       --buttons-radius / --button-border-radius). 4px fallback keeps the
+       outline button visually subordinate to filled theme primaries. */
+    border-radius: var(--buttons-radius, var(--button-border-radius, 4px));
     font: inherit;
     font-weight: 500;
+    line-height: 1.2;
     cursor: pointer;
     transition: transform 150ms ease, background-color 200ms ease, color 200ms ease;
-    border: 1.5px solid {{ block.settings.primary_color | default: '#000000' }};
+    /* Outline style — subordinate "discovery" CTA, defers to Add to Cart. */
+    border: 1px solid {{ block.settings.primary_color | default: '#000000' }};
     background: transparent;
     color: {{ block.settings.primary_color | default: '#000000' }};
   }
@@ -67,11 +80,12 @@
     background: {{ block.settings.primary_color | default: '#000000' }};
     color: #ffffff;
   }
+  .aistylist-cta:focus-visible {
+    outline: 2px solid {{ block.settings.primary_color | default: '#000000' }};
+    outline-offset: 2px;
+  }
   .aistylist-cta:active { transform: scale(0.98); }
   .aistylist-cta__icon { flex-shrink: 0; }
-  @media (min-width: 640px) {
-    .aistylist-cta { width: auto; }
-  }
 </style>
 
 <script src="{{ 'cta-button.js' | asset_url }}" defer></script>

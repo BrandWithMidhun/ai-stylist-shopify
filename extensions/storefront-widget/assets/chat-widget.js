@@ -30,6 +30,12 @@
   var DEFAULT_PRIMARY_COLOR = "#000000";
   var DEFAULT_WELCOME =
     "Hi! I'm your shopping assistant. How can I help you today?";
+  // 007 follow-up: storefront falls back to "AI Assistant" because the
+  // widget can't query MerchantConfig server-side without an extra fetch.
+  // The merchant's preferred name (set in /app/config) is advisory; the
+  // theme editor's agent_name_override is the authoritative source here.
+  // v2 will sync chatAgentName to an app metafield to remove this duality.
+  var DEFAULT_AGENT_NAME = "AI Assistant";
 
   // Industry-neutral default chips on welcome state.
   // v1: not mode-aware. Mode-aware chips come in 011.
@@ -185,10 +191,12 @@
       this._mounted = true;
 
       var config = window.__AISTYLIST_CONFIG__ || {};
+      var rawAgentName = typeof config.agentName === "string" ? config.agentName.trim() : "";
       this._config = {
         shopDomain: config.shopDomain || (window.Shopify && window.Shopify.shop) || "",
         primaryColor: config.primaryColor || DEFAULT_PRIMARY_COLOR,
         welcomeMessage: config.welcomeMessage || DEFAULT_WELCOME,
+        agentName: rawAgentName || DEFAULT_AGENT_NAME,
         chatEndpoint: config.chatEndpoint || "/api/chat/message",
       };
 
@@ -222,10 +230,12 @@
       ":host { --aistylist-primary: " + this._config.primaryColor + "; }";
     root.appendChild(hostStyle);
 
+    var agentName = this._config.agentName;
+
     // bubble
     var bubble = document.createElement("button");
     bubble.className = "bubble";
-    bubble.setAttribute("aria-label", "Open chat");
+    bubble.setAttribute("aria-label", "Open chat with " + agentName);
     bubble.innerHTML = ICON_CHAT;
     bubble.addEventListener("click", this._handleOpen.bind(this));
     root.appendChild(bubble);
@@ -236,10 +246,10 @@
     panel.className = "panel";
     panel.setAttribute("role", "dialog");
     panel.setAttribute("aria-modal", "true");
-    panel.setAttribute("aria-label", "Chat with AI Stylist");
+    panel.setAttribute("aria-label", "Chat with " + agentName);
     panel.innerHTML =
       '<div class="header">' +
-      '  <div class="branding">AI Stylist</div>' +
+      '  <div class="branding" data-role="branding"></div>' +
       '  <button class="close" aria-label="Close chat">' + ICON_CLOSE + "</button>" +
       "</div>" +
       '<div class="context-pill" data-role="context-pill">' +
@@ -267,6 +277,8 @@
     this._contextImg = panel.querySelector('[data-role="context-image"]');
     this._contextTitle = panel.querySelector('[data-role="context-title"]');
     this._newMsgPill = panel.querySelector('[data-role="new-msg"]');
+    var brandingEl = panel.querySelector('[data-role="branding"]');
+    if (brandingEl) brandingEl.textContent = agentName;
 
     // event wiring
     this._closeEl.addEventListener("click", this._handleClose.bind(this));
@@ -524,7 +536,7 @@
       this._state.typing = true;
       var node = document.createElement("div");
       node.className = "typing";
-      node.setAttribute("aria-label", "AI Stylist is typing");
+      node.setAttribute("aria-label", this._config.agentName + " is typing");
       node.innerHTML = "<span></span><span></span><span></span>";
       this._typingNode = node;
       this._messagesEl.appendChild(node);
