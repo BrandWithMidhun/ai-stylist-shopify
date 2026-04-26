@@ -6,9 +6,11 @@
 // no surface to influence which shop's data is queried.
 //
 // v1 search behaviour:
-//   - Free-text matches on title + productType only (descriptionHtml skipped:
-//     it's HTML so `contains` matches tag tokens, not natural prose; will
-//     revisit when we have proper text extraction or full-text indexing).
+//   - Free-text matches on title + productType + descriptionHtml + tag values.
+//     descriptionHtml and tag values are now included in free-text matching as
+//     a defensive widening — Claude's quiz-derived queries (e.g. "minimalist
+//     casual") otherwise miss every product. Trade-off: slightly noisier
+//     results (HTML tokens can spuriously match) until full-text indexing lands.
 //   - Price filter uses Product.priceMin / priceMax (indexed) rather than
 //     joining ProductVariant — overlapping-range semantics: a product matches
 //     if any of its variants could plausibly fall in [price_min, price_max].
@@ -36,7 +38,7 @@ const MAX_LIMIT = 12;
 export const searchProductsTool: ToolDef = {
   name: "search_products",
   description:
-    "Search the merchant's product catalog. Use this whenever the user is looking for specific products, asking about inventory, browsing a category, or wanting recommendations. Extract product attributes (color, material, occasion, price range) from the user's intent and pass them as filters. Be specific in queries — short keyword phrases work best.",
+    "Search the merchant's product catalog. The `query` field does case-insensitive substring matching against product title, productType, description, and tag values — pass concrete nouns or literal attributes you expect to appear in product data (e.g. 'linen', 'shorts', 'wireless', 'diamond ring'). Avoid passing abstract style concepts as the query unless they're known to be tag values on this catalog (e.g. 'minimalist outfit' or 'everyday casual' as a free-text query usually returns 0 results). For style, occasion, and material facets, prefer the `tags` parameter (e.g. tags: ['casual', 'cotton']) — tags are exact-match. Use the `taxonomy` parameter when the user is browsing a known category.",
   input_schema: {
     type: "object",
     properties: {
@@ -89,6 +91,8 @@ export async function searchProducts(
     where.OR = [
       { title: { contains: q, mode: "insensitive" } },
       { productType: { contains: q, mode: "insensitive" } },
+      { descriptionHtml: { contains: q, mode: "insensitive" } },
+      { tags: { some: { value: { contains: q, mode: "insensitive" } } } },
     ];
   }
 
@@ -142,6 +146,13 @@ export async function searchProducts(
     available: c.available,
     tags: c.tags,
   }));
+
+  // eslint-disable-next-line no-console, no-undef
+  console.log("[search_products]", {
+    shop: ctx.shopDomain,
+    input,
+    resultCount: cards.length,
+  });
 
   return {
     ok: true,
