@@ -1,20 +1,27 @@
 // Thin wrapper around the Voyage AI embeddings endpoint.
 //
-// Scope is intentionally narrow: one batch in, one batch out, no chunking.
-// Callers (embed-products.server.ts) own splitting larger workloads into
-// 128-input groups. Keeping the chunk math out of this layer means the
-// retry/error semantics stay simple and predictable.
+// Two public surfaces by design:
+//   - embedTexts:  documents (input_type="document") — used by the catalog
+//                  embedding pipeline (12b) at index time.
+//   - embedQuery:  user queries (input_type="query") — used by the
+//                  recommend_products tool (12c) at retrieval time.
+//
+// voyage-3 applies different transformations to documents vs queries; mixing
+// the two would silently degrade retrieval quality. Keeping the surfaces
+// separate (rather than passing input_type as an argument) means callers
+// can't accidentally cross the streams, and we can evolve the document and
+// query paths independently as the recommendation layer matures.
 //
 // Cost discipline: we retry exactly once on 429 (after a 2s pause) and
 // never on success. Voyage 5xx and unexpected non-2xx responses bubble up
-// so the orchestration layer can log + mark the affected batch failed
-// without aborting the whole shop.
+// so callers can log + handle the failure without aborting larger work.
 
 const VOYAGE_API_URL = "https://api.voyageai.com/v1/embeddings";
 const MODEL = "voyage-3";
-const INPUT_TYPE = "document";
 const MAX_INPUTS_PER_REQUEST = 128;
 const RATE_LIMIT_RETRY_DELAY_MS = 2000;
+
+type InputType = "document" | "query";
 
 let cachedKey: string | null = null;
 
@@ -43,12 +50,30 @@ export async function embedTexts(texts: string[]): Promise<number[][]> {
       `embedTexts received ${texts.length} inputs; Voyage accepts up to ${MAX_INPUTS_PER_REQUEST} per request. Chunk before calling.`,
     );
   }
+  return postEmbeddings(texts, "document");
+}
 
+// Single-string convenience for the retrieval path. Returns the 1024-dim
+// vector directly (callers don't want to unwrap a length-1 array on every
+// call site).
+export async function embedQuery(text: string): Promise<number[]> {
+  const trimmed = text?.trim();
+  if (!trimmed) {
+    throw new Error("embedQuery requires a non-empty string.");
+  }
+  const [vector] = await postEmbeddings([trimmed], "query");
+  return vector;
+}
+
+async function postEmbeddings(
+  texts: string[],
+  inputType: InputType,
+): Promise<number[][]> {
   const key = getApiKey();
   const body = JSON.stringify({
     input: texts,
     model: MODEL,
-    input_type: INPUT_TYPE,
+    input_type: inputType,
   });
 
   const sendRequest = (): Promise<Response> =>
