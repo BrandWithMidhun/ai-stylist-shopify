@@ -11,15 +11,14 @@
 
 import type { ActionFunctionArgs, LoaderFunctionArgs } from "react-router";
 import { z } from "zod";
-import {
-  matchResponse,
-  type ProductContext,
-} from "../lib/chat/canned-responses.server";
+import { runAgent } from "../lib/chat/agent.server";
+import type { ProductContext } from "../lib/chat/canned-responses.server";
+import { RateLimitError } from "../lib/chat/cost-guards.server";
 import {
   checkRateLimits,
   getClientIp,
 } from "../lib/chat/rate-limiter.server";
-import { isShopInstalled, newMessageId } from "../lib/chat/session.server";
+import { isShopInstalled } from "../lib/chat/session.server";
 
 const ORIGIN_REGEX = /^https:\/\/[\w-]+\.myshopify\.com$/;
 const MIN_RESPONSE_MS = 600; // typing indicator must feel real
@@ -124,27 +123,47 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const isFirstMessage = history.length === 0;
-  const response = matchResponse({
-    text,
-    context: (context ?? null) as ProductContext,
-    isFirstMessage,
-  });
 
-  // Artificial floor so the typing indicator feels real even when matching
-  // is instant. Total wall-clock = max(elapsed, MIN_RESPONSE_MS).
+  let agentResult;
+  try {
+    agentResult = await runAgent({
+      shopDomain,
+      sessionId,
+      text,
+      context: (context ?? null) as ProductContext,
+      history,
+      isFirstMessage,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) {
+      const status = err.kind === "shop_cap" ? 503 : 429;
+      return Response.json(
+        { error: "rate_limited", reason: err.kind, message: err.message },
+        { status, headers },
+      );
+    }
+    throw err;
+  }
+
+  // Artificial floor so the typing indicator feels real for fast (no-tool)
+  // responses. Tool-calling rounds typically run well above this floor; this
+  // only kicks in for trivial small-talk replies.
   const elapsed = Date.now() - startTime;
   if (elapsed < MIN_RESPONSE_MS) {
     await new Promise((r) => setTimeout(r, MIN_RESPONSE_MS - elapsed));
   }
 
+  // Phase 1 response shape: extends 007 with a `products` array. Older
+  // widgets ignore the field; Phase 2 widget renders cards from it.
   return Response.json(
     {
       message: {
-        id: newMessageId(),
-        role: "assistant" as const,
-        content: response.content,
-        timestamp: Date.now(),
-        suggestions: response.suggestions,
+        id: agentResult.message.id,
+        role: agentResult.message.role,
+        content: agentResult.message.content,
+        timestamp: agentResult.message.timestamp,
+        suggestions: agentResult.message.suggestions,
+        products: agentResult.message.products,
       },
     },
     { status: 200, headers },

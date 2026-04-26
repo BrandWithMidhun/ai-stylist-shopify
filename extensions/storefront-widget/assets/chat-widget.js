@@ -130,6 +130,32 @@
     ".typing span:nth-child(2) { animation-delay: 0.2s; }",
     ".typing span:nth-child(3) { animation-delay: 0.4s; }",
     "@keyframes aistylist-bounce { 0%, 80%, 100% { transform: translateY(0); opacity: 0.4; } 40% { transform: translateY(-4px); opacity: 1; } }",
+    // product cards (008 Phase 2)
+    // Mobile: horizontal scroll with snap; desktop: wrap to grid via media query.
+    ".cards { display: flex; gap: 8px; padding: 4px 0 8px; overflow-x: auto; scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch; align-self: stretch; }",
+    ".cards::-webkit-scrollbar { height: 4px; }",
+    ".cards::-webkit-scrollbar-thumb { background: var(--aistylist-border); border-radius: 2px; }",
+    ".card { width: 200px; flex: 0 0 200px; scroll-snap-align: start; background: var(--aistylist-bg); border: 1px solid var(--aistylist-border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }",
+    ".card__image { width: 100%; aspect-ratio: 1 / 1; background: var(--aistylist-surface); display: block; }",
+    ".card__image img { width: 100%; height: 100%; object-fit: cover; display: block; }",
+    ".card__image.empty { display: flex; align-items: center; justify-content: center; color: var(--aistylist-muted); font-size: 12px; text-align: center; padding: 8px; }",
+    ".card__info { padding: 8px 10px; display: flex; flex-direction: column; gap: 4px; flex: 1; }",
+    ".card__title { font-size: 13px; font-weight: 500; line-height: 1.3; color: var(--aistylist-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; text-overflow: ellipsis; min-height: 2.6em; }",
+    ".card__price-row { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }",
+    ".card__price { font-size: 14px; font-weight: 600; color: var(--aistylist-text); }",
+    ".card__compare { font-size: 12px; color: var(--aistylist-muted); text-decoration: line-through; }",
+    ".card__actions { display: flex; gap: 6px; padding: 0 10px 10px; }",
+    ".card__btn { flex: 1; font-family: inherit; font-size: 12px; font-weight: 500; padding: 7px 8px; border-radius: 8px; cursor: pointer; transition: opacity 150ms ease, transform 150ms ease, background-color 150ms ease; }",
+    ".card__btn:active { transform: scale(0.97); }",
+    ".card__btn.view { background: var(--aistylist-bg); border: 1px solid var(--aistylist-border); color: var(--aistylist-text); }",
+    ".card__btn.view:hover { background: var(--aistylist-surface); }",
+    ".card__btn.add { background: var(--aistylist-primary); border: 1px solid var(--aistylist-primary); color: var(--aistylist-fg-on-primary); }",
+    ".card__btn.add[aria-disabled='true'] { opacity: 0.5; cursor: not-allowed; }",
+    ".card__btn.add[aria-busy='true'] { opacity: 0.7; cursor: wait; }",
+    "@media (min-width: 641px) { .cards { flex-wrap: wrap; overflow-x: visible; } .card { flex: 0 0 calc(50% - 4px); width: auto; } }",
+    // toast (cart confirmation)
+    ".toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 20px); background: var(--aistylist-primary); color: var(--aistylist-fg-on-primary); padding: 10px 18px; border-radius: 999px; font-size: 13px; font-weight: 500; box-shadow: 0 6px 20px rgba(0,0,0,0.2); opacity: 0; pointer-events: none; transition: opacity 200ms ease, transform 200ms ease; z-index: 999999; max-width: calc(100vw - 32px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }",
+    ".toast.show { opacity: 1; transform: translate(-50%, 0); }",
     // suggestions
     ".suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 16px 8px; }",
     ".suggestions:empty { display: none; }",
@@ -280,6 +306,16 @@
     var brandingEl = panel.querySelector('[data-role="branding"]');
     if (brandingEl) brandingEl.textContent = agentName;
 
+    // Toast lives at the shadow-root level (not inside .panel) so it's
+    // visible after cart actions even if the panel scrolls or layout shifts.
+    var toast = document.createElement("div");
+    toast.className = "toast";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    root.appendChild(toast);
+    this._toastEl = toast;
+    this._toastTimer = null;
+
     // event wiring
     this._closeEl.addEventListener("click", this._handleClose.bind(this));
     this._inputEl.addEventListener("input", this._handleInput.bind(this));
@@ -419,12 +455,206 @@
       node.textContent = msg.content;
       this._messagesEl.appendChild(node);
 
+      // 008 Phase 2: rich product cards inline below assistant bubble.
+      if (msg.role === "assistant" && Array.isArray(msg.products) && msg.products.length > 0) {
+        this._renderProductCards(msg.products);
+      }
+
       this._renderSuggestions(msg.suggestions || []);
 
       if (nearBottom) {
         this._scrollToBottom(true);
       } else if (msg.role === "assistant") {
         this._showNewMsgPill();
+      }
+    }
+
+    // ────────── product cards (008 Phase 2) ──────────
+    _renderProductCards(products) {
+      var self = this;
+      var row = document.createElement("div");
+      row.className = "cards";
+      row.setAttribute("role", "list");
+
+      products.forEach(function (p) {
+        row.appendChild(self._buildCard(p));
+      });
+
+      this._messagesEl.appendChild(row);
+    }
+
+    _buildCard(product) {
+      var self = this;
+      var card = document.createElement("div");
+      card.className = "card";
+      card.setAttribute("role", "listitem");
+
+      // image area (or empty placeholder when no featured image)
+      var imageWrap = document.createElement("div");
+      imageWrap.className = "card__image";
+      if (product.imageUrl) {
+        var img = document.createElement("img");
+        img.src = product.imageUrl;
+        img.alt = product.title || "";
+        img.setAttribute("loading", "lazy");
+        img.setAttribute("decoding", "async");
+        imageWrap.appendChild(img);
+      } else {
+        imageWrap.classList.add("empty");
+        imageWrap.textContent = "No image";
+      }
+      // image and title both navigate to the product page (same tab).
+      imageWrap.addEventListener("click", function () { self._openProduct(product); });
+      imageWrap.style.cursor = "pointer";
+      card.appendChild(imageWrap);
+
+      // info: title + price row
+      var info = document.createElement("div");
+      info.className = "card__info";
+
+      var titleEl = document.createElement("div");
+      titleEl.className = "card__title";
+      titleEl.textContent = product.title || "";
+      titleEl.setAttribute("title", product.title || "");
+      titleEl.style.cursor = "pointer";
+      titleEl.addEventListener("click", function () { self._openProduct(product); });
+      info.appendChild(titleEl);
+
+      var priceRow = document.createElement("div");
+      priceRow.className = "card__price-row";
+      var priceEl = document.createElement("span");
+      priceEl.className = "card__price";
+      priceEl.textContent = self._formatPrice(product.price, product.currency);
+      priceRow.appendChild(priceEl);
+      // server has already null'd compareAtPrice when it isn't strictly
+      // greater than price, so any non-null value here means "show strikethrough".
+      if (product.compareAtPrice != null) {
+        var compareEl = document.createElement("span");
+        compareEl.className = "card__compare";
+        compareEl.textContent = self._formatPrice(product.compareAtPrice, product.currency);
+        priceRow.appendChild(compareEl);
+      }
+      info.appendChild(priceRow);
+      card.appendChild(info);
+
+      // actions
+      var actions = document.createElement("div");
+      actions.className = "card__actions";
+
+      var viewBtn = document.createElement("button");
+      viewBtn.type = "button";
+      viewBtn.className = "card__btn view";
+      viewBtn.textContent = "View";
+      viewBtn.addEventListener("click", function () { self._openProduct(product); });
+      actions.appendChild(viewBtn);
+
+      var addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.className = "card__btn add";
+      addBtn.textContent = "Add to cart";
+      // Numeric variantId is required by /cart/add.js. The server already
+      // extracted it from the GID; if it's missing or the variant isn't
+      // available, disable the button.
+      if (!product.variantId || product.available === false) {
+        addBtn.setAttribute("aria-disabled", "true");
+        addBtn.disabled = true;
+      } else {
+        addBtn.addEventListener("click", function () {
+          self._handleAddToCart(product, addBtn);
+        });
+      }
+      actions.appendChild(addBtn);
+      card.appendChild(actions);
+
+      return card;
+    }
+
+    _openProduct(product) {
+      if (!product || !product.productUrl) return;
+      window.location.href = product.productUrl;
+    }
+
+    _handleAddToCart(product, btn) {
+      var self = this;
+      var variantId = product && product.variantId;
+      // Defensive: only digits accepted. Phase 1 server already validates
+      // by extracting the GID tail, but we double-check on the client to
+      // avoid sending garbage to /cart/add.js.
+      if (!variantId || !/^\d+$/.test(String(variantId))) {
+        self._showToast("Couldn't add — check the product page", 3000);
+        return;
+      }
+      if (btn.getAttribute("aria-busy") === "true") return;
+
+      var prevLabel = btn.textContent;
+      btn.setAttribute("aria-busy", "true");
+      btn.disabled = true;
+      btn.textContent = "Adding…";
+
+      // Same-origin: widget runs on *.myshopify.com so /cart/add.js is
+      // reachable without CORS. credentials default ('same-origin') ensures
+      // the cart cookie is sent.
+      fetch("/cart/add.js", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ id: Number(variantId), quantity: 1 }),
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error("cart_add_" + res.status);
+          return res.json();
+        })
+        .then(function () {
+          self._showToast("Added to cart", 2000);
+          // Some themes listen for this to refresh a header cart badge. If
+          // the theme doesn't listen, the badge updates on next nav — accepted
+          // degradation per spec §5.4.3.
+          try {
+            document.dispatchEvent(new CustomEvent("cart:refresh", {
+              detail: { variantId: String(variantId) },
+            }));
+          } catch (e) { /* IE-style CustomEvent not constructable — ignore */ }
+        })
+        .catch(function () {
+          self._showToast("Couldn't add — check the product page", 3000);
+        })
+        .then(function () {
+          btn.removeAttribute("aria-busy");
+          btn.disabled = false;
+          btn.textContent = prevLabel;
+        });
+    }
+
+    _showToast(text, durationMs) {
+      if (!this._toastEl) return;
+      this._toastEl.textContent = text;
+      this._toastEl.classList.add("show");
+      if (this._toastTimer) {
+        window.clearTimeout(this._toastTimer);
+      }
+      var self = this;
+      this._toastTimer = window.setTimeout(function () {
+        self._toastEl.classList.remove("show");
+        self._toastTimer = null;
+      }, durationMs || 2000);
+    }
+
+    _formatPrice(amount, currency) {
+      var ccy = currency || "INR";
+      var value = typeof amount === "number" ? amount : Number(amount);
+      if (!isFinite(value)) value = 0;
+      // INR has no fractional part by convention in Indian retail; everything
+      // else uses the locale default. Browsers without Intl fallback to a
+      // plain numeric string.
+      try {
+        var fractionDigits = ccy === "INR" ? 0 : 2;
+        return new Intl.NumberFormat(undefined, {
+          style: "currency",
+          currency: ccy,
+          minimumFractionDigits: fractionDigits,
+          maximumFractionDigits: fractionDigits,
+        }).format(value);
+      } catch (e) {
+        return ccy + " " + value.toFixed(ccy === "INR" ? 0 : 2);
       }
     }
 
@@ -515,6 +745,7 @@
               content: data.message.content,
               timestamp: data.message.timestamp || Date.now(),
               suggestions: data.message.suggestions || [],
+              products: Array.isArray(data.message.products) ? data.message.products : [],
             });
           }
         })
