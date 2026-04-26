@@ -54,6 +54,8 @@ model MerchantConfig {
   storeMode            StoreMode    @default(GENERAL)
   chatWidgetEnabled    Boolean      @default(true)
   chatAgentName        String?
+  chatPrimaryColor     String       @default("#000000")
+  chatWelcomeMessage   String       @default("Hi! I'm your shopping assistant. How can I help you today?")
   ctaEnabled           Boolean      @default(true)
   ctaLabel             String       @default("Need help choosing?")
   ctaPlacement         CtaPlacement @default(PRODUCT_PAGE)

@@ -1,4 +1,9 @@
 export const CTA_LABEL_MAX = 60;
+export const CHAT_WELCOME_MESSAGE_MAX = 280;
+export const CHAT_PRIMARY_COLOR_REGEX = /^#[0-9a-fA-F]{6}$/;
+export const DEFAULT_CHAT_PRIMARY_COLOR = "#000000";
+export const DEFAULT_CHAT_WELCOME_MESSAGE =
+  "Hi! I'm your shopping assistant. How can I help you today?";
 
 export const STORE_MODES = [
   "FASHION",

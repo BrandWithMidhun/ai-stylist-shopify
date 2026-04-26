@@ -9,6 +9,7 @@ import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { authenticate } from "../shopify.server";
 import {
+  CHAT_WELCOME_MESSAGE_MAX,
   CTA_LABEL_MAX,
   getDefaultAgentName,
   type CtaPlacement,
@@ -20,6 +21,10 @@ import {
   parseFormData,
   upsertMerchantConfig,
 } from "../lib/merchant-config.server";
+import {
+  MetafieldSyncError,
+  syncChatConfigMetafield,
+} from "../lib/chat/metafield-sync.server";
 
 const STORE_MODE_OPTIONS: { value: StoreMode; label: string }[] = [
   { value: "FASHION", label: "Fashion" },
@@ -48,16 +53,35 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
+  let config;
   try {
     const input = parseFormData(formData);
-    await upsertMerchantConfig(session.shop, input);
-    return { ok: true as const };
+    config = await upsertMerchantConfig(session.shop, input);
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "Could not save configuration.";
     return { ok: false as const, error: message };
+  }
+
+  // Postgres save succeeded — push to the storefront metafield. Failures
+  // here surface a non-blocking warning: the merchant's data is safe, the
+  // storefront just won't reflect this save until the next successful
+  // sync. missing_scope means the new write_app_metafields scope hasn't
+  // been granted yet (post-deploy re-auth), so prompt a reload.
+  try {
+    await syncChatConfigMetafield(admin, config);
+    return { ok: true as const, syncWarning: null };
+  } catch (err) {
+    const code = err instanceof MetafieldSyncError ? err.code : "graphql_error";
+    // eslint-disable-next-line no-console
+    console.error(`[config] metafield sync failed for ${session.shop}:`, err);
+    const syncWarning =
+      code === "missing_scope"
+        ? "Storefront sync requires app permissions. Please reload to grant access."
+        : "Saved to database. Storefront sync pending — try saving again in a moment.";
+    return { ok: true as const, syncWarning };
   }
 };
 
@@ -73,13 +97,23 @@ export default function ConfigPage() {
   const [chatAgentName, setChatAgentName] = useState<string>(
     config.chatAgentName ?? "",
   );
+  const [chatPrimaryColor, setChatPrimaryColor] = useState<string>(
+    config.chatPrimaryColor,
+  );
+  const [chatWelcomeMessage, setChatWelcomeMessage] = useState<string>(
+    config.chatWelcomeMessage,
+  );
   const fashionOnlyLocked = storeMode !== "FASHION";
   const agentNamePlaceholder = getDefaultAgentName(storeMode);
 
   useEffect(() => {
     if (!actionData) return;
     if (actionData.ok) {
-      shopify.toast.show("Configuration saved");
+      if (actionData.syncWarning) {
+        shopify.toast.show(actionData.syncWarning, { isError: true });
+      } else {
+        shopify.toast.show("Configuration saved");
+      }
     } else {
       shopify.toast.show(actionData.error, { isError: true });
     }
@@ -160,23 +194,48 @@ export default function ConfigPage() {
           </s-stack>
         </s-section>
 
-        <s-section heading="Chat agent">
+        <s-section heading="Chat widget">
           <s-paragraph>
-            This is your preferred agent name. To use it on the storefront,
-            also set &quot;Agent name override&quot; in the theme editor App
-            Embed settings.
+            These settings drive the storefront chat widget. Saving here
+            pushes changes to your storefront immediately — the theme
+            editor only needs the App Embed toggle enabled.
           </s-paragraph>
-          <s-text-field
-            label="Agent name"
-            name="chatAgentName"
-            value={chatAgentName}
-            placeholder={agentNamePlaceholder}
-            details="Shown in the chat widget header. Leave blank to use the default for your store type."
-            onInput={(event: Event) => {
-              const target = event.currentTarget as HTMLInputElement;
-              setChatAgentName(target.value);
-            }}
-          />
+          <s-stack direction="block" gap="base">
+            <s-text-field
+              label="Agent name"
+              name="chatAgentName"
+              value={chatAgentName}
+              placeholder={agentNamePlaceholder}
+              details="Shown in the chat widget header. Leave blank to use the default for your store type."
+              onInput={(event: Event) => {
+                const target = event.currentTarget as HTMLInputElement;
+                setChatAgentName(target.value);
+              }}
+            />
+            <s-color-field
+              label="Primary color"
+              name="chatPrimaryColor"
+              value={chatPrimaryColor}
+              details="Used for the chat bubble, send button, and message highlights."
+              onChange={(event: Event) => {
+                const target = event.currentTarget as HTMLInputElement;
+                setChatPrimaryColor(target.value);
+              }}
+            />
+            <s-text-area
+              label="Welcome message"
+              name="chatWelcomeMessage"
+              value={chatWelcomeMessage}
+              rows={3}
+              max-length={CHAT_WELCOME_MESSAGE_MAX}
+              required
+              details={`${chatWelcomeMessage.length}/${CHAT_WELCOME_MESSAGE_MAX} characters. Shown as the first assistant bubble when a shopper opens the widget.`}
+              onInput={(event: Event) => {
+                const target = event.currentTarget as HTMLTextAreaElement;
+                setChatWelcomeMessage(target.value);
+              }}
+            />
+          </s-stack>
         </s-section>
 
         <s-section heading="CTA configuration">

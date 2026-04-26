@@ -4,8 +4,12 @@ import prisma from "../db.server";
 import { seedTaxonomy } from "./catalog/taxonomy-seeds";
 import { seedRules } from "./catalog/rule-seeds";
 import {
+  CHAT_PRIMARY_COLOR_REGEX,
+  CHAT_WELCOME_MESSAGE_MAX,
   CTA_LABEL_MAX,
   CTA_PLACEMENTS,
+  DEFAULT_CHAT_PRIMARY_COLOR,
+  DEFAULT_CHAT_WELCOME_MESSAGE,
   STORE_MODES,
   getDefaultAgentName,
   type CtaPlacement,
@@ -20,17 +24,16 @@ import {
 
 // Resolve the effective agent name for a merchant: their chatAgentName
 // override (trimmed, non-empty) wins; otherwise fall back to the storeMode
-// default. NOTE: as of 007, this value is *advisory* — it represents the
-// merchant's preferred name in the admin, but the storefront widget reads
-// from the theme editor App Embed setting (agent_name_override) instead. v2
-// will sync this value to an app metafield so the widget can read it without
-// an extra fetch.
+// default. As of the 007 metafield refactor this value is now authoritative
+// for the storefront — it gets serialized into the app-data metafield that
+// the widget reads, so the theme editor no longer carries an override.
 export function getEffectiveAgentName(config: MerchantConfig): string {
   return (
     config.chatAgentName?.trim() ||
     getDefaultAgentName(config.storeMode as StoreMode)
   );
 }
+
 
 export const merchantConfigFormSchema = z.object({
   storeMode: z.enum(STORE_MODES),
@@ -40,6 +43,15 @@ export const merchantConfigFormSchema = z.object({
     .trim()
     .max(60)
     .nullable(),
+  chatPrimaryColor: z
+    .string()
+    .trim()
+    .regex(CHAT_PRIMARY_COLOR_REGEX, "Use a 6-digit hex like #000000."),
+  chatWelcomeMessage: z
+    .string()
+    .trim()
+    .min(1)
+    .max(CHAT_WELCOME_MESSAGE_MAX),
   ctaEnabled: z.boolean(),
   ctaLabel: z.string().trim().min(1).max(CTA_LABEL_MAX),
   ctaPlacement: z.enum(CTA_PLACEMENTS),
@@ -59,6 +71,8 @@ export function defaultMerchantConfig(shop: string): MerchantConfigInput & {
     storeMode: "GENERAL" satisfies StoreMode,
     chatWidgetEnabled: true,
     chatAgentName: null,
+    chatPrimaryColor: DEFAULT_CHAT_PRIMARY_COLOR,
+    chatWelcomeMessage: DEFAULT_CHAT_WELCOME_MESSAGE,
     ctaEnabled: true,
     ctaLabel: "Need help choosing?",
     ctaPlacement: "PRODUCT_PAGE" satisfies CtaPlacement,
@@ -130,6 +144,8 @@ export function parseFormData(formData: FormData): MerchantConfigInput {
     storeMode: formData.get("storeMode"),
     chatWidgetEnabled: parseBoolField(formData.get("chatWidgetEnabled")),
     chatAgentName: agentName,
+    chatPrimaryColor: formData.get("chatPrimaryColor") ?? "",
+    chatWelcomeMessage: formData.get("chatWelcomeMessage") ?? "",
     ctaEnabled: parseBoolField(formData.get("ctaEnabled")),
     ctaLabel: formData.get("ctaLabel") ?? "",
     ctaPlacement: formData.get("ctaPlacement"),

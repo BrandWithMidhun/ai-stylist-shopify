@@ -5,12 +5,32 @@ import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
 import { authenticate } from "../shopify.server";
 import { ensureMerchantConfig } from "../lib/merchant-config.server";
+import { syncChatConfigMetafield } from "../lib/chat/metafield-sync.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   // Chokepoint for every nested /app/* route. Guarantees MerchantConfig row
   // exists so downstream loaders/actions can assume it.
-  await ensureMerchantConfig(session.shop);
+  const config = await ensureMerchantConfig(session.shop);
+
+  // First-render guarantee for the storefront: the chat config metafield
+  // must exist before the widget loads on a customer's browser. The
+  // metafieldsSet mutation upserts (idempotent on subsequent calls), so
+  // running this on every /app/* load is cheap and self-healing — if a
+  // prior write failed (missing scope, transient error), the next visit
+  // catches it. Failures are logged but never block the merchant from
+  // reaching the admin UI; e.g., immediately after the scope expansion
+  // deploys, the merchant lands here without the new write_app_metafields
+  // grant and we want them to see the re-auth banner.
+  try {
+    await syncChatConfigMetafield(admin, config);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error(
+      `[app loader] metafield sync skipped for ${session.shop}:`,
+      err,
+    );
+  }
 
   // eslint-disable-next-line no-undef
   return { apiKey: process.env.SHOPIFY_API_KEY || "" };

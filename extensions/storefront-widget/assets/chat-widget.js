@@ -30,11 +30,11 @@
   var DEFAULT_PRIMARY_COLOR = "#000000";
   var DEFAULT_WELCOME =
     "Hi! I'm your shopping assistant. How can I help you today?";
-  // 007 follow-up: storefront falls back to "AI Assistant" because the
-  // widget can't query MerchantConfig server-side without an extra fetch.
-  // The merchant's preferred name (set in /app/config) is advisory; the
-  // theme editor's agent_name_override is the authoritative source here.
-  // v2 will sync chatAgentName to an app metafield to remove this duality.
+  // Defensive fallback only. The Liquid template injects agentName from
+  // the app:ai_stylist/chat_config metafield, populated by /app/config and
+  // by ensureMerchantConfig on install — so this default should never be
+  // observed in practice. Kept so a missing/corrupted metafield doesn't
+  // render an empty header.
   var DEFAULT_AGENT_NAME = "AI Assistant";
 
   // Industry-neutral default chips on welcome state.

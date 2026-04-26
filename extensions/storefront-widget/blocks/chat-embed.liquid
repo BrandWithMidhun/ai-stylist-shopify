@@ -7,24 +7,25 @@
   CSP note: merchants with strict CSP must allowlist
     connect-src https://web-production-3b1d7.up.railway.app
   for the chat fetch. Surfaces in v2 if real merchants hit it.
+
+  Config source: all chat config (agent name, primary color, welcome
+  message, CTA label) lives in the app-data metafield app:ai_stylist /
+  chat_config, written by /app/config save and read here via the Liquid
+  `app` object. If the metafield is missing (very fresh install whose
+  ensureMerchantConfig sync hasn't fired yet), the inline defaults below
+  keep the widget functional with neutral copy.
 {%- endcomment -%}
 
-{%- comment -%}
-  Agent name duality (007 follow-up): the merchant's preferred agent name
-  is set in /app/config (chatAgentName), but the storefront widget can't
-  read MerchantConfig directly without an extra fetch on every page load.
-  v1 resolution: the theme editor `agent_name_override` below is the
-  authoritative source for the storefront. Merchants must set both for now.
-  v2 will sync chatAgentName to an app metafield so the widget can read it
-  without a fetch — at which point this duality goes away.
-{%- endcomment -%}
 {%- if block.settings.enable_widget -%}
+  {%- assign chat_config = app.metafields.ai_stylist.chat_config.value -%}
   <script>
     window.__AISTYLIST_CONFIG__ = {
       shopDomain: {{ shop.permanent_domain | json }},
-      primaryColor: {{ block.settings.primary_color | json }},
-      welcomeMessage: {{ block.settings.welcome_message | json }},
-      agentName: "{{ block.settings.agent_name_override | default: '' | escape }}",
+      agentName: {{ chat_config.agentName | default: "AI Assistant" | json }},
+      primaryColor: {{ chat_config.primaryColor | default: "#000000" | json }},
+      welcomeMessage: {{ chat_config.welcomeMessage | default: "Hi! I'm your shopping assistant. How can I help you today?" | json }},
+      ctaLabel: {{ chat_config.ctaLabel | default: "" | json }},
+      configVersion: {{ chat_config.version | default: 0 | json }},
       chatEndpoint: "https://web-production-3b1d7.up.railway.app/api/chat/message"
     };
   </script>
@@ -42,24 +43,6 @@
       "id": "enable_widget",
       "label": "Show chat bubble on storefront",
       "default": true
-    },
-    {
-      "type": "color",
-      "id": "primary_color",
-      "label": "Primary color",
-      "default": "#000000"
-    },
-    {
-      "type": "text",
-      "id": "agent_name_override",
-      "label": "Agent name override",
-      "info": "Custom agent name. Leave blank to use the merchant's configured default."
-    },
-    {
-      "type": "textarea",
-      "id": "welcome_message",
-      "label": "Welcome message",
-      "default": "Hi! I'm your shopping assistant. How can I help you today?"
     }
   ]
 }
