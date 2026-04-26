@@ -143,6 +143,8 @@ model Product {
   deletedAt              DateTime?
   recommendationExcluded Boolean   @default(false)
   taxonomyNodeId         String?
+  embedding              Unsupported("vector(1024)")?
+  embeddingUpdatedAt     DateTime?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 

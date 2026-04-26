@@ -21,6 +21,10 @@
 //     ProductTag.excluded does not exist; product-level exclusion covers v1.
 //   - Inactive (status != 'ACTIVE') and soft-deleted (deletedAt != null)
 //     products are dropped.
+//   - Fully-out-of-stock products (no variant with availableForSale=true) are
+//     dropped. Showing unbuyable items in recommendations or search hurts
+//     conversion. Direct lookups (e.g. PDP context) bypass search_products
+//     and aren't affected by this filter.
 
 import type { Prisma } from "@prisma/client";
 import prisma from "../../../db.server";
@@ -84,6 +88,10 @@ export async function searchProducts(
     status: "ACTIVE",
     deletedAt: null,
     recommendationExcluded: false,
+    // Skip products with no available variants. Showing unbuyable items in
+    // recommendations or search hurts conversion. Direct lookups (e.g. PDP
+    // context) bypass search_products and aren't affected by this filter.
+    variants: { some: { availableForSale: true } },
   };
 
   const q = input.query?.trim();
