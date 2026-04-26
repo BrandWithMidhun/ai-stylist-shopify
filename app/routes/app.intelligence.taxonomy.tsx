@@ -67,6 +67,10 @@ export default function TaxonomyPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  const storeModeLabel = storeMode.toLowerCase();
 
   const selected = useMemo(
     () => nodes.find((n) => n.id === selectedId) ?? null,
@@ -104,6 +108,35 @@ export default function TaxonomyPage() {
       method: "post",
       action: "/api/intelligence/taxonomy/rematch-all",
     });
+  };
+
+  const triggerReset = async () => {
+    setError(null);
+    setInfo(null);
+    setConfirmReset(false);
+    setResetting(true);
+    try {
+      const res = await fetch("/api/intelligence/taxonomy/reset", {
+        method: "POST",
+      });
+      const body = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        nodesCreated?: number;
+        error?: string;
+      } | null;
+      if (!res.ok || !body?.ok) {
+        throw new Error(body?.error ?? `HTTP ${res.status}`);
+      }
+      setSelectedId(null);
+      setInfo(
+        `Reset to ${storeModeLabel} defaults: ${body.nodesCreated ?? 0} nodes created.`,
+      );
+      revalidator.revalidate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reset taxonomy.");
+    } finally {
+      setResetting(false);
+    }
   };
 
   const triggerAddNode = async (parentId: string | null) => {
@@ -215,9 +248,38 @@ export default function TaxonomyPage() {
         .tax-toolbar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
         .tax-progress { display: flex; align-items: center; gap: 8px; }
       `}</style>
-      <s-button slot="primary-action" onClick={triggerRematch} {...(isRematching ? { loading: true } : {})}>
-        Re-match all products
-      </s-button>
+      <s-stack slot="primary-action" direction="inline" gap="small-200">
+        <s-button
+          onClick={() => setConfirmReset(true)}
+          {...(resetting ? { loading: true } : {})}
+        >
+          Reset to defaults
+        </s-button>
+        <s-button onClick={triggerRematch} {...(isRematching ? { loading: true } : {})}>
+          Re-match all products
+        </s-button>
+      </s-stack>
+      {confirmReset ? (
+        <s-banner tone="warning" heading={`Reset to ${storeModeLabel} defaults?`}>
+          <s-paragraph>
+            This will delete your current taxonomy and replace it with the
+            default tree for {storeModeLabel}. Products will be unmatched
+            (Re-match all to reassign). This cannot be undone. Continue?
+          </s-paragraph>
+          {storeMode === "GENERAL" ? (
+            <s-paragraph>
+              Heads up: the general default is a clean slate — one root node
+              and no children. You&apos;ll be building the tree from scratch.
+            </s-paragraph>
+          ) : null}
+          <s-stack direction="inline" gap="small-200">
+            <s-button onClick={() => setConfirmReset(false)}>Cancel</s-button>
+            <s-button variant="primary" onClick={triggerReset}>
+              Yes, reset
+            </s-button>
+          </s-stack>
+        </s-banner>
+      ) : null}
       {error ? (
         <s-banner tone="critical" heading="Action failed" dismissible onDismiss={() => setError(null)}>
           <s-paragraph>{error}</s-paragraph>

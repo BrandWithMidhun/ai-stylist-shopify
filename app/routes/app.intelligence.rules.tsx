@@ -91,6 +91,10 @@ export default function RulesPage() {
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [confirmApplyAll, setConfirmApplyAll] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  const storeModeLabel = storeMode.toLowerCase();
 
   // Apply-all job ----------------------------------------------------
   const applyFetcher = useFetcher<{ jobId?: string; error?: string }>();
@@ -249,6 +253,35 @@ export default function RulesPage() {
     });
   };
 
+  const triggerReset = async () => {
+    setError(null);
+    setInfo(null);
+    setConfirmReset(false);
+    setResetting(true);
+    try {
+      const res = await fetch("/api/intelligence/rules/reset", {
+        method: "POST",
+      });
+      const body = (await res.json().catch(() => null)) as {
+        ok?: boolean;
+        rulesCreated?: number;
+        error?: string;
+      } | null;
+      if (!res.ok || !body?.ok) {
+        throw new Error(body?.error ?? `HTTP ${res.status}`);
+      }
+      setDraft(null);
+      setInfo(
+        `Reset to ${storeModeLabel} defaults: ${body.rulesCreated ?? 0} rules created.`,
+      );
+      revalidator.revalidate();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reset rules.");
+    } finally {
+      setResetting(false);
+    }
+  };
+
   return (
     <s-page heading="Tagging rules">
       <style>{`
@@ -258,6 +291,12 @@ export default function RulesPage() {
       `}</style>
 
       <s-stack slot="primary-action" direction="inline" gap="small-200">
+        <s-button
+          onClick={() => setConfirmReset(true)}
+          {...(resetting ? { loading: true } : {})}
+        >
+          Reset to defaults
+        </s-button>
         <s-button
           onClick={() => setConfirmApplyAll(true)}
           {...(isApplying ? { loading: true } : {})}
@@ -277,6 +316,29 @@ export default function RulesPage() {
       {info ? (
         <s-banner tone="success" dismissible onDismiss={() => setInfo(null)}>
           <s-paragraph>{info}</s-paragraph>
+        </s-banner>
+      ) : null}
+
+      {confirmReset ? (
+        <s-banner tone="warning" heading={`Reset to ${storeModeLabel} defaults?`}>
+          <s-paragraph>
+            This will delete your current rules and replace them with the
+            default rules for {storeModeLabel}. Existing tags on products
+            will not be changed. Continue?
+          </s-paragraph>
+          {storeMode === "GENERAL" ? (
+            <s-paragraph>
+              Heads up: the general default ships zero rules, so this is
+              effectively a clean slate — you&apos;ll be writing rules from
+              scratch.
+            </s-paragraph>
+          ) : null}
+          <s-stack direction="inline" gap="small-200">
+            <s-button onClick={() => setConfirmReset(false)}>Cancel</s-button>
+            <s-button variant="primary" onClick={triggerReset}>
+              Yes, reset
+            </s-button>
+          </s-stack>
         </s-banner>
       ) : null}
 
