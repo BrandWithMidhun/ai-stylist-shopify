@@ -1,4 +1,5 @@
 api_version = "2025-01"
+uid = "7dc0718b-e9d2-1da8-8d73-2115d652f357e9537189"
 
 [[extensions]]
 name = "AI Stylist Storefront Widget"
