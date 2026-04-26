@@ -1,0 +1,50 @@
+{%- comment -%}
+  AI Stylist — App Embed (auto-injects chat bubble on every storefront page).
+
+  Renders nothing when enable_widget is off, so disabling in theme editor
+  fully removes the script tag and custom element from the page.
+
+  CSP note: merchants with strict CSP must allowlist
+    connect-src https://web-production-3b1d7.up.railway.app
+  for the chat fetch. Surfaces in v2 if real merchants hit it.
+{%- endcomment -%}
+
+{%- if block.settings.enable_widget -%}
+  <script>
+    window.__AISTYLIST_CONFIG__ = {
+      shopDomain: {{ shop.permanent_domain | json }},
+      primaryColor: {{ block.settings.primary_color | json }},
+      welcomeMessage: {{ block.settings.welcome_message | json }},
+      chatEndpoint: "https://web-production-3b1d7.up.railway.app/api/chat/message"
+    };
+  </script>
+  <script src="{{ 'chat-widget.js' | asset_url }}" defer></script>
+  <aistylist-widget aria-label="Chat with AI Stylist"></aistylist-widget>
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "AI Stylist Chat",
+  "target": "body",
+  "settings": [
+    {
+      "type": "checkbox",
+      "id": "enable_widget",
+      "label": "Show chat bubble on storefront",
+      "default": true
+    },
+    {
+      "type": "color",
+      "id": "primary_color",
+      "label": "Primary color",
+      "default": "#000000"
+    },
+    {
+      "type": "textarea",
+      "id": "welcome_message",
+      "label": "Welcome message",
+      "default": "Hi! I'm your shopping assistant. How can I help you today?"
+    }
+  ]
+}
+{% endschema %}

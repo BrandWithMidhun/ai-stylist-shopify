@@ -11,6 +11,12 @@ import {
   type StoreMode,
 } from "./merchant-config";
 
+// NOTE on chatWidgetEnabled: as of 007 (storefront chat widget), this field
+// is NOT read by the storefront widget. The actual storefront enable toggle
+// lives in the theme app extension settings (App Embed > "Show chat bubble
+// on storefront"). chatWidgetEnabled is reserved for a future v2 admin-side
+// kill switch that will gate the embed regardless of theme editor state.
+
 export const merchantConfigFormSchema = z.object({
   storeMode: z.enum(STORE_MODES),
   chatWidgetEnabled: z.boolean(),

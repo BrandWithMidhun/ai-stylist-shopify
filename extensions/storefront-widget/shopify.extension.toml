@@ -1,0 +1,6 @@
+api_version = "2025-01"
+
+[[extensions]]
+name = "AI Stylist Storefront Widget"
+handle = "storefront-widget"
+type = "theme"
