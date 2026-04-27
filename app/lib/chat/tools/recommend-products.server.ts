@@ -125,6 +125,7 @@ export async function recommendProducts(
     data: {
       products: slim,
       total: cards.length,
+      topDistance: candidates[0]?.distance ?? null,
       query: input,
     },
     products: topCards,

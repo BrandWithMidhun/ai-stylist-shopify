@@ -128,7 +128,7 @@ export async function findSimilarProducts(args: {
       id: true,
       variants: {
         take: 1,
-        orderBy: { price: "asc" },
+        orderBy: [{ availableForSale: "desc" }, { price: "asc" }],
         select: {
           shopifyId: true,
           price: true,

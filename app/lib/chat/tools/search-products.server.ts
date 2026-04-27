@@ -14,11 +14,7 @@
 //   - Price filter uses Product.priceMin / priceMax (indexed) rather than
 //     joining ProductVariant — overlapping-range semantics: a product matches
 //     if any of its variants could plausibly fall in [price_min, price_max].
-//   - Tag filter is AND across input.tags (each requested tag must be present
-//     on the product). Tag value is matched exactly via ProductTag.value.
 //   - Excluded products (Product.recommendationExcluded === true) are dropped.
-//     There is no per-tag exclusion field in the schema — the spec's
-//     ProductTag.excluded does not exist; product-level exclusion covers v1.
 //   - Inactive (status != 'ACTIVE') and soft-deleted (deletedAt != null)
 //     products are dropped.
 //   - Fully-out-of-stock products (no variant with availableForSale=true) are
@@ -42,7 +38,7 @@ const MAX_LIMIT = 12;
 export const searchProductsTool: ToolDef = {
   name: "search_products",
   description:
-    "Search the merchant's product catalog. The `query` field does case-insensitive substring matching against product title, productType, description, and tag values — pass concrete nouns or literal attributes you expect to appear in product data (e.g. 'linen', 'shorts', 'wireless', 'diamond ring'). Avoid passing abstract style concepts as the query unless they're known to be tag values on this catalog (e.g. 'minimalist outfit' or 'everyday casual' as a free-text query usually returns 0 results). For style, occasion, and material facets, prefer the `tags` parameter (e.g. tags: ['casual', 'cotton']) — tags are exact-match. Use the `taxonomy` parameter when the user is browsing a known category.",
+    "Search the merchant's product catalog. The `query` field does case-insensitive substring matching against product title, productType, description, and tag values — pass concrete nouns or literal attributes you expect to appear in product data (e.g. 'linen', 'shorts', 'wireless', 'diamond ring'). Avoid passing abstract style concepts as the query unless they're known to be tag values on this catalog (e.g. 'minimalist outfit' or 'everyday casual' as a free-text query usually returns 0 results). For style, occasion, material, vibe, or any taste-driven facet, use `recommend_products` instead — it does semantic matching over the catalog. Use the `taxonomy` parameter when the user is browsing a known category.",
   input_schema: {
     type: "object",
     properties: {
@@ -58,12 +54,6 @@ export const searchProductsTool: ToolDef = {
       price_max: {
         type: "number",
         description: "Maximum price (optional). Same currency as the store.",
-      },
-      tags: {
-        type: "array",
-        items: { type: "string" },
-        description:
-          "Filter by specific tag values (e.g. ['cotton', 'casual'] for FASHION; ['wireless', 'gaming'] for ELECTRONICS). All listed tags must be present on the product (AND logic).",
       },
       taxonomy: {
         type: "string",
@@ -111,12 +101,6 @@ export async function searchProducts(
     where.priceMin = { lte: input.price_max };
   }
 
-  if (input.tags && input.tags.length > 0) {
-    where.AND = input.tags.map((value) => ({
-      tags: { some: { value } },
-    }));
-  }
-
   if (input.taxonomy) {
     const node = await prisma.taxonomyNode.findFirst({
       where: { shopDomain: ctx.shopDomain, slug: input.taxonomy },
@@ -137,7 +121,10 @@ export async function searchProducts(
     take: limit,
     orderBy: { shopifyUpdatedAt: "desc" },
     include: {
-      variants: { take: 1, orderBy: { price: "asc" } },
+      variants: {
+        take: 1,
+        orderBy: [{ availableForSale: "desc" }, { price: "asc" }],
+      },
       tags: { select: { axis: true, value: true } },
     },
   });

@@ -46,7 +46,6 @@ export type SearchProductsInput = {
   query: string;
   price_min?: number;
   price_max?: number;
-  tags?: string[];
   taxonomy?: string;
   limit?: number;
 };
