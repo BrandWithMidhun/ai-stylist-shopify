@@ -1,6 +1,12 @@
 // Polls GET /api/catalog/sync/:jobId every 2 seconds and exposes the
 // current status + a rolling ETA. Cancels on unmount / jobId change.
 // Calls onSuccess / onFailure exactly once on terminal status.
+//
+// Phase 1 (PR-A): the underlying API now reads CatalogSyncJob from DB,
+// so job rows persist beyond the in-process 60-second retention window.
+// The legacy "treat 404 as success" quirk is removed — a 404 now means
+// the job ID was never created or is from another shop, which is a
+// real failure case the merchant should see, not silent success.
 
 import { useEffect, useRef, useState } from "react";
 import {
@@ -65,7 +71,6 @@ export function useSyncJobProgress(
     let cancelled = false;
     let interval: ReturnType<typeof setInterval> | null = null;
     let consecutiveFailures = 0;
-    let hasRecordedError = false;
     const startedAt = Date.now();
 
     const stop = () => {
@@ -102,18 +107,11 @@ export function useSyncJobProgress(
         if (cancelled) return;
 
         if (res.status === 404) {
-          // Job is no longer in the in-memory registry. Either the sync
-          // completed and the >60s retention window expired, or the server
-          // restarted, or the jobId is invalid. Either way: stop polling
-          // and treat as terminal. Assume success when we never observed an
-          // error — the common case is that completion + retention purge
-          // raced ahead of our last successful poll.
+          // CatalogSyncJob rows persist in DB — a 404 means an invalid
+          // jobId (never created, deleted, or belongs to another shop).
+          // Surface as failure rather than silently succeeding.
           stop();
-          if (hasRecordedError) {
-            finishFailure("Job no longer tracked — please refresh");
-          } else {
-            finishSuccess();
-          }
+          finishFailure("Sync job not found");
           return;
         }
 
@@ -138,7 +136,6 @@ export function useSyncJobProgress(
           stop();
           finishSuccess();
         } else if (body.status === "failed") {
-          hasRecordedError = true;
           stop();
           finishFailure(body.error ?? null);
         }

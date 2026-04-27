@@ -1,18 +1,23 @@
-// In-memory job registry for catalog sync and batch AI tagging.
+// In-memory job registry for batch AI tagging, rule application, and
+// taxonomy re-matching.
 //
-// This is deliberately simple: a single Node-process Map. Railway deploys the
-// app as a single web service, so one process owns the state. If the process
-// restarts mid-job the job is lost — sync is idempotent (re-upsert), batch
-// tagging is tolerant (user can re-run). Reconciliation (spec 4.4) is
-// non-blocking for 005a and will close any drift.
+// Single Node-process Map. Railway deploys the app as a single web service,
+// so one process owns the state. If the process restarts mid-job the job is
+// lost — batch tagging is tolerant (user can re-run); the other two are
+// pure-DB ops that re-run cheaply.
+//
+// Phase 1 (PR-A): the "sync" kind moved to a DB-backed model in
+// app/lib/catalog/sync-jobs.server.ts so the future Phase 8 dashboard can
+// read sync state, the worker (PR-B) can survive restarts, and the
+// catch-up cron (PR-D) can enqueue runs durably. The other kinds stay
+// here — they're Phase 2 territory.
 
-export type JobKind = "sync" | "batch_tag" | "rematch_taxonomy" | "apply_rules";
+export type JobKind = "batch_tag" | "rematch_taxonomy" | "apply_rules";
 
-// Per 006a Decision 5: only sync/batch_tag carry the 5-minute cooldown
-// (they hit Shopify GraphQL / Anthropic respectively). Re-match-all and
-// apply-all are pure DB ops with no upstream rate limit; we still dedupe
-// concurrent runs but skip the cooldown.
-const COOLDOWN_KINDS: ReadonlySet<JobKind> = new Set(["sync", "batch_tag"]);
+// Only batch_tag carries the 5-minute cooldown (it hits Anthropic).
+// rematch_taxonomy and apply_rules are pure DB ops with no upstream
+// rate limit; we still dedupe concurrent runs but skip the cooldown.
+const COOLDOWN_KINDS: ReadonlySet<JobKind> = new Set(["batch_tag"]);
 
 export type JobStatus = "queued" | "running" | "succeeded" | "failed";
 

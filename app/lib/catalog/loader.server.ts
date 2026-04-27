@@ -2,11 +2,15 @@
 //
 // Keeps app/routes/app.products.intelligence.tsx thin by pulling the product
 // list + mode branching logic into a server-only helper.
+//
+// Phase 1 (PR-A): the active sync job is now read from the DB-backed
+// CatalogSyncJob table (via sync-jobs.server.ts). The shape consumed by
+// the dashboard components stays identical so no UI churn is needed.
 
 import prisma from "../../db.server";
 import type { AxisOptions } from "./axis-options";
 import { computeTagStatus, type TagStatus } from "./tag-status";
-import { getActiveJobId, getJob } from "./jobs.server";
+import { getActiveJobForShop } from "./sync-jobs.server";
 import {
   loadDashboardStats,
   type DashboardStats,
@@ -73,7 +77,7 @@ export async function loadIntelligenceData(
     select: { lastFullSyncAt: true, storeMode: true },
   });
 
-  const activeJob = resolveActiveSyncJob(shopDomain);
+  const activeJob = await resolveActiveSyncJob(shopDomain);
 
   if (!config?.lastFullSyncAt) {
     if (activeJob) {
@@ -139,16 +143,18 @@ export async function loadIntelligenceData(
   };
 }
 
-function resolveActiveSyncJob(shopDomain: string): ActiveSyncJob | null {
-  const jobId = getActiveJobId(shopDomain, "sync");
-  if (!jobId) return null;
-  const job = getJob(jobId);
+async function resolveActiveSyncJob(
+  shopDomain: string,
+): Promise<ActiveSyncJob | null> {
+  const job = await getActiveJobForShop(shopDomain);
   if (!job) return null;
-  if (job.status !== "running" && job.status !== "queued") return null;
   return {
     jobId: job.id,
-    progress: job.progress,
-    total: job.total,
-    startedAt: job.startedAt.toISOString(),
+    progress: job.processedProducts,
+    total: job.totalProducts ?? 0,
+    // Prefer startedAt for accuracy once the worker claims the job;
+    // fall back to enqueuedAt while the job is still QUEUED so the UI
+    // has a non-null timestamp to render.
+    startedAt: (job.startedAt ?? job.enqueuedAt).toISOString(),
   };
 }

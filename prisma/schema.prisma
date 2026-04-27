@@ -69,6 +69,12 @@ model MerchantConfig {
   stylistAgentEnabled      Boolean      @default(false)
   commerceAgentEnabled     Boolean      @default(true)
   lastFullSyncAt           DateTime?
+  // Phase 1: tracks when the rich knowledge record (metafields, metaobjects,
+  // collections, descriptionText, knowledgeContentHash) was last fully
+  // reconciled for this shop. Distinct from lastFullSyncAt so we can roll
+  // out the new ingestion path without overloading the existing flag —
+  // webhook handlers added in PR-C will gate on this one.
+  lastKnowledgeSyncAt      DateTime?
   createdAt                DateTime     @default(now())
   updatedAt                DateTime     @updatedAt
 }
@@ -145,11 +151,33 @@ model Product {
   taxonomyNodeId         String?
   embedding              Unsupported("vector(1024)")?
   embeddingUpdatedAt     DateTime?
+  // Phase 1 knowledge-record fields. Additive — current chat path
+  // (recommend_products / search_products) does not read any of these.
+  // descriptionText: HTML-stripped plaintext, computed once at ingest so
+  // embedders and tagging passes don't re-strip on every read.
+  descriptionText        String?
+  // knowledgeContentHash: sha256 hex over the canonical textual record
+  // (title, descriptionText, productType, vendor, shopifyTags, collection
+  // handles, textual metafields, metaobject refs). Phase 3 reads this to
+  // skip re-embedding when content hasn't changed.
+  knowledgeContentHash   String?
+  knowledgeContentHashAt DateTime?
+  // lastKnowledgeSyncAt: when the metafields/metaobjects/collections
+  // surface for this product was last reconciled. Drift signal for the
+  // catch-up cron in PR-D.
+  lastKnowledgeSyncAt    DateTime?
+  // embeddingContentHash: the hash the *current* embedding was built
+  // from. NULL today; Phase 3 will populate on each (re-)embed and
+  // compare against knowledgeContentHash to decide whether to skip.
+  // Adding the column now avoids a Phase 3 migration that hits every row.
+  embeddingContentHash   String?
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
 
   variants     ProductVariant[]
   tags         ProductTag[]
+  metafields   ProductMetafield[]
+  collections  ProductCollection[]
   taxonomyNode TaxonomyNode?    @relation(fields: [taxonomyNodeId], references: [id], onDelete: SetNull)
 
   @@unique([shopDomain, shopifyId])
@@ -158,6 +186,104 @@ model Product {
   @@index([shopDomain, productType])
   @@index([shopDomain, deletedAt])
   @@index([shopDomain, taxonomyNodeId])
+  // Phase 3 Stage 2 hard-filter: budget queries hit priceMin per shop.
+  @@index([shopDomain, priceMin])
+}
+
+// Phase 1: every metafield value across every namespace, keyed to a Product.
+// `value` stays a string with `type` as discriminator (Shopify always
+// serializes that way — single_line_text_field, number_decimal,
+// metaobject_reference, list.metaobject_reference, etc.). Decode in code
+// per-axis; no DB-level type discrimination.
+model ProductMetafield {
+  id                 String   @id @default(cuid())
+  productId          String
+  shopDomain         String
+  namespace          String
+  key                String
+  type               String
+  value              String   @db.Text
+  // Populated when type ends in "_reference" or "list.*_reference". For
+  // metaobject references, this is the metaobject GID — joined informally
+  // to Metaobject.shopifyId. We don't FK across to Metaobject because
+  // the referent may not be in our cache yet (race) or may be a non-
+  // metaobject reference (Product, Collection, MediaImage).
+  referenceGid       String?
+  shopifyMetafieldId String
+  shopifyUpdatedAt   DateTime?
+  syncedAt           DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, namespace, key])
+  @@index([shopDomain, namespace, key])
+  @@index([productId])
+  @@index([referenceGid])
+}
+
+// Phase 1: store-level cache of metaobject instances products reference.
+// `fields` JSON shape: { fieldKey: { type, value, referenceGid? } } —
+// flexible enough to absorb any merchant-defined metaobject definition
+// without per-shop schema changes.
+model Metaobject {
+  id               String   @id @default(cuid())
+  shopDomain       String
+  shopifyId        String
+  type             String
+  handle           String?
+  displayName      String?
+  fields           Json
+  shopifyUpdatedAt DateTime?
+  syncedAt         DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([shopDomain, shopifyId])
+  @@index([shopDomain, type])
+}
+
+// Phase 1: store-level cache of collections.
+model Collection {
+  id               String   @id @default(cuid())
+  shopDomain       String
+  shopifyId        String
+  handle           String
+  title            String
+  descriptionHtml  String?  @db.Text
+  descriptionText  String?  @db.Text
+  sortOrder        String?
+  // Smart collections recompute membership on Shopify's side without
+  // firing per-product webhooks; flagging them lets the cron know to
+  // reconcile their memberships even when nothing else looks dirty.
+  isSmart          Boolean  @default(false)
+  templateSuffix   String?
+  shopifyUpdatedAt DateTime?
+  syncedAt         DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  products ProductCollection[]
+
+  @@unique([shopDomain, shopifyId])
+  @@index([shopDomain, handle])
+}
+
+// Phase 1: many-to-many product ↔ collection membership.
+model ProductCollection {
+  id           String   @id @default(cuid())
+  productId    String
+  collectionId String
+  shopDomain   String
+  addedAt      DateTime @default(now())
+
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, collectionId])
+  @@index([collectionId])
+  @@index([shopDomain, collectionId])
 }
 
 model ProductVariant {
@@ -246,6 +372,117 @@ model TaxonomyNode {
 
   @@unique([shopDomain, slug])
   @@index([shopDomain, parentId])
+}
+
+// Phase 1 (PR-A): DB-backed sync job model. Replaces the in-memory
+// `kind: "sync"` slot in app/lib/catalog/jobs.server.ts. The other in-memory
+// kinds (batch_tag, apply_rules, rematch_taxonomy) stay in jobs.server.ts —
+// Phase 2 territory, untouched here.
+//
+// Three job kinds share one row shape:
+//   INITIAL       — first-ever ingestion for a shop (no lastFullSyncAt)
+//   MANUAL_RESYNC — merchant-triggered full re-ingestion. On enqueue, we
+//                   cancel any QUEUED/RUNNING DELTA for the same shop.
+//   DELTA         — daily catch-up cron (PR-D)
+//
+// The phase enum is a coarse-grained progress marker for the future Phase 8
+// dashboard. It deliberately does NOT include a WAITING_BULK_OP value —
+// PR-A scope leaves that seam for when we onboard a >10K-product merchant
+// and need the Bulk Operations API path. Adding an enum value later is a
+// non-breaking migration.
+enum CatalogSyncJobKind {
+  INITIAL
+  MANUAL_RESYNC
+  DELTA
+}
+
+enum CatalogSyncJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum CatalogSyncJobPhase {
+  COLLECTIONS
+  METAOBJECTS
+  PRODUCTS
+  FINALIZE
+}
+
+model CatalogSyncJob {
+  id                   String                @id @default(cuid())
+  shopDomain           String
+  kind                 CatalogSyncJobKind
+  status               CatalogSyncJobStatus  @default(QUEUED)
+  phase                CatalogSyncJobPhase?
+  // Counts. `total*` populate when the corresponding phase begins. The
+  // worker (PR-B) writes these on every batch boundary.
+  totalProducts        Int?
+  processedProducts    Int                   @default(0)
+  failedProducts       Int                   @default(0)
+  totalCollections     Int?
+  processedCollections Int                   @default(0)
+  totalMetaobjects     Int?
+  processedMetaobjects Int                   @default(0)
+  // Resume state. Each cursor commits in the same transaction as the
+  // upserts for the batch it points past, so the worst-case work loss
+  // from a crash is one batch.
+  productsCursor       String?
+  metaobjectsCursor    String?
+  collectionsCursor    String?
+  // Lifecycle.
+  enqueuedAt           DateTime              @default(now())
+  startedAt            DateTime?
+  finishedAt           DateTime?
+  // heartbeatAt is touched on every batch + on every saveCursor /
+  // updateProgress / heartbeat call. Stuck-job recovery (PR-A
+  // sync-jobs lib) compares heartbeatAt against
+  // KNOWLEDGE_WORKER_HEARTBEAT_TIMEOUT_MS (default 5min) and resets
+  // RUNNING → QUEUED so the next claim resumes from cursor — the
+  // work is idempotent so resuming is safe and far better UX than
+  // marking FAILED.
+  heartbeatAt          DateTime?
+  // Error surface.
+  errorMessage         String?               @db.Text
+  errorCount           Int                   @default(0)
+  // Free-form summary written at finishJob. Phase 8 dashboard reads
+  // this for the "recent runs" panel. Shape is per-kind:
+  //   INITIAL/MANUAL_RESYNC: { batchCount, durationMs, ... }
+  //   DELTA: { driftCount, ... }
+  summary              Json?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+
+  failures CatalogSyncJobFailure[]
+
+  @@index([shopDomain, status])
+  @@index([shopDomain, kind, status])
+  @@index([heartbeatAt])
+  // NOTE: a partial unique index on (shopDomain) WHERE status='RUNNING'
+  // enforces "at most one running job per shop". Prisma can't express a
+  // partial unique index in the schema DSL, so the migration adds it via
+  // raw SQL — see prisma/migrations/<ts>_add_catalog_sync_job/migration.sql.
+}
+
+model CatalogSyncJobFailure {
+  id         String   @id @default(cuid())
+  jobId      String
+  shopDomain String
+  // PRODUCT | COLLECTION | METAOBJECT | BATCH — kept as a free string
+  // rather than an enum so the worker can log new failure kinds (e.g.
+  // METAFIELD_PAGE) without a migration.
+  kind       String
+  shopifyGid String?
+  message    String   @db.Text
+  attempt    Int      @default(1)
+  occurredAt DateTime @default(now())
+
+  job CatalogSyncJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([shopDomain, occurredAt])
 }
 
 // Deterministic if-this-then-that tag rules. conditions JSON matches the
