@@ -1,19 +1,19 @@
-# Recommendation Engine + UI Architecture Brief
+# Recommendation Engine + Product Architecture Brief
 
-**Status:** v0.2 — written 2026-04-27, before Phase 010 restart. Supersedes v0.1.
-**Purpose:** A north star for every recommendation- and UI-touching decision from now until launch. Not a build spec — a thesis and an architecture that the next ~12 phases develop against.
+**Status:** v0.3 — written 2026-04-28, after full-vision scope lock (commit `616fe70`). Supersedes v0.2.
+**Purpose:** A north star for every architectural decision from now until launch. Not a build spec — a thesis and an architecture that the next 13 phases develop against. v0.3 expands v0.2 from "recommendation engine + UI" to the full product surface: SaaS portal, customer profiles, attribution, conversation persistence, integrations, and pricing-as-architecture.
 
 ---
 
 ## 1. Thesis
 
-The recommendation engine is the product. The chat widget, the CTA, the lookbook, and the analytics dashboard are surfaces over it. If recs are mediocre, none of those surfaces matter — the agent becomes a worse search bar with a friendlier face. If recs are excellent, every surface compounds.
+The recommendation engine is the product. The chat widget, the CTA, the lookbook, the conversations inbox, the analytics dashboard, the customer profile screen — all of these are surfaces over the engine. If recs are mediocre, none of those surfaces matter. If recs are excellent, every surface compounds.
 
-Excellent here has a precise meaning: **recommendations should drive measurable sales lift over the merchant's existing storefront search and category browse.** That is the success metric. Not click-through, not topDistance, not session length. Conversion lift, attributable to the agent.
+Excellent here has a precise meaning: **recommendations should drive measurable, attributable sales lift over the merchant's existing storefront search and category browse.** That is the success metric. Not click-through, not topDistance, not session length. Conversion lift, attributable to the agent, with an audit trail the merchant can verify.
 
-To hit that bar across fashion, jewellery, electronics, furniture, beauty, and general stores — and across 200-product boutiques and 50,000-product catalogs — the engine cannot be a single embed-and-match function. It has to be a **living model of each merchant's product and brand knowledge**, refreshed as their data changes, and reasoned against in mode-specific ways.
+To hit that bar across fashion, jewellery, electronics, furniture, beauty, and general stores — and across 200-product boutiques and 50,000-product catalogs — the engine cannot be a single embed-and-match function. It has to be a **living model of each merchant's product catalog, brand voice, customer base, and purchase patterns**, refreshed as their data changes, reasoned against in mode-specific ways, and exposed to the merchant through a product surface they can configure, observe, and trust.
 
-That is the shape we are building toward.
+That is the shape we are building toward. v0.3 of this brief expands the scope from "the engine" to "the product around the engine," because the eight scope decisions locked on 2026-04-27 made clear that a great engine without a usable merchant surface, without customer profiles, without attribution, and without a billable pricing model is not a launchable product.
 
 ---
 
@@ -23,222 +23,318 @@ Today the engine sees title + description + Shopify-assigned tags. That is rough
 
 For every product, we synthesize a **product knowledge record** that combines:
 
-**Shopify-native structured data.** Title, productType, vendor, descriptionHtml (cleaned of HTML), all variants (with their options, prices, inventory), every collection the product belongs to, every metafield value across every namespace (including app-installed ones — review apps, size-guide apps, etc.), every metaobject reference. Collections in particular are high-signal: when a merchant builds a "Daily Edit" or "Bridal Collection" or "Gaming Setup" collection, they are encoding taxonomy by hand. That is data we should respect, not ignore.
+**Shopify-native structured data.** Title, productType, vendor, descriptionHtml (cleaned of HTML), all variants (with their options, prices, inventory), every collection the product belongs to, every metafield value across every namespace (including app-installed ones — review apps, size-guide apps, etc.), every metaobject reference. Image alt text and image counts. Pricing across variants. Availability rollup. SEO fields when set.
 
-**Behavioral signal.** Reviews (text and rating) pulled via the most common review apps (Judge.me, Yotpo, Stamped, Loox, Shopify's native reviews if used). Order history once it's syncing — what this product is bought with, how often, by which kind of customer. Inventory turnover as a proxy for popularity.
+**Merchant-curated signal.** Custom tags the merchant adds via the embed app's tagging review interface. Hard filters declared via metafield mappings (e.g. `custom.fabric` is a hard filter, not a soft signal). Brand voice and style guidelines authored by the merchant in the AI Agents config screen. Promoted-product flags. Excluded-product flags.
 
-**Merchant brand context.** Blog posts on the merchant's online store, scraped by URL pattern (`/blogs/*`). About page, FAQ, lookbooks if structured. The merchant's voice — terse vs effusive, premium vs friendly, traditional vs modern — colors how Claude should talk about the products and what kind of language matches their catalog.
+**AI-derived structured tags.** Generated by the tagging engine (Phase 2): occasion, style, formality, color family, fit, material category, sustainability, season, gift-suitability — dimensions vary by store mode. Stored as structured columns, not free-text, so they're filterable.
 
-**AI-derived tags.** Once the structured data is ingested, we run Claude over each product to infer additional facets: occasion (daily/festive/wedding/work), formality, gift-suitability, color family, target customer, vibe descriptors. These get stored as our own tag system, separate from the merchant's tags, and become the structured filters the engine uses.
+**Reviews.** Review text, ratings, review counts, review-derived sentiment, fit/sizing feedback when the review provider exposes it (Yotpo and Judge.me both do). Phase 4.
 
-This is the v1 ingestion surface. Everything ships at launch. The cost-effectiveness comes from how we sync it (next section), not from cutting features.
+**Order signal.** Sales velocity over rolling windows (7d / 30d / 90d), units sold, return rate, repurchase rate, common bundle partners. Phase 3 (order ingestion) feeds Phase 5 (attribution) feeds the pipeline's merchant-signal injection stage.
+
+**Customer behavior.** What customers viewed, clicked, added to cart, purchased after seeing this product in chat. Anonymized at the product level (aggregate signal), full fidelity at the customer-profile level. Phase 5 (conversations + attribution) and Phase 18 (learning system).
+
+The product knowledge record is canonicalized into a deterministic structure, hashed (sha256), and only re-embedded when the hash changes. This is the central invalidation mechanism — every webhook, every cron, every manual resync recomputes the hash and only burns embedding tokens on actual content changes.
 
 ---
 
 ## 3. Sync architecture
 
-Source-of-truth gravity is the silent killer here. Shopify is authoritative for structured product data. The merchant's site is authoritative for blog content. Review apps are authoritative for reviews. Each has a different update cadence and different mechanism for staying fresh.
+Three data flows keep the knowledge record current:
 
-The architecture has to be **event-driven where possible, scheduled where not, and cached aggressively.**
+**INITIAL backfill.** On app install, a `CatalogSyncJob` of kind `INITIAL` is enqueued. The worker drains it, paginating through products + metafields + metaobjects + collections, normalizing each into the knowledge record, hashing, and writing. The dev store's 1,169 products take ~20-30 minutes at 50 products/page with throttle-aware backoff. A 50K-product merchant will take ~10-12 hours; that's the threshold above which we add Bulk Operations API as an optimization (deferred per scope-decisions §2).
 
-For Shopify-native data: webhooks fire on every product/collection/metafield change. We subscribe and update the corresponding row plus invalidate its embedding. This is already partially built — Phase 12b.5 was scheduled to do the daily catch-up cron for the cases where webhooks miss. We extend it to cover collections and metafields, not just products.
+**Webhook delta.** Subscribed webhooks fire on every relevant Shopify change: `products/create`, `products/update`, `products/delete`, `inventory_levels/update`, `collections/update`, `customers/*`, `orders/*`, plus metafield/metaobject create/update/delete. Each handler enqueues a small targeted DELTA job (per-product or per-resource), the worker drains, the hash either bumps or doesn't, embedding only re-runs if the hash bumped. Latency from merchant change to engine awareness: target <60s p95.
 
-For reviews: most review apps expose webhook or polling APIs. Where webhooks exist, use them. Where not, poll once a day per shop (cheap; review volume is low). Reviews are append-mostly — we don't need to re-embed the whole product when one review lands, we maintain a separate review-text blob per product and only re-embed when it crosses a threshold (e.g. 5 new reviews or 30 days, whichever first).
+**Daily delta cron.** At 03:00 in the merchant's local timezone, a `DELTA` job is enqueued with `updated_at:>= last successful sync`. This catches anything webhooks missed (Shopify doesn't guarantee 100% webhook delivery — outages, scope changes, app reinstalls all drop webhooks). Belt-and-braces. Records drift count to the sync summary so we can see if webhooks are reliable for a given merchant.
 
-For blogs and About/FAQ pages: scrape on a configurable cadence (default weekly), with the merchant able to manually trigger a re-scan from admin. Blog content informs **merchant brand context**, which is store-level state, not per-product. So we re-embed once per cadence, not per product.
+**MANUAL_RESYNC.** Merchant-triggered from the embed app's sync status page. Same as INITIAL but with `force=true` semantics — re-fetches every product even if `shopifyUpdatedAt` is unchanged. Cancels any QUEUED or RUNNING DELTA jobs for the same shop before running. Used when the merchant has bulk-edited catalog outside the webhook path or wants to reset state.
 
-For AI tags: re-run on initial ingestion, on any change to the source product, and on a 90-day refresh cycle to pick up improved prompts. Each AI-tagging call is cheap (~$0.001 per product on Claude Haiku) but adds up at 50,000 products, so we batch and cache hard.
+The worker is a separate Railway service running the same Docker image with a different CMD. Confirmed in scope-decisions §2 (Option B locked). Two services, shared env, isolated lifecycles — web deploys don't kill mid-flight syncs, worker deploys don't blip the chat.
 
-Cost discipline at the sync layer is what makes "all features live" feasible. The expensive operation is the embedding (Voyage charges per token); the cheap operations are the writes and the AI tags. We embed only on actual content change (compute a content hash; skip if unchanged), and we use Voyage's batching to drop per-call overhead.
+Stale-write protection on every upsert (`shopifyUpdatedAt` comparison). Idempotency on every enqueue (partial unique index on RUNNING jobs per shop). Cursor-resume on every batch (worker crash mid-job → next worker boot resumes from the last cursor). Heartbeat-based stuck-job sweep (default 5min, env-tunable).
 
 ---
 
 ## 4. The pipeline
 
-A user message arrives. The engine runs six stages, each pluggable per mode:
+Six stages, in order. Each stage can short-circuit. Each stage has a measurable input and output.
 
-**Stage 1 — Structured intent extraction.** Claude turns the user message plus the user's quiz profile into a structured intent object, not a prose blob. Required fields, soft fields, hard filters, soft preferences. Example for a fashion query: `{category: "shirt", hard: {gender: "male", availability: true}, soft: {occasion: "daily", style: "minimalist", color_family: ["neutral"]}, free_text: "comfortable"}`. The structured form is what makes everything downstream possible. Today we lose this signal by squashing it into a single `intent` string before retrieval.
+**Stage 1 — Hard filters.** Merchant-declared metafield filters, mode-specific exclusions (e.g. FASHION mode excludes home-decor productTypes if both are in the catalog), out-of-stock filtering when configured, region/currency filtering. Output: candidate set, typically 100-2000 products.
 
-**Stage 2 — Hard filtering.** Drop any product that fails a mandatory criterion before scoring anything. Out of stock, wrong gender, wrong room, incompatible with the user's stated device, outside budget. Hard filters are mode-specific and merchant-extensible (a merchant should be able to mark a metafield as "this is a hard filter for my catalog"). This stage is fast — a Postgres query against indexed columns — and dramatically narrows the candidate pool, which keeps the rest of the pipeline cheap.
+**Stage 2 — Semantic retrieval.** Voyage embedding of the user query against the product knowledge record embeddings. Top-N retrieval via pgvector cosine distance. Output: ~50-100 candidates ranked by topDistance.
 
-**Stage 3 — Semantic candidate retrieval.** What `recommend_products` does today, but operating on the narrowed pool. Embed the soft preferences, find nearest neighbors in pgvector. Pull 30-50 candidates. The semantic match is where vibe, style, and abstract preference get matched.
+**Stage 3 — Structured re-rank.** Mode-specific re-rankers. FASHION uses occasion + body-type + fit + color preference. ELECTRONICS uses use-case + price-bracket + brand-affinity. BEAUTY uses skin-type + concern + ingredient-preference. Each re-ranker is a small scored function (not an LLM call) that adjusts ordering based on customer profile attributes if available, falls back to query-extracted attributes if not.
 
-**Stage 4 — Mode-specific re-ranking.** Each mode has a re-ranker that weights the candidates against mode-relevant signals. Fashion ranks by style coherence with the user's profile, occasion fit, color match. Jewellery ranks by occasion appropriateness, price band, purity match. Electronics ranks by use-case fit, compatibility, feature alignment. Each re-ranker is a small TypeScript module — `reranker.fashion.ts`, `reranker.jewellery.ts` — with a shared interface. New modes are new files, not rewrites.
+**Stage 4 — Merchant signal injection.** Promoted products get a boost. Excluded products get filtered. Sales velocity (from Phase 3 order ingest) boosts proven sellers in ambiguous queries ("show me best sellers" returns actual best sellers, not vibes-based guesses). Boost magnitudes are merchant-configurable in the AI Agents config screen, with sensible defaults.
 
-**Stage 5 — Merchant signal injection.** Boost products the merchant has flagged as hero items, products in a "featured" collection, recent bestsellers, products from a collection the user's previous selections cluster in. This is the stage where merchant-curated signal beats raw similarity, which is what we want — the merchant knows their catalog better than any embedding does.
+**Stage 5 — Diversity + business rules.** Avoid showing 8 black t-shirts when the customer asked for "casual tops." Diversity penalty across category, color, price band. Out-of-stock UX rule: never show OOS as the top result; if a high-relevance product is OOS, show a near-substitute and flag the OOS one as "back in stock soon" or "last seen: X days ago."
 
-**Stage 6 — Diversity and presentation.** Don't return six near-duplicates. Spread across price tiers, across sub-categories, across styles within the user's preference. Return the top 6 cards, but Claude sees the full top 30 in tool result and writes the recommendation paragraph against that broader context.
+**Stage 6 — Final scoring + output.** Top 3-5 products with explanation strings the agent can incorporate into chat. Each result carries: product handle, variant ID, price snapshot, image, why-this-was-recommended trace (which stages contributed which signal). The trace is what enables auditable attribution later.
 
-Today's pipeline collapses stages 1, 2, 3, and 6 into a single embed-and-match call, and skips 4 and 5 entirely. The shift to staged pipeline is the single biggest quality lever available.
-
----
-
-## 5. Mode awareness and multi-category stores
-
-Every stage above is mode-aware. The mode is set at merchant onboarding (FASHION, JEWELLERY, ELECTRONICS, FURNITURE, BEAUTY, GENERAL) and determines which intent schema, which hard filters, which re-ranker, and which merchant signals are active.
-
-Multi-category stores — a merchant who sells both clothing and accessories, or both furniture and home decor — are handled by treating mode as a **per-product attribute** rather than a per-store one. The merchant configures their primary mode (the one most of their catalog falls under) and the engine auto-categorizes each product into a sub-mode based on productType, collections, and AI inference. At query time, the structured intent extraction (Stage 1) picks the relevant sub-mode, often by asking a clarifying question if ambiguous: "Are you looking for clothing or accessories?"
-
-Multi-store at the platform level — different merchants, different modes, different catalogs — is already handled by the existing shopDomain scoping. Every table is shop-scoped, every embedding is shop-scoped, every query filters on shopDomain via the route-scoped session (not Claude-controllable). The architectural question is just: do we share *anything* across shops? The answer for v1 is no — each merchant's engine is isolated. Cross-merchant signals (e.g. "shoppers who liked X in store A liked Y in store B") are tempting but raise privacy and competitive concerns that aren't worth the v1 complexity.
+The pipeline is mode-aware throughout. A FURNITURE store and a BEAUTY store both run all six stages but with different re-rankers, different filters, different diversity rules. The pipeline shell is shared; the stage configs are per-mode.
 
 ---
 
-## 6. The learning loop
+## 5. Customer profiles
 
-Every chat session produces signal: which products got clicked, which got cart-added, which got purchased, which got ignored. Today we log nothing. The learning loop captures all of it and feeds it back into Stage 5 (merchant signal injection) as boost weights.
+The customer is a first-class entity, not a session afterthought.
 
-V1 implementation is heuristic, not learned. Per shop, per session, we maintain a rolling tally: for each product, how often was it shown, clicked, carted, purchased. We compute a `liftScore` per product (purchases / impressions, with confidence smoothing for low-volume products) and use it as a Stage 5 boost. This catches the obvious signal — the products that actually convert get surfaced more — without needing a real ML model.
+**Identification.** On app install, bulk-fetch all Shopify customers + their orders. Create a `CustomerProfile` row per Shopify customer keyed by `shopifyCustomerId`. Sync ongoing via `customers/*` and `orders/*` webhooks. When a logged-in storefront shopper opens chat, the agent has their `shopifyCustomerId` from the Online Store session and resolves the profile immediately.
 
-V2, post-launch, is where a learned re-ranker becomes worth building. Once you have weeks of session data per merchant, you can train a simple gradient-boosted ranker that incorporates user profile features, product features, and historical conversion. That is post-launch work. V1 ships with the heuristic and proves the loop closes.
+**Anonymous sessions.** Pre-identification chats get an anonymous `sessionId`. Derived signals (clicked products, ATC events, quiz answers) attach to the session. On identification — lookbook download with email+mobile, or substantive quiz completion (4+ questions answered) — the anonymous session merges into the `CustomerProfile`. If the email matches a known Shopify customer, that's the merge target. If it doesn't, a new `CustomerProfile` is created with `shopifyCustomerId = null` and `originatedFromAgent = true`; a future `customers/create` webhook (when the merchant invites them, or they create an account) reconciles via email.
 
-The learning loop also informs **AI tag improvement.** When products consistently convert despite poor semantic match (low topDistance lift), it's a signal that our auto-tags missed something. Surface those mismatches in the admin tagging UI for the merchant to correct, and the merchant's corrections feed back into the next AI tagging pass.
+**Stored attributes.**
+- Identity: shopifyCustomerId, email, phone, name, locale.
+- Demographic: gender, age band (if provided via quiz), region.
+- Style/preference: extracted from quiz, from chat conversation, from purchase history. Mode-specific schema (FASHION = body type, fit preference, occasion mix; FURNITURE = room types, dimensions, material preferences; etc.).
+- Behavioral: products viewed in chat, products clicked, ATC events, lookbook downloads, conversation count, last session timestamp.
+- Computed: predicted style cluster, AOV band, repurchase predisposition.
 
----
+**Schema discipline.** The `CustomerProfile` table holds identity + computed attributes. Mode-specific structured attributes live in `CustomerProfileAttribute` (key/value with mode tag) so adding a new mode doesn't require a schema migration. Behavioral events stream into a separate append-only table for the learning system.
 
-## 7. UI architecture
-
-UI is a separate workstream from the recommendation engine, and we treat it that way deliberately. Features ship first with **functional v0 UI** — whatever interface is necessary for the feature to be testable end-to-end. A dedicated **designed v1 UI pass** lands later, after enough features are built that the design language is grounded in real product surfaces. This is not laziness; it is what lets us avoid designing screens for features whose shape is still in flux.
-
-The architectural commitment that makes this work: every visible component is **replaceable without touching business logic.** Page-level layout, form components, card components, dashboard widgets — they all consume from a stable API surface, so the v1 redesign is a frontend-only PR. Business logic, server actions, Prisma queries do not move when the design lands.
-
-### The two surfaces
-
-**Admin (merchant-facing).** The Shopify embedded app — Polaris + App Bridge, Polaris web components and `s-*` primitives where they exist, custom React only where Polaris doesn't cover the use case (which is rare). This is where the merchant configures the app, reviews AI tags, monitors performance, and curates their brand voice. Everything in admin is functional from the start because Polaris gives us reasonable defaults for free; the v1 design pass tightens copy, layout density, and brand presence.
-
-**Storefront (customer-facing).** Theme app extension + a custom React-based chat widget loaded into the live theme. This is where the customer actually interacts with the agent. Storefront UI is the inverse of admin — minimal Polaris (it's not a Shopify-admin context), heavy reliance on a small in-house design system that matches the merchant's storefront where possible. Storefront is where polish matters most because shoppers leave fast.
-
-### Admin surfaces (the full set)
-
-These are the screens the admin app needs by launch. Each is listed with its v0 functional state and what the v1 design pass adds.
-
-**Onboarding wizard** — first-run experience after install. Mode selection (FASHION/JEWELLERY/ELECTRONICS/FURNITURE/BEAUTY/GENERAL), basic feature toggles (chat widget on/off, CTA on/off, quiz enabled, lookbook enabled), CTA copy and placement. v0 is a Polaris stepped form. v1 adds illustrations, mode-specific preview, and a "what your customers will see" inline demo.
-
-**Configuration page** — merchant updates settings post-onboarding. Welcome message, agent name, store mode (with warning that changing it triggers re-tagging), feature toggles, CTA config. Already shipped as Feature 001; v0 is fine, v1 polishes.
-
-**Brand voice / playbook editor** — the merchant writes free-text instructions to the agent ("we sell handcrafted heritage jewellery; prioritize craft and provenance over price"). Stored as a string, prepended to the system prompt at chat time. Open question whether this ships v1 or v1.1 — leaning v1 because it's high-leverage for non-fashion stores.
-
-**Knowledge sync status page** — what we ingested, when, from where, with manual re-trigger buttons per source. One section per data source: products (last webhook, last cron run, count), reviews (per app, last sync, count), blogs (last scrape, list of pages indexed), AI tags (last batch, count tagged, queue status). v0 is a dense Polaris IndexTable with status badges; v1 makes it scannable and adds visual freshness indicators.
-
-**Tagging review UI** — Phase 13b, expanded. Browse products, see their AI-assigned tags side-by-side with merchant tags, approve/edit/reject per product, bulk-edit by collection or productType. Plus configuration: which metafields should be treated as hard filters (Stage 2 of the pipeline), which collections should boost in Stage 5. v0 is functional and dense; v1 adds the polish that makes bulk operations feel fast.
-
-**Analytics dashboard** — sessions, chat starts, completions, agentic add-to-carts, agentic orders, revenue attributed to AI, top performing products, conversion by agent, quiz drop-off. v0 leans on Polaris charts and tables. v1 redesigns the layout and the headline-metric hierarchy — the most important number ("revenue attributed this month") should be the largest thing on the page.
-
-**Live activity view** — optional but powerful: who's currently in chat, what they've asked, latest tool calls. Aimed at merchants who want to spot-check their agent. v0 is a simple feed; v1 makes it a real operational tool.
-
-**Settings shared across all pages** — webhook health, API key status, billing info (when we add it), team access (when we add it). Lives in a shared admin shell.
-
-### Storefront surfaces (the full set)
-
-**Chat widget** — already shipped, still iterating. Floating button → opens a panel → message thread + product cards rendered inline + composer at the bottom. v0 already exists and works. v1 redesigns the visual treatment: typography, message bubble style, card density, mobile gesture support. This is the highest-stakes surface because every shopper sees it.
-
-**CTA-near-Add-to-Cart** — theme app extension, dynamically labeled button placed next to or near the Add to Cart button on PDP. Opens chat with product context pre-loaded. v0 is a Liquid block with a basic label. v1 styles it to match the merchant's theme buttons (auto-detected) and animates the open transition.
-
-**Product card (used inside chat)** — image, title, price, compare-at price strikethrough, AI-pick badge, Add to Cart button, View Details link. v0 already exists. v1 polishes the variant selector for products with options, fixes the badge placement, makes the card responsive to widget width.
-
-**Lookbook viewer** — FASHION mode. Generated outfit collections with size, fit, styling notes; user can scroll, save, download. v0 is a vertical list of cards with download triggers. v1 is the actual reading experience: hero images, layout that resembles editorial fashion content rather than a product list.
-
-**Image upload UI** — FASHION mode. Front, back, side photos for body type analysis. Privacy notice, upload progress, retry on failure. v0 is a simple file input with previews. v1 makes the privacy posture clear, adds inline guidance ("stand against a plain wall, full body in frame"), handles errors gracefully.
-
-**Quiz UI** — already exists inline in the chat thread. Each question is a message with tappable options. v0 works; v1 polishes message density, button styling, and adds a progress indicator so the user knows how many questions remain.
-
-**Auth / account upsell** — when the user wants to save a lookbook or get notified about restocks, they need an account. v0 is a generic Shopify customer login link. v1 inlines the account creation in the chat itself where Shopify allows.
-
-### Cross-cutting concerns
-
-**Component library.** Both surfaces share a small set of design primitives — typography scale, color tokens (mapped to merchant theme on storefront, fixed on admin), spacing scale, button variants, badge styles. This is a `app/lib/ui/` (or similar) module that both admin and storefront import. The v1 design pass crystallizes this; v0 uses Polaris on admin and a minimal token set on storefront.
-
-**Design hand-off process.** Designs arrive (Figma is the assumption). Claude Code reads designs from screenshots or exported specs, implements them in TSX. This works well for component-level designs and reasonably well for full pages, but the iteration loop matters: implementing once and shipping is a recipe for misaligned pixels. Plan one polish round per surface after the first implementation.
-
-**Accessibility.** Polaris handles most of admin's WCAG conformance for free. Storefront is the harder side — the chat widget needs keyboard navigation, screen reader support, focus management, and ARIA roles done right. This is part of the dedicated UI workstream, not optional.
-
-**Localization.** Multi-language scaffolding from day one (every visible string goes through a translation function), but actual translation files arrive as the merchant configures their target markets. v0 ships English-only with the scaffolding in place. v1 adds Hindi for the initial dev store, then expands.
-
-**Mobile.** Storefront is mobile-first because shoppers are mobile. Admin is mobile-aware (Shopify admin is heavily mobile, but config workflows are reasonably done on desktop) — design for desktop primary, ensure it doesn't break on mobile, don't optimize for mobile primary.
-
-**Performance.** Storefront budgets: chat widget JS bundle under 100KB gzipped, time-to-interactive under 1s on 3G, theme extension Lighthouse impact near zero. Admin budgets: page TTI under 2s on broadband. These are real numbers we measure against, not aspirations.
-
-### Sequencing
-
-UI work happens in two passes, after the engine and features are mostly built:
-
-**Pass 1 — UI polish on functional surfaces (Week 6).** All v0 surfaces are functional by Week 5. Pass 1 is a focused review round: copy tightening, layout density, accessibility audit, mobile pass. No redesign, just hygiene. Anything obviously wrong gets fixed.
-
-**Pass 2 — designed v1 implementation (Weeks 7-8).** Designs land. Claude Code implements per-surface, one per session ideally. Polish round per surface. This is where the product looks like a product, not a working prototype.
-
-The rationale for separating UI from feature work: a redesign that lands while features are still in flux gets thrown away when the feature changes shape. By the time Pass 2 starts, the feature surface is stable.
+**Lookbook gating.** Lookbook download requires identification — email + mobile minimum. This is intentional: lookbooks are the product's most valuable customer-touching artifact, and gating them on identification is what powers the customer profile flywheel. Quiz substantive completion (4+ questions) also identifies; sub-4-question quiz partials stay anonymous.
 
 ---
 
-## 8. Budgets
+## 6. Conversations + persistence
 
-Concrete numbers to design against, so we don't end up with a beautiful architecture that costs $50/month per merchant and takes 12 seconds per turn.
+Every chat is captured. The Conversations module in the SaaS portal is the merchant's view into what their customers are saying.
 
-**Latency budget per chat turn:** 8 seconds end-to-end p95, 5 seconds p50. Today we're at ~7-11 seconds, so we have to *gain* time even as we add stages. Wins come from: hard filters dramatically narrowing the embedding space, parallel execution of Stages 2-5 where possible, caching the embedding of repeated intents (many users ask similar things), and aggressive reuse of the structured intent across follow-up turns.
+**Capture.** Every user message + every agent response + every tool call result is stored on a `Conversation` row plus a stream of `ConversationMessage` rows. Tool call results are stored fully — what `recommend_products` returned, what `search_products` returned, with topDistance and trace. This is what powers the "why did the agent recommend this" debug experience for the merchant.
 
-**Cost budget per merchant per month:** $5–15 for a small store (1k products, 100 sessions/day), $30-60 for a mid-size store (10k products, 1000 sessions/day). Largest cost components: Claude API calls (~$0.01 per chat turn at current sizes — manageable), Voyage embeddings (one-time per product per change, ~$0.0001 per product per re-embed — negligible at steady state, expensive at initial ingestion), AI tagging on Haiku (~$0.001 per product). At 10k products with monthly refresh, AI tagging is ~$10/mo per merchant — the dominant offline cost. Worth it.
+**Retention.** 90 days for raw transcripts (GDPR-friendly default). Indefinite for derived signals — clicks, ATC events, quiz-derived profile attributes, attribution events. After 90 days, the raw `ConversationMessage` rows are deleted; the derived rows survive. This is the locked answer per scope-decisions §3.
 
-**Storage budget:** pgvector indexes scale with catalog size; expect ~50MB per 10k products including the rich product knowledge record. Reviews and blogs add maybe another 20MB per merchant. Negligible at Railway pricing.
+**Read-only for merchant.** Per scope-decisions, "Reply as AI" is removed. Merchant cannot take over a live conversation. They can observe, search, filter, and use the conversations view as a quality-monitoring tool. They cannot inject a message. This is a deliberate product-shape call — taking over conversations introduces latency expectations the agent + merchant can't meet, and it muddies attribution.
 
-These budgets are aggressive but not heroic. They require us to be disciplined about caching and to avoid re-running expensive steps unnecessarily. They do not require us to cut features.
+**Search + filter.** Free-text search across messages. Filter by date, by customer, by intent, by outcome (chat → purchase, chat → no purchase, chat → ATC abandoned), by recommendation quality flags. The conversations view is also the input surface for the learning system — merchants can flag a bad recommendation, and the flag becomes training signal for Phase 18.
 
----
-
-## 9. What ships at launch (v1) — sequencing
-
-All of the above is v1. The honest timeline with UI included is **6-8 weeks**, not the original 12 days from yesterday's handoff.
-
-**Week 1 — Knowledge ingestion foundation.** Extend the data layer to capture metafields, metaobjects, collections, full descriptionHtml. Webhook subscriptions for all of them. Database schema for the unified product knowledge record. Initial backfill for the dev store's 1169 products.
-
-**Week 2 — AI tagging engine + functional admin tagging UI.** Phase 13 + 13b as planned, but with the richer input now available. AI tags layer on top of the product knowledge record. Functional v0 admin UI to review, edit, approve, and configure which metafields the merchant wants treated as hard filters. Polaris defaults; design polish later.
-
-**Week 3 — Pipeline rewrite.** Stages 1-6 implemented for FASHION mode first (since that's the dev store). Structured intent extraction, hard filtering, mode-specific re-ranker, merchant signal injection, diversity. Stylist Agent (Phase 010) builds against this new pipeline rather than the old `recommend_products` shape.
-
-**Week 4 — Reviews + blog ingestion + learning loop v1 (heuristic).** Review app integration for the top 2-3 review apps. Blog scraper. Session-level tally tracking. Stage 5 boost weights. Sync status admin page (functional v0).
-
-**Week 5 — Other modes + agentic checkout + lookbook + brand voice playbook.** Re-rankers for JEWELLERY, ELECTRONICS, FURNITURE, BEAUTY, GENERAL. Phase 14 agentic checkout via Checkout MCP with ECP/Checkout Kit fallback. Lookbook generator (FASHION). Brand voice playbook editor (functional v0).
-
-**Week 6 — UI Pass 1 + analytics dashboard + compliance + perf.** All functional surfaces get a hygiene pass: copy, layout density, accessibility audit, mobile pass. Analytics dashboard built (functional v0). GDPR webhooks, performance budget enforcement.
-
-**Weeks 7-8 — UI Pass 2 (designed v1).** Designs land. Claude Code implements them per-surface. Admin onboarding wizard, configuration page, tagging UI, analytics, sync status, brand voice — each gets the design pass. Storefront chat widget, CTA, product card, lookbook viewer, image upload — same. Polish round per surface.
-
-**Week 8 final days — App Store submission prep.** Screenshots, listing copy, demo video, App Store review fields, privacy policy, support contact. Submit.
-
-This sequence ships everything. The UI being a separate workstream (Weeks 6-8) means features are battle-tested against real user flows before designs are committed, which is the right order.
-
-What it does **not** survive: a launch deadline shorter than 6 weeks. If at any point the timeline gets compressed by external pressure (App Store review window, merchant commitment, market timing), the cuts in priority order are: (1) brand voice playbook to v1.1, (2) reviews to v1.1, (3) blog ingestion to v1.1, (4) image upload to v1.1, (5) live activity view to v1.1. Each of those is a 1-3 day saving. After that, deeper cuts touch core engine work and aren't recommended.
+**No live merchant notifications.** The conversations view is for observation, not operations. Merchants who need a "step in and chat with the customer" capability are using the wrong product.
 
 ---
 
-## 10. What this displaces
+## 7. AI revenue attribution
 
-Several phases on the existing roadmap get absorbed or reordered:
+This section exists because pricing depends on it (§9), the analytics dashboard depends on it (§11), and the learning system depends on it (§4 stage 4). It must be deterministic, auditable, and land by Phase 3.
 
-- Phase 010 (Stylist Agent) is rewritten to build against the new pipeline. Same goal, different foundation. Lands in Week 3.
-- Phase 12b.5 (embedding sync hook + cron) becomes part of Week 1's broader sync architecture.
-- Phase 12e (better OOS UX) is subsumed — Stage 2 hard filtering with explicit "out-of-stock-but-similar-available" messaging covers it.
-- Phase 12f (recommendation intelligence v2) is the work itself, no longer deferred.
-- Phase 13 + 13b (AI tagging + admin UI) move to Week 2, expanded scope.
-- Order sync stays where it is, used by the learning loop.
-- Heuristic self-learning becomes Week 4, integrated rather than bolted on.
-- All UI polish work consolidates into Weeks 6-8 instead of dripping across phases.
+**Attribution model.** A purchase is "AI-attributed" if, in the 7-day window before order creation, the customer interacted with the agent and the order contains at least one product the agent recommended in that interaction. The 7-day window is adjustable per merchant (default 7d, settable from 1d to 30d).
 
-The roadmap from yesterday's handoff served the old architecture and assumed the old launch timeline. This brief defines the new one, and the next planning document will produce a phase-by-phase HANDOFF.md against it.
+**Audit trail.** Every recommendation event writes a row: customerId (or anonymous sessionId), productHandle, variantId, conversationId, messageId, pipeline trace, timestamp. Every order on `orders/create` checks: was this customer recommended any of these products in the last 7 days? If yes, attribute. Write the attribution row. The merchant can click any AI-attributed order in the analytics dashboard and see exactly which recommendation event led to it, including the full trace from the pipeline.
 
----
+**Anonymous attribution.** Anonymous-session shoppers who later identify (lookbook, quiz) get retroactive attribution if their session-merged profile shows a recent purchase. Anonymous shoppers who never identify can still trigger attribution if the product they purchased was recommended in a session and they completed the order via guest checkout with the same email — `orders/create` matches on email.
 
-## 11. Open questions
+**What's not attributed.** Browse-then-buy without chat involvement. Direct-link purchases. Orders where the recommended product isn't in the cart. Orders outside the attribution window. The model errs toward under-counting; merchants forgive an attribution model that says "X dollars" when the truth is "X+Y dollars" but never the reverse.
 
-A few things this brief doesn't decide, on purpose, because they need merchant input or testing:
-
-- **Which review apps to support first.** Judge.me and Yotpo are the safest starting points (largest install base on Shopify), but the dev store's choice should drive priority. Ask the dev store merchant.
-- **How aggressive to be with blog scraping.** Polite (respect robots.txt, conservative rate, weekly cadence) vs aggressive (daily, all blog posts). Default polite; revisit if blog signal turns out to be high-leverage.
-- **Brand voice playbook v1 vs v1.1.** Leaning v1 because non-fashion stores need it more than fashion. Decision deferred until Week 5 priorities firm up.
-- **Cross-mode behavior in GENERAL stores.** A truly multi-category store probably needs an explicit category-picker turn before recommendations. Test with a real general store before committing.
-- **Design language for storefront.** Heavy on the merchant's brand (auto-detect their theme tokens) vs distinctive AI-stylist look (recognizable across all stores). Both have arguments. Designs that arrive in Weeks 7-8 will answer this.
-- **Live activity view scope.** Useful for merchants who care; clutter for merchants who don't. Default to off, opt-in toggle.
-
-These are decisions to make as the work lands, not to settle now.
+**Bias toward defensibility.** The attribution model has to survive a skeptical merchant CFO asking "how do you know?" The trace is the answer. Every attributed dollar has a chain back to a specific tool call result with a specific topDistance and a specific message. That chain is what makes the pricing model defensible (§9).
 
 ---
 
-*End of brief. Next planning step: rewrite the launch roadmap into a phase-by-phase HANDOFF.md against this architecture, then write the Phase 010 (Stylist Agent) planning prompt with this north star in scope.*
+## 8. Multi-mode dashboard discipline
+
+Per scope-decisions §2, the dashboard is a shared UI shell with `storeMode`-aware show/hide, designed for section repurposing across modes.
+
+**Implication.** Every dashboard section needs to be designed twice in your head: what does this look like for FASHION, what does this look like for ELECTRONICS or FURNITURE? The "Style Quiz Results" panel becomes "Configurator Responses" for furniture. The "Body Type Distribution" chart becomes "Use Case Distribution" for electronics. Same component, different content, mode-aware copy + iconography + sample data.
+
+**Anti-pattern.** Building one dashboard that renders fashion content, then later "porting" it for furniture by find-and-replace. The port produces a worse experience than designing for repurposing from the start.
+
+**Discipline.** Every dashboard component takes a `storeMode` prop. Every chart label, every empty-state copy, every example value flows through a per-mode constants file. Adding a new mode is a constants file + a routing flag, never a new component tree. This is the architectural commitment that lets us ship FASHION at launch and onboard furniture/electronics/beauty merchants in the months after without a UI rebuild.
+
+**Mode-specific work that stays mode-specific.** Some surfaces are inherently fashion-only — Lookbook, Body Type analysis, Style Quiz with body-fit questions. These don't need to repurpose; they hide for non-fashion modes. Don't fight this; fashion-only surfaces are a third bucket alongside "shared" and "shared-but-mode-aware."
+
+---
+
+## 9. Pricing as architecture
+
+Per scope-decisions §5, pricing is conversation-based + capped on AI-attributed orders or revenue. Architecture decisions land now; dollar amounts decide launch-week (~Week 27).
+
+**What lands now.**
+- Conversation metering. Every chat session counts toward the merchant's monthly conversation cap. Storage of conversation count per billing period.
+- AI-attributed revenue tracking (§7). Storage of attributed order count and attributed revenue per billing period.
+- Plan + cap data model. A `MerchantPlan` row holds the plan tier, the conversation cap, the order cap (or revenue cap), the overage policy.
+- Soft warnings + hard caps. At 80% of any cap, soft warning in the embed app + email to the merchant. At 100%, hard cap (configurable: block new conversations, or accept overage with billing).
+- Stripe integration for billing. Recurring subscription + usage-based overage line items.
+
+**What decides at launch.**
+- Tier names (Starter, Pro, Enterprise — names are placeholders, see scope-decisions §1).
+- Tier dollar amounts.
+- Conversation caps per tier.
+- Order/revenue caps per tier.
+- Overage rates.
+- Free trial length.
+
+**Why this split matters.** If we build conversation metering but skip attribution tracking until launch-week, switching to a revenue-share pricing model is a 6-week retrofit. If we build attribution tracking from Phase 3, every pricing model — flat conversation, flat revenue share, hybrid, capped — is a config change in a row of `MerchantPlan`. The architectural work pays for optionality.
+
+**Audit-grade.** A merchant disputing a usage charge gets the full attribution trace. The trace is generated, not retrieved-from-logs — every attribution row is canonical. Disputes resolve in minutes, not days.
+
+---
+
+## 10. Integration framework
+
+Per scope-decisions §4, four integrations at launch (Shopify built, Meta Pixel, GA4, one review provider). Six more deferred to staged post-launch (Klaviyo, Gorgias, Attentive, Recharge, LoyaltyLion, Postscript). The architectural commitment is that each post-launch integration is 3-5 days of work, not 2-3 weeks.
+
+**The framework.**
+- A common `Integration` data model with `provider`, `config`, `credentials` (encrypted), `enabled`, `lastSyncAt`, `lastError`.
+- A common OAuth/API-key onboarding flow with provider-specific config screens.
+- A common event-emit interface that integrations subscribe to: `chat_started`, `chat_ended`, `agentic_add_to_cart`, `agentic_purchase`, `lookbook_downloaded`, `quiz_completed`, `recommendation_shown`, `recommendation_clicked`.
+- Per-provider adapters that translate emitted events into provider-specific API calls.
+- A per-merchant integrations dashboard listing connected providers, sync status, last error, disable/reauth controls.
+
+**Launch integrations.**
+- **Shopify.** Already built (auth, products, customers, orders, webhooks). Integration framework treats Shopify as integration #0 — consistent admin surface even though the app is built on Shopify.
+- **Meta Pixel.** Standard events (PageView, ViewContent, AddToCart, Purchase) plus custom events for chat (chat_started, agentic_add_to_cart, agentic_purchase). Pixel ID config + event deduplication.
+- **GA4.** Same events as Meta plus GA4-specific custom dimensions for AI attribution. Measurement ID + API secret config.
+- **Review provider (one).** Yotpo or Judge.me, decided at integration time based on dev-store availability. Read-only — pulls reviews into the product knowledge record (§2). Phase 4 work.
+
+**Post-launch integrations.** Each is a 3-5 day build against the framework: Klaviyo, Gorgias, Attentive, Recharge, LoyaltyLion, Postscript. Sequenced based on merchant demand after launch.
+
+**Anti-pattern.** Building Klaviyo today "just in case." Every pre-built integration we don't have a merchant asking for is wasted time. The framework lets us say yes in a week when a merchant asks; building speculatively is the work that doesn't get used.
+
+---
+
+## 11. Product surface (the SaaS portal split)
+
+Per scope-decisions, the Shopify embed app is the onboarding surface; the SaaS portal is the main product. This is an architectural split that affects Phase 4 onward.
+
+**Shopify embed app — scope.**
+- Install + OAuth.
+- Onboarding wizard (mode selection, feature toggles, CTA config, theme integration).
+- Setup progress + completion confirmation.
+- Sync status + manual resync trigger.
+- Tagging review + approval (Phase 2).
+- Theme app extension config (CTA placement, chat widget enable).
+- Settings (essentials only — billing surface, sync controls).
+- Link to SaaS portal for everything else.
+
+The embed app is intentionally lean. It's the surface a merchant sees the first time they install, and it's the surface they return to for Shopify-specific operations (theme integration, sync, billing). It is not where they spend their day.
+
+**SaaS portal — scope.**
+- Authentication via SSO through Shopify App Bridge (scope-decisions §7). Click "Open dashboard" in the embed app, lands authenticated in the portal.
+- Dashboard (overview KPIs, recent activity, quick actions).
+- AI Agents config (personality, tone, capabilities, brand voice, live preview).
+- Quiz & Screening Builder (nested branching tree editor, three question types, flow preview).
+- Conversations module (search, filter, observe — read-only).
+- Customer Profiles module (list, detail, behavioral history, lookbook history).
+- Products module (catalog view, tagging review, knowledge record inspect).
+- Lookbooks module (FASHION mode, generated lookbooks, download history).
+- Knowledge Base module (FAQ, blog ingest, document upload — Phase 8).
+- Analytics module (sessions, conversions, attribution, funnel, top products).
+- Integrations module (connect, configure, observe).
+- Settings module (user prefs, branding, retention, exports, GDPR controls).
+
+**Tech stack.** Separate Next.js app, separate Railway service, shared Postgres (same database, separate connection pool with appropriate role permissions). Auth via Shopify App Bridge token exchange — when the merchant clicks "Open dashboard" in the embed app, App Bridge mints a session token, the SaaS portal validates it against Shopify, sets its own session cookie. Magic link / non-Shopify auth is deferred to year 2 if multi-platform expansion happens (Wix, BigCommerce, Salesforce). Today the architecture stays Shopify-bound; tomorrow the auth layer adds an alternative provider without restructuring.
+
+**Why the split.** Three reasons. First, the SaaS portal is too feature-rich to live in Shopify's embedded iframe — Shopify's UI conventions clash with SaaS conventions, the iframe constrains certain UI patterns (modals, full-screen views, deep linking). Second, the SaaS portal has to support eventual multi-platform expansion; building it inside Shopify's embed locks us in. Third, the embed app's review process at the App Store wants minimal scope — fewer surfaces in the embed = faster review.
+
+**Risk acknowledged.** Two apps means two deploys, two test surfaces, two auth chains. The discipline is shared component library + shared design tokens + shared API contracts so the experience feels like one product even though it's two apps. This is achievable; it requires discipline from day one of Phase 4.
+
+---
+
+## 12. UI architecture (two-pass)
+
+Per v0.2's commitment, retained: features ship with whatever functional UI they need, then a dedicated design pass polishes against the supplied PDF (`docs/ui-design-stylemate-v1.pdf`).
+
+**Pass 1 — functional v0.** Shipped with each phase. Polaris on the embed app, Tailwind+shadcn on the SaaS portal (decided when Phase 4 starts). Styled enough to be testable, not styled to spec. Components built against design tokens so Pass 2 swaps tokens, not components.
+
+**Pass 2 — designed v1.** A dedicated phase (Phase 12 in the 13-phase plan) implements the PDF design across all surfaces. By Phase 12, every surface exists in functional form; Phase 12 is rebuild-against-design with no new functionality.
+
+**Architectural commitment.** Every visible component is replaceable without touching business logic. Tokens, atoms, molecules, organisms, pages — five layers. Business logic lives in hooks + server actions + the data layer. A component swap in Phase 12 is a rename + a re-style, not a rewrite. If Pass 2 turns into "we need to refactor X to support the new design," the v0 was wrong.
+
+**Mobile-first for storefront, mobile-aware for embed app and portal.** Storefront chat widget is the highest-traffic surface and most of that traffic is mobile. Embed app and portal are merchant-facing — desktop-primary, mobile-functional. Test mobile at every phase, not at the end.
+
+**Accessibility.** WCAG AA via Polaris on embed (free), via shadcn on portal (mostly free — verify), manual on storefront chat widget (the work). Audit gate at Phase 13.
+
+**Localization.** Multi-language scaffolding from Phase 4. Every string flows through an i18n layer. Launch with English; ship the framework to add languages without retrofit.
+
+---
+
+## 13. Image analysis (FASHION mode)
+
+Optional input. Not required for any flow except advanced styling.
+
+**Input.** Front, back, side images. Uploaded via the storefront chat widget after substantive quiz engagement. Stored encrypted at rest. Retention: 90 days unless customer explicitly saves to profile.
+
+**Output.** Body type estimation (apple/pear/hourglass/rectangle/inverted-triangle), size recommendation (per merchant's size guide), fit guidance ("oversized cuts will work well; avoid clingy mid-rise"). All confidence-scored; low-confidence outputs are presented as "we think" not "you are."
+
+**Privacy posture.** Images are processed by an LLM with vision; no human review. Customer is told this in the upload UI. Customer can delete images from their profile at any time; deletion cascades to the model's stored embeddings (we don't keep image-derived data after deletion).
+
+**Pipeline integration.** Body type + fit preference become Stage 3 re-rank inputs. Size recommendation drives variant selection in product cards. None of this is required — customers who skip image upload still get good recommendations from quiz + chat history alone.
+
+---
+
+## 14. Lookbook (FASHION)
+
+The differentiator. Per scope-decisions, lookbook download is the primary identification trigger.
+
+**Input.** Customer profile (quiz + chat history + image analysis if available) + recent agent recommendations + occasion or use-case (default: capsule wardrobe; configurable: workwear, vacation, weekend, special event).
+
+**Output.** PDF with 8-15 outfit combinations, each combination showing 3-7 products with size + fit notes, styled descriptions, total price, "shop this look" links. Branded to the merchant's store. Customer's name on the cover.
+
+**Generation.** LLM-orchestrated combination generation against the catalog + style rules + merchant brand voice. Image composition uses product images (no AI image gen for v1 — too risky for brand-sensitive merchants). PDF rendered server-side; downloadable from a customer-profile-gated URL.
+
+**Gating.** Email + mobile required to download. This identifies the customer (§5). Without identification, lookbook generation runs but the download button asks for contact info first.
+
+**Storage.** Generated lookbooks are saved to the customer's profile. Re-downloadable later. Merchants see lookbook download history in the customer profile module of the SaaS portal — high-value signal.
+
+---
+
+## 15. Compliance + launch readiness
+
+**GDPR.** Customer data export + deletion endpoints. Webhook handlers for `customers/data_request`, `customers/redact`, `shop/redact`. 90-day retention for raw conversations enforced by daily cron. Data Processing Agreement template ready for merchants who ask.
+
+**Performance.** Embed app: initial load <2s on cold cache, <800ms on warm. Theme app extension: <50ms render impact, <200KB JS budget. SaaS portal: Lighthouse 90+ on dashboard. Worker: 50 products/min sustained throughput. These budgets get measured at every phase, not just at the end.
+
+**App Store readiness.** Per the Shopify guide, every pillar — non-deceptive code, accessibility, localization, security (OAuth, webhook HMAC, scope minimization, secret rotation), mobile, performance, GDPR — is a gate at every phase, not a Phase 13 retrofit. Phase 13 is the audit, not the build.
+
+**Mobile.** Tested on every phase that touches a customer-facing surface. Storefront chat widget tested mobile-first. Embed app + SaaS portal tested mobile-functional (merchants do check on their phone).
+
+**Security.** OAuth scopes minimized (read-only where possible). Webhook HMAC validated on every receive. Secrets rotated quarterly (Phase 13 sets up the rotation cadence). Database role separation between web and worker. No customer-PII in logs (audit trail is structured, redacted by default).
+
+---
+
+## 16. Honest sizing
+
+Per scope-decisions, ~37 weeks of focused work, ~9 calendar months at the established pace (single dev + Claude Code, plan-then-execute rhythm).
+
+**Milestone gates.**
+- **Week 14** (post-Phase 5): chat + conversations + analytics — usable by a real merchant. First soft-launch gate. Onboard one paying merchant here, get real feedback.
+- **Week 19** (post-Phase 7): lookbooks live — differentiator activates. Second soft-launch gate. Lookbook is the highest-converting customer-touching artifact; this is where word-of-mouth starts.
+- **Week 27** (post-Phase 10): pricing flips on. Decide tiers, dollar amounts, caps. Stripe goes live. Existing soft-launch merchants migrate to paid plans.
+- **Week 30** (post-Phase 11): full launch-ready. All four launch integrations live. Public app store listing.
+- **Week 37** (post-Phase 13): App Store approved (assuming smooth review).
+
+**Compression risk.** External pressure to compress this timeline produces the same five cuts every time, in priority order:
+
+1. Defer Phase 8 (Knowledge Base) by 2 weeks. FAQ + blog ingestion is valuable but not differentiating; can ship at week +2 post-launch with merchants still happy.
+2. Defer Phase 9 (Size & Fit + Color Logic) — these are FASHION-only enhancements that improve recommendation quality but the engine works without them. 3 weeks of slack.
+3. Cut Phase 12 (UI Pass 2) scope from "all surfaces" to "merchant-facing only, storefront stays at v0." Saves ~1 week. Storefront UI Pass 2 ships at week +1 post-launch.
+4. Defer 2 of the 4 launch integrations. Meta + GA4 + Shopify is enough; review provider can ship post-launch if Phase 4 indicates merchants don't need it for the engine yet. Saves 0.5 week.
+5. Cut Quiz Builder UI from Phase 6 — ship JSON-config v1, build the visual editor post-launch. Saves ~1.5 weeks.
+
+Maximum compression from these five: ~8 weeks. Below 29 weeks the plan is unrealistic without scope cuts to features themselves, not workstream order.
+
+---
+
+## 17. Open questions
+
+Most v0.2 questions resolved by scope-decisions. New ones:
+
+- **Re-embed cadence after the v0.3 knowledge record lands.** The 1,169 dev-store products are embedded against the old (title + description + tags) record. Phase 3 decides: re-embed all on Phase 1 close, or progressive re-embed only on next content change. Cost trade against speed.
+- **Body-type model provider.** Custom-trained vs. multimodal LLM with vision. Decide in Phase 16 (image analysis); for v1 LLM is faster to ship, custom model is a v2 quality investment.
+- **Conversation export format for merchants.** CSV / JSON / both. Decide when the Conversations module ships (Phase 5) based on what the first soft-launch merchant asks for.
+- **Lookbook PDF rendering library.** Puppeteer vs. react-pdf vs. server-side template engine. Decide in Phase 7; recommendation is react-pdf for predictability + smaller dependency surface.
+- **Stripe vs. Shopify Billing API for pricing.** Shopify Billing API is required for App Store apps that charge merchants (it's how Shopify takes its cut). Stripe is for SaaS-portal customers if we eventually go non-Shopify. v1 architecture: Shopify Billing API for the embed app (mandatory), Stripe wired but inactive for future non-Shopify. Decide in Phase 10.
+
+---
+
+## 18. What this brief is not
+
+- A build spec. Phase plans live in `HANDOFF.md`. PR-level plans come from per-PR planning prompts.
+- A UI spec. The PDF (`docs/ui-design-stylemate-v1.pdf`) is the layout source of truth.
+- A pricing decision. Architecture lands; numbers decide launch-week.
+- A team plan. Single dev + Claude Code. If the team grows, sequencing changes; this document does not.
+- Frozen. v0.4 if a scope decision changes. v0.5 if the engine architecture changes. Versioning lives in git.
+
+---
+
+*End of brief. Next planning artifact: `HANDOFF.md` with detailed 13-phase plan, week-by-week sizing, milestone gates at weeks 14/19/27/30/37. After that: PR-B planning prompt for the worker service.*
