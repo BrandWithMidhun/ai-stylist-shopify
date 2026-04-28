@@ -35,7 +35,7 @@ Before any task in this repo, read these in order:
 
 ## Operational notes
 
-- Local `.env` DATABASE_URL points at the production Railway Postgres via the public proxy. Do not run `prisma migrate dev` against it. For migration work, override DATABASE_URL to a local Postgres or shadow database. The advisory lock pile-up during PR-A deploy was caused by this.
+- Production Railway Postgres is the only database. There is no separate local or shadow DB. Migration discipline: Claude Code MUST NEVER run `prisma migrate dev`, `prisma migrate reset`, or `prisma db push` against any database. To create a migration, use `prisma migrate diff` (read-only) to inspect schema differences, then write the migration SQL file by hand in `prisma/migrations/<timestamp>_<name>/migration.sql`. Migrations apply only on Railway deploy via `prisma migrate deploy` in the deploy script. This rule is non-negotiable — running `migrate dev` against production caused the PR-A advisory lock pile-up and risks data loss.
 - Production: `web-production-3b1d7.up.railway.app`. Web service deploys from `main` branch, Railway auto-deploys on push.
 - Worker service (PR-B onward): separate Railway service, same Docker image, different CMD.
 - Do not push commits. The user pushes manually after review.

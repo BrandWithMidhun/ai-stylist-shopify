@@ -45,7 +45,7 @@ What this does NOT mean:
 
 **Sync button:** No-op until PR-B. Clicking it queues a `CatalogSyncJob` row in QUEUED state; nothing drains it.
 
-**Operational debt to clear before PR-B execution:** Local `.env` `DATABASE_URL` points at production via Railway public proxy. Caused the advisory lock pile-up during PR-A deploy (12 stuck Postgres sessions, manual `pg_terminate_backend` recovery). Must be fixed before any non-additive migration. CLAUDE.md "Operational notes" section warns Claude Code about this.
+**Migration discipline locked:** Production Railway Postgres is the only database. Claude Code never runs `prisma migrate dev`. Migration files are authored via `prisma migrate diff` (read-only inspection) and hand-written SQL. Migrations apply only on Railway deploy via `prisma migrate deploy`. See CLAUDE.md "Operational notes" for the full rule.
 
 ---
 
@@ -112,8 +112,6 @@ Below cut #5 the plan is unrealistic without cutting features themselves.
 - INITIAL job completes for dev store: 1,169 products processed, ~0 failures (any per-product failures land in `CatalogSyncJobFailure` with diagnostics)
 - Manually killing the worker mid-job → restart → resume from cursor verified
 - Heartbeat timeout test: kill worker without graceful shutdown → after timeout, next worker boot picks up the stuck row and resumes
-
-**Pre-execution clear:** Fix local `.env` DATABASE_URL before any migration in this PR (PR-B doesn't have migrations, but the principle holds for PR-C+).
 
 ### PR-C — Webhook subscriptions + scope re-auth
 
@@ -573,7 +571,7 @@ This section is the truth-of-the-moment for what's actually in the repo and live
 - `HANDOFF.md` (this file)
 
 **Key operational debt:**
-- Local `.env` `DATABASE_URL` points at production via Railway public proxy. Must override before any migration. Caused PR-A advisory lock incident.
+- Migration discipline (see CLAUDE.md): no `prisma migrate dev` ever. Migrations applied only on Railway deploy. PR-A advisory lock incident root cause now structurally prevented.
 - 1,169 dev-store products need re-embedding against new richer record once Phase 3 lands. Re-embed cadence decision deferred to Phase 3 planning.
 
 ---
@@ -626,4 +624,4 @@ Plus three perennials:
 
 ---
 
-*Next planning artifact: PR-B planning prompt for Claude Code — worker service + first INITIAL backfill. Pre-execution gate: fix local `.env` `DATABASE_URL`.*
+*Next planning artifact: PR-B planning prompt for Claude Code — worker service + first INITIAL backfill.*
