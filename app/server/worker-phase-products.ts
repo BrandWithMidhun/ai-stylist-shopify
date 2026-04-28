@@ -1,0 +1,209 @@
+// Phase 1 (PR-B): PRODUCTS phase processor.
+//
+// Paginate products via PRODUCT_KNOWLEDGE_PAGE_QUERY. INITIAL/
+// MANUAL_RESYNC pass query=null; DELTA passes
+// query="updated_at:>=<watermark>". Per-product upsert via
+// knowledge-upsert.server (transactional, stale-write-safe). Per-
+// product errors land in CatalogSyncJobFailure and the job continues.
+//
+// Page size 50 is set inside the query constant in PR-A's
+// queries/knowledge.server. Decision criterion: if measured per-page
+// actualQueryCost P95 > 700 over the dev-store INITIAL run, drop
+// the GraphQL `first: 50` to `first: 25` — single-line change.
+
+import type { CatalogSyncJob, StoreMode } from "@prisma/client";
+import prisma from "../db.server";
+import {
+  PRODUCT_KNOWLEDGE_PAGE_QUERY,
+  PRODUCT_METAFIELDS_PAGE_QUERY,
+  type GqlKnowledgeProduct,
+  type ProductKnowledgePageResponse,
+  type ProductMetafieldsPageResponse,
+} from "../lib/catalog/queries/knowledge.server";
+import { normalizeKnowledgeProduct } from "../lib/catalog/knowledge-fetch.server";
+import { upsertProductKnowledge } from "../lib/catalog/knowledge-upsert.server";
+import {
+  heartbeat,
+  saveCursor,
+  updateProgress,
+} from "../lib/catalog/sync-jobs.server";
+import type { ShopifyGqlResponse } from "../lib/catalog/shopify-throttle.server";
+import { log } from "./worker-logger";
+import {
+  errorMessage,
+  logFailureSafe,
+  throttleSleep,
+  type AdminClient,
+  type PhaseRunStats,
+  type ShouldStop,
+} from "./worker-phase-helpers";
+
+export async function runProductsPhase(
+  admin: AdminClient,
+  job: CatalogSyncJob,
+  storeMode: StoreMode,
+  deltaWatermark: Date | null,
+  shouldStop: ShouldStop,
+): Promise<PhaseRunStats> {
+  let cursor: string | null = job.productsCursor ?? null;
+  let hasNextPage = true;
+  let processedItems = 0;
+  let failedItems = 0;
+  let driftCount = 0;
+  let costUnits = 0;
+  let batchSeq = 0;
+  let highRateLogged = false;
+
+  const queryFilter = buildProductsQueryFilter(job.kind, deltaWatermark);
+
+  while (hasNextPage && !shouldStop()) {
+    batchSeq++;
+    await heartbeat(job.id);
+    const response = await admin.graphql(PRODUCT_KNOWLEDGE_PAGE_QUERY, {
+      variables: { cursor, query: queryFilter },
+    });
+    const json = (await response.json()) as ShopifyGqlResponse<ProductKnowledgePageResponse>;
+    const pageCost = json.extensions?.cost?.actualQueryCost ?? 0;
+    costUnits += pageCost;
+    const page = json.data?.products;
+    if (!page) {
+      throw new Error("Shopify returned no products payload");
+    }
+
+    // Pre-fetch any extra metafield pages OUTSIDE the transaction —
+    // these calls go to Shopify and we don't want long-running tx.
+    const enrichedNodes: Array<{
+      node: GqlKnowledgeProduct;
+      extras: GqlKnowledgeProduct["metafields"]["nodes"][];
+    }> = [];
+    for (const node of page.nodes) {
+      enrichedNodes.push({
+        node,
+        extras: await fetchExtraMetafieldPages(admin, node),
+      });
+    }
+
+    await prisma.$transaction(
+      async (tx) => {
+        for (const { node, extras } of enrichedNodes) {
+          try {
+            const knowledge = normalizeKnowledgeProduct(node, extras);
+            const result = await upsertProductKnowledge({
+              shopDomain: job.shopDomain,
+              storeMode,
+              knowledge,
+              tx,
+            });
+            processedItems++;
+            if (result.hashChanged) driftCount++;
+            if (result.staleSkipped) {
+              log.debug("product upsert stale-skipped", {
+                jobId: job.id,
+                shopDomain: job.shopDomain,
+                productGid: node.id,
+              });
+            }
+          } catch (err) {
+            failedItems++;
+            await logFailureSafe(tx, {
+              jobId: job.id,
+              shopDomain: job.shopDomain,
+              kind: "PRODUCT",
+              shopifyGid: node.id,
+              message: errorMessage(err),
+            });
+          }
+        }
+        await saveCursor(
+          job.id,
+          { productsCursor: page.pageInfo.endCursor },
+          tx,
+        );
+      },
+      { timeout: 30000, maxWait: 5000 },
+    );
+
+    await updateProgress(job.id, {
+      processedProducts: processedItems,
+      failedProducts: failedItems,
+      totalProducts: processedItems,
+    });
+
+    log.info("products batch", {
+      jobId: job.id,
+      shopDomain: job.shopDomain,
+      phase: "PRODUCTS",
+      batchSeq,
+      pageSize: page.nodes.length,
+      processedItems,
+      failedItems,
+      driftCount,
+      costThisPage: pageCost,
+      costSoFar: costUnits,
+    });
+
+    if (
+      !highRateLogged &&
+      processedItems >= 50 &&
+      failedItems / processedItems > 0.1
+    ) {
+      log.warn("high per-product failure rate", {
+        jobId: job.id,
+        shopDomain: job.shopDomain,
+        failureRatio: failedItems / processedItems,
+        processedItems,
+        failedItems,
+      });
+      highRateLogged = true;
+    }
+
+    hasNextPage = page.pageInfo.hasNextPage;
+    cursor = page.pageInfo.endCursor;
+    await throttleSleep(json);
+  }
+
+  if (!shouldStop()) {
+    await saveCursor(job.id, { productsCursor: null });
+  }
+  return { costUnits, driftCount, failedItems, processedItems };
+}
+
+function buildProductsQueryFilter(
+  kind: CatalogSyncJob["kind"],
+  watermark: Date | null,
+): string | null {
+  if (kind !== "DELTA") return null;
+  if (!watermark) return null;
+  // Shopify search syntax — ISO timestamp prefix. The query selects
+  // products whose updated_at is >= watermark, inclusive.
+  return `updated_at:>=${watermark.toISOString()}`;
+}
+
+async function fetchExtraMetafieldPages(
+  admin: AdminClient,
+  product: GqlKnowledgeProduct,
+): Promise<GqlKnowledgeProduct["metafields"]["nodes"][]> {
+  if (!product.metafields.pageInfo.hasNextPage) return [];
+  const extras: GqlKnowledgeProduct["metafields"]["nodes"][] = [];
+  let cursor: string | null = product.metafields.pageInfo.endCursor;
+  let pages = 0;
+  while (cursor) {
+    const response = await admin.graphql(PRODUCT_METAFIELDS_PAGE_QUERY, {
+      variables: { id: product.id, cursor },
+    });
+    const json = (await response.json()) as ShopifyGqlResponse<ProductMetafieldsPageResponse>;
+    const page = json.data?.product?.metafields;
+    if (!page) break;
+    extras.push(page.nodes);
+    cursor = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+    pages++;
+    await throttleSleep(json);
+    if (pages >= 10) {
+      log.warn("product metafield pagination exceeded 10 pages", {
+        productGid: product.id,
+      });
+      break;
+    }
+  }
+  return extras;
+}

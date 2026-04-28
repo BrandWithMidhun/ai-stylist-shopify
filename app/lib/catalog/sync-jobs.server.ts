@@ -88,12 +88,25 @@ export async function createJob(params: {
 // already RUNNING for the same shop. FOR UPDATE OF cj SKIP LOCKED
 // makes the row claim safe across concurrent workers — losers move on
 // to the next candidate without blocking.
+//
+// Phase 2 boundary (addition A in PR-B execution prompt): the explicit
+// kind IN (...) filter restricts this claim to the kinds the catalog-
+// sync worker handles. Today the CatalogSyncJobKind enum is exactly
+// {INITIAL, MANUAL_RESYNC, DELTA} so the filter is technically
+// redundant, but the in-memory jobs.server.ts file still hosts a
+// `batch_tag` kind for Phase 2's tagging engine. When Phase 2
+// migrates batch_tag to a DB-backed CatalogSyncJob row, that new enum
+// value WILL be added and a separate Phase 2 worker (or a
+// kind-dispatched extension of this worker) will claim it. The filter
+// here ensures this worker keeps ignoring kinds it doesn't own —
+// future maintainers, please don't drop the filter.
 export async function claimNextJob(): Promise<CatalogSyncJob | null> {
   const rows = await prisma.$queryRaw<CatalogSyncJob[]>`
     WITH cte AS (
       SELECT cj.id
       FROM "CatalogSyncJob" cj
       WHERE cj.status = 'QUEUED'
+        AND cj.kind IN ('INITIAL', 'MANUAL_RESYNC', 'DELTA')
         AND NOT EXISTS (
           SELECT 1 FROM "CatalogSyncJob" cj2
           WHERE cj2."shopDomain" = cj."shopDomain"
@@ -285,6 +298,48 @@ export async function sweepStuckJobs(
     },
   });
   return { resumedJobIds: ids };
+}
+
+// --- releaseJobToQueue ---------------------------------------------------
+
+// PR-B: graceful-shutdown path. SIGTERM during a RUNNING job leaves the
+// row at status='RUNNING' with a fresh heartbeat; without explicit
+// release the next worker boot can't claim it (the at-most-one-RUNNING
+// rule blocks the claim) until heartbeat goes stale (5 min default).
+// Calling releaseJobToQueue on a clean shutdown skips that delay.
+//
+// Behavior:
+//   - RUNNING → QUEUED, heartbeatAt cleared, cursors & progress untouched
+//   - QUEUED  → no-op (idempotent)
+//   - SUCCEEDED/FAILED/CANCELLED → throws (we don't resurrect terminal jobs)
+export async function releaseJobToQueue(
+  jobId: string,
+  options?: { tx?: Prisma.TransactionClient },
+): Promise<{ released: boolean }> {
+  const tx = options?.tx ?? prisma;
+  const job = await tx.catalogSyncJob.findUnique({
+    where: { id: jobId },
+    select: { status: true },
+  });
+  if (!job) {
+    throw new Error(`releaseJobToQueue: job ${jobId} not found`);
+  }
+  if (job.status === "QUEUED") {
+    return { released: false };
+  }
+  if (job.status !== "RUNNING") {
+    throw new Error(
+      `releaseJobToQueue: job ${jobId} is ${job.status}, refusing to resurrect`,
+    );
+  }
+  await tx.catalogSyncJob.update({
+    where: { id: jobId },
+    data: {
+      status: "QUEUED",
+      heartbeatAt: null,
+    },
+  });
+  return { released: true };
 }
 
 // --- read-side helpers ---------------------------------------------------
