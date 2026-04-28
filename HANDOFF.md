@@ -113,12 +113,12 @@ Below cut #5 the plan is unrealistic without cutting features themselves.
 - Manually killing the worker mid-job → restart → resume from cursor verified
 - Heartbeat timeout test: kill worker without graceful shutdown → after timeout, next worker boot picks up the stuck row and resumes
 
-### PR-C — Webhook subscriptions + scope re-auth
+### PR-C — Webhook subscriptions + handlers + re-auth banner
 
 **Scope:**
 - New webhook subscriptions: `products/create`, `products/update`, `products/delete`, `inventory_levels/update`, `collections/update`, `customers/create`, `customers/update`, `customers/delete`, `orders/create`, `orders/updated`, `orders/cancelled`, plus metafield/metaobject create/update/delete (Shopify-supported subset)
 - Webhook handlers: HMAC validate, parse payload, enqueue targeted DELTA `CatalogSyncJob`
-- Scope re-auth flow: existing OAuth scopes don't cover `read_customers`, `read_orders`, `read_metaobjects`, `write_customers` (probably). New install gets the right scopes. Existing installs need re-auth flow with banner in embed app prompting to grant new permissions.
+- Re-auth UX banner in embed app for existing production installs that pre-date the expanded scope set. New installs already get the right scopes via `shopify.app.toml`. The scope set itself was pulled forward into PR-B (commit 3) — PR-B's first INITIAL backfill could not satisfy its own acceptance criteria without `read_metaobjects`/`read_metaobject_definitions`, and a single re-auth round (vs. two) is strictly better merchant UX. PR-C therefore handles only the re-auth UX path for production installs that haven't yet re-granted; the underlying scope diff is already deployed.
 - Stale-write protection on every handler
 
 **Out of scope:** Customer Profile schema (bundled with PR-D below). Order ingest pipeline beyond enqueue (Phase 3).

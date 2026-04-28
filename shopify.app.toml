@@ -49,7 +49,22 @@ api_version = "2026-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,read_inventory"
+#
+# Phase 1 PR-B: scope set pulled forward from PR-C so the worker's
+# METAOBJECTS phase + PR-C's webhook handlers can both read what they
+# need without forcing the merchant to re-authorize twice. Per scope:
+#   read_products                — explicit even though write_products
+#                                  implies read in most contexts; avoids
+#                                  edge-case GraphQL field-level rejects
+#   write_products               — product mutations (existing)
+#   read_inventory               — variant inventory state (existing)
+#   read_metaobjects             — METAOBJECTS phase reads instances
+#   read_metaobject_definitions  — METAOBJECTS phase enumerates types
+#   read_customers               — PR-C customers/* webhook handlers
+#   write_customers              — PR-C customer profile writes
+#   read_orders                  — PR-C orders/* webhook handlers (plus
+#                                  Phase 3 attribution reconciliation)
+scopes = "read_products,write_products,read_inventory,read_metaobjects,read_metaobject_definitions,read_customers,write_customers,read_orders"
 
 [auth]
 redirect_urls = [ "https://web-production-3b1d7.up.railway.app/auth/callback" ]
