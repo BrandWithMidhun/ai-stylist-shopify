@@ -19,6 +19,27 @@ Full product spec lives in the repo at:
 
 Treat `docs/product-spec.md` as the source of truth for product decisions. If a conflict arises between this file and the product spec, the spec wins and this file should be updated.
 
+## Required reading order
+
+Before any task in this repo, read these in order:
+
+1. `docs/claude-execution-rules.md` — execution mode and behavioral rules. Operate as a senior engineer with full ownership. Fully autonomous, no interruptions, batch execution, single-shot completion. Do not pause for confirmations on routine work.
+
+2. `docs/scope-decisions.md` — current product scope (full vision, ~37 weeks, 8 decisions locked).
+
+3. `docs/recommendation-engine-brief.md` — north star for recommendation engine and UI architecture.
+
+4. `HANDOFF.md` — current phase plan and state of the codebase.
+
+5. `docs/ui-design-stylemate-v1.pdf` — UI source of truth when working on any merchant-facing or storefront surface.
+
+## Operational notes
+
+- Local `.env` DATABASE_URL points at the production Railway Postgres via the public proxy. Do not run `prisma migrate dev` against it. For migration work, override DATABASE_URL to a local Postgres or shadow database. The advisory lock pile-up during PR-A deploy was caused by this.
+- Production: `web-production-3b1d7.up.railway.app`. Web service deploys from `main` branch, Railway auto-deploys on push.
+- Worker service (PR-B onward): separate Railway service, same Docker image, different CMD.
+- Do not push commits. The user pushes manually after review.
+
 ## Architecture Decisions (locked)
 
 - **Framework**: Shopify App Template — React Router 7. Not Next.js. Not legacy Remix.
