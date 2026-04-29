@@ -60,19 +60,44 @@ api_version = "2026-07"
   topics = [ "collections/delete" ]
   uri = "/webhooks/collections/delete"
 
-  # Phase 1 PR-C deferrals (NOT subscribed here):
-  # - customers/{create,update,delete} and orders/{create,updated,cancelled}
-  #   require Shopify's protected customer data approval. Application is in
-  #   review; a future small PR re-adds these subscriptions + real handlers
-  #   once approved. PR-D's daily DELTA cron is the catch-up path until
-  #   then.
-  # - metaobjects/{create,update,delete} require a metaobject_type filter
-  #   in shopify.app.toml's declarative form. The dev shop has zero
-  #   metaobject definitions today (verified during PR-B), so subscribing
-  #   would be vacuous. PR-D's cron catches metaobject changes; if a
-  #   future merchant has live metaobject definitions and cron lag is
-  #   unacceptable, a follow-up PR can register per-type subscriptions
-  #   dynamically via Shopify Admin API instead of toml.
+  # Phase 1 PR-C: customer lifecycle. Log-only stubs in PR-C; PR-D wires
+  # the real CustomerProfile schema + write path. Subscribing now so we
+  # don't lose deliveries between PR-C deploy and PR-D ship. Originally
+  # deferred when the dev app lacked Shopify protected customer data
+  # access; restored after dev-mode access was activated 2026-04-30.
+  [[webhooks.subscriptions]]
+  topics = [ "customers/create" ]
+  uri = "/webhooks/customers/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "customers/update" ]
+  uri = "/webhooks/customers/update"
+
+  [[webhooks.subscriptions]]
+  topics = [ "customers/delete" ]
+  uri = "/webhooks/customers/delete"
+
+  # Phase 1 PR-C: order lifecycle. Log-only stubs in PR-C; Phase 3 builds
+  # the order ingest pipeline + AI revenue attribution against these.
+  # Originally deferred with customers/*; restored after protected
+  # customer data dev-mode access activated 2026-04-30.
+  [[webhooks.subscriptions]]
+  topics = [ "orders/create" ]
+  uri = "/webhooks/orders/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "orders/updated" ]
+  uri = "/webhooks/orders/updated"
+
+  [[webhooks.subscriptions]]
+  topics = [ "orders/cancelled" ]
+  uri = "/webhooks/orders/cancelled"
+
+  # metaobjects subscriptions deferred — Shopify requires metaobject_type
+  # filter and dev shop has zero metaobject definitions. Revisit when
+  # onboarding a merchant with metaobject definitions. Skeleton handlers
+  # remain in app/routes/webhooks.metaobjects.{create,update,delete}.tsx
+  # so wiring real subscriptions later is a toml-only change.
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
