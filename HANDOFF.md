@@ -39,11 +39,11 @@ What this does NOT mean:
 
 ## Where we are
 
-**Production:** Phase 1 PR-A live (commit `835a801`). Schema layer + DB-backed sync jobs library + route migration shipped. Existing chat works in the storefront. The 1,169 dev-store products are still embedded against the old (title + description + tags) knowledge record. The new richer record (metafields + metaobjects + collections) is unused until PR-B ships and runs the first INITIAL backfill.
+**Production:** Phase 1 PR-B shipped (commit `2011028`). Schema + library + worker service + first INITIAL backfill all live. Existing chat works in the storefront. Worker service `ai-stylist-shopify` runs on Railway, idles when queue is empty, polls every 2-5s with jitter. The 2,632 dev-store products are now fully ingested into the rich knowledge record (metafields + metaobjects + collections + content hash). The chat path still uses the old (title + description + tags) embeddings — Phase 3 re-embeds against the rich record.
 
-**Local:** Brief v0.3 (`22e849c`), Claude Code execution rules + CLAUDE.md update (`9ecd0ad`), full-vision scope decisions + UI PDF (`616fe70`) — all pushed.
+**Local:** All work pushed through PR-B (`2011028`). Branch synced with origin/main.
 
-**Sync button:** No-op until PR-B. Clicking it queues a `CatalogSyncJob` row in QUEUED state; nothing drains it.
+**Sync button:** Functional. Clicking queues a `CatalogSyncJob` row; the worker drains it within ~5s. MANUAL_RESYNC kind cancels any in-flight DELTA job for the shop before claiming.
 
 **Migration discipline locked:** Production Railway Postgres is the only database. Claude Code never runs `prisma migrate dev`. Migration files are authored via `prisma migrate diff` (read-only inspection) and hand-written SQL. Migrations apply only on Railway deploy via `prisma migrate deploy`. See CLAUDE.md "Operational notes" for the full rule.
 
@@ -86,7 +86,7 @@ Below cut #5 the plan is unrealistic without cutting features themselves.
 
 **Goal:** Catalog ingestion fully autonomous. Worker drains queued jobs, webhooks trigger DELTA jobs on every relevant change, daily cron catches missed webhooks, all 1,169 dev-store products land in the new richer knowledge record with content hashing in place.
 
-### PR-B — Worker service + first INITIAL backfill
+### PR-B — Worker service + first INITIAL backfill ✓ SHIPPED
 
 **Scope:**
 - New worker entry point (`app/server/worker.ts`)
@@ -113,12 +113,23 @@ Below cut #5 the plan is unrealistic without cutting features themselves.
 - Manually killing the worker mid-job → restart → resume from cursor verified
 - Heartbeat timeout test: kill worker without graceful shutdown → after timeout, next worker boot picks up the stuck row and resumes
 
+**Shipped:** Three commits — 11507a8 (worker entrypoint + claim loop + phase machine + releaseJobToQueue), f6ffcbe (Railway worker service config + Dockerfile dispatch + ops runbook), 2011028 (enqueue-initial + verify-initial-run scripts; pulled forward PR-C scope additions; first INITIAL backfill verified).
+
+**Verification:**
+- INITIAL backfill: 2,632 / 2,632 products processed, 0 failures, 1m 46s duration, 5,084 Shopify cost units.
+- Verifier: 7 PASS / 0 FAIL / 2 SKIP. Two SKIPs (metaobject linkages, multi-collection products) — vacuous given dev shop catalog.
+- Stuck-job recovery test: synthetic stale-heartbeat approach, sweepStuckJobs picked up the row, resumed from cursor, completed SUCCEEDED.
+- Graceful shutdown test: passed 5 times. SIGTERM → ABORTED → releaseJobToQueue → resume cycle confirmed.
+
+**Scope pulled forward into PR-B:** Eight Shopify scopes deployed — read_products, write_products, read_inventory, read_metaobjects, read_metaobject_definitions, read_customers, write_customers, read_orders. Originally PR-C scope; pulled forward to satisfy PR-B's METAOBJECTS phase. Dev shop re-authorized. PR-C's scope work reduced to re-auth UX banner only (for production installs that pre-date the expanded scopes).
+
 ### PR-C — Webhook subscriptions + handlers + re-auth banner
 
 **Scope:**
 - New webhook subscriptions: `products/create`, `products/update`, `products/delete`, `inventory_levels/update`, `collections/update`, `customers/create`, `customers/update`, `customers/delete`, `orders/create`, `orders/updated`, `orders/cancelled`, plus metafield/metaobject create/update/delete (Shopify-supported subset)
 - Webhook handlers: HMAC validate, parse payload, enqueue targeted DELTA `CatalogSyncJob`
-- Re-auth UX banner in embed app for existing production installs that pre-date the expanded scope set. New installs already get the right scopes via `shopify.app.toml`. The scope set itself was pulled forward into PR-B (commit 3) — PR-B's first INITIAL backfill could not satisfy its own acceptance criteria without `read_metaobjects`/`read_metaobject_definitions`, and a single re-auth round (vs. two) is strictly better merchant UX. PR-C therefore handles only the re-auth UX path for production installs that haven't yet re-granted; the underlying scope diff is already deployed.
+- Scope additions: ALREADY DEPLOYED in PR-B. Eight final scopes are live in Partners. PR-C does not need to change shopify.app.toml.
+- Re-auth UX banner in embed app: existing installs pre-dating the expanded scopes need a banner prompting re-authorize. Dev shop already re-authorized so we won't see this banner ourselves — needs testing via a fresh install or a contrived rollback. Detect via session.scope comparison against expected scope set.
 - Stale-write protection on every handler
 
 **Out of scope:** Customer Profile schema (bundled with PR-D below). Order ingest pipeline beyond enqueue (Phase 3).
@@ -572,7 +583,8 @@ This section is the truth-of-the-moment for what's actually in the repo and live
 
 **Key operational debt:**
 - Migration discipline (see CLAUDE.md): no `prisma migrate dev` ever. Migrations applied only on Railway deploy. PR-A advisory lock incident root cause now structurally prevented.
-- 1,169 dev-store products need re-embedding against new richer record once Phase 3 lands. Re-embed cadence decision deferred to Phase 3 planning.
+- Cursor TTL anomaly observed during PR-B testing: Shopify Admin API product cursors went stale during ~70s container restart in 2 of 5 graceful-shutdown tests. Worker handled gracefully (job completed early with hasNextPage=false on a smaller subset). PR-D's daily catch-up cron is the natural backstop. PR-C's webhook DELTA path should log cursor age before fetching pages so we can confirm the TTL boundary.
+- 2,632 dev-store products need re-embedding against new richer record once Phase 3 lands. Re-embed cadence decision deferred to Phase 3 planning.
 
 ---
 
