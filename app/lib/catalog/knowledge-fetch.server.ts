@@ -56,19 +56,48 @@ export type NormalizedKnowledgeMetaobject = {
   shopifyUpdatedAt: Date | null;
 };
 
+export type NormalizedKnowledgeVariant = {
+  shopifyGid: string;
+  title: string;
+  sku: string | null;
+  price: string;
+  compareAtPrice: string | null;
+  inventoryQuantity: number | null;
+  inventoryItemId: string | null;
+  availableForSale: boolean;
+  option1: string | null;
+  option2: string | null;
+  option3: string | null;
+  imageUrl: string | null;
+};
+
 // What the upsert path needs to write a Product's knowledge record. The
 // caller (worker / webhook / cron) is responsible for ensuring all
 // metafield pages have been collected before calling — paging happens
 // in the call-site loop, not here.
+//
+// PR-C.5: extended to carry the full Product column set. Pre-C.5 this
+// type only held knowledge fields and the legacy webhook upsert wrote
+// the rest; post-C.5 the worker is the single authoritative writer.
 export type NormalizedProductKnowledge = {
   shopifyGid: string;
-  shopifyUpdatedAt: Date;
-  // The fields below are only used to refresh stale-write protection
-  // and the descriptionText cache. Existing Product columns (title,
-  // productType, vendor, status, tags, etc.) are owned by the legacy
-  // upsert path — we don't double-write them.
+  handle: string;
+  title: string;
   descriptionHtml: string | null;
   descriptionText: string | null;
+  productType: string | null;
+  vendor: string | null;
+  status: string;
+  shopifyTags: string[];
+  featuredImageUrl: string | null;
+  imageUrls: string[];
+  priceMin: string | null;
+  priceMax: string | null;
+  currency: string | null;
+  totalInventory: number | null;
+  shopifyCreatedAt: Date;
+  shopifyUpdatedAt: Date;
+  variants: NormalizedKnowledgeVariant[];
   metafields: NormalizedKnowledgeMetafield[];
   // Collection memberships referenced by this product. Just the GIDs;
   // the upsert path resolves them to local Collection rows.
@@ -89,14 +118,48 @@ export function normalizeKnowledgeProduct(
     ...extraMetafieldPages.flat(),
   ];
   const descriptionText = stripHtml(p.descriptionHtml);
+  const imageUrls = p.images.nodes.map((n) => n.url).slice(0, 20);
   return {
     shopifyGid: p.id,
-    shopifyUpdatedAt: new Date(p.updatedAt),
+    handle: p.handle,
+    title: p.title,
     descriptionHtml: p.descriptionHtml,
     descriptionText,
+    productType: p.productType,
+    vendor: p.vendor,
+    status: p.status,
+    shopifyTags: p.tags,
+    featuredImageUrl: p.featuredImage?.url ?? imageUrls[0] ?? null,
+    imageUrls,
+    priceMin: p.priceRangeV2?.minVariantPrice.amount ?? null,
+    priceMax: p.priceRangeV2?.maxVariantPrice.amount ?? null,
+    currency: p.priceRangeV2?.minVariantPrice.currencyCode ?? null,
+    totalInventory: p.totalInventory,
+    shopifyCreatedAt: new Date(p.createdAt),
+    shopifyUpdatedAt: new Date(p.updatedAt),
+    variants: p.variants.nodes.map((v) => ({
+      shopifyGid: v.id,
+      title: v.title,
+      sku: v.sku,
+      price: v.price,
+      compareAtPrice: v.compareAtPrice,
+      inventoryQuantity: v.inventoryQuantity,
+      inventoryItemId: extractNumericId(v.inventoryItem?.id ?? null),
+      availableForSale: v.availableForSale,
+      option1: v.selectedOptions[0]?.value ?? null,
+      option2: v.selectedOptions[1]?.value ?? null,
+      option3: v.selectedOptions[2]?.value ?? null,
+      imageUrl: v.image?.url ?? null,
+    })),
     metafields: allMetafieldNodes.map(normalizeMetafield),
     collectionGids: p.collections.nodes.map((c) => c.id),
   };
+}
+
+function extractNumericId(gid: string | null): string | null {
+  if (!gid) return null;
+  const parts = gid.split("/");
+  return parts[parts.length - 1] || null;
 }
 
 export function normalizeMetafield(

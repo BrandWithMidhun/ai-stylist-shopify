@@ -1,21 +1,12 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
-import {
-  normalizeFromWebhook,
-  upsertNormalizedProduct,
-  type WebhookProductPayload,
-} from "../lib/catalog/upsert.server";
 import { enqueueDeltaForShop } from "../lib/webhooks/enqueue-delta.server";
 
-// PR-C C.2.1: dual-write pattern. See webhooks.products.create.tsx
-// header for the full rationale. Legacy upsert covers title/price/
-// inventory/etc.; DELTA enqueue covers metafields + collections + hash.
+// PR-C → C.2.1 → C.5: see webhooks.products.create.tsx header for the
+// full evolution. Thin handler post-C.5 — worker is the sole writer.
 
-type ProductPayload = WebhookProductPayload & {
-  id?: number | string;
-  updated_at?: string;
-};
+type ProductPayload = { id?: number | string; updated_at?: string };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const start = Date.now();
@@ -64,39 +55,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  let legacyUpsertOk = false;
-  try {
-    const normalized = normalizeFromWebhook(body);
-    await prisma.$transaction(async (tx) => {
-      await upsertNormalizedProduct(shop, normalized, tx);
-    });
-    legacyUpsertOk = true;
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.log(
-      JSON.stringify({
-        event: "products_legacy_upsert_failed",
-        topic,
-        shop,
-        webhookId,
-        resourceId: resourceGid,
-        error: err instanceof Error ? err.message : String(err),
-      }),
-    );
-  }
-
   const enqueue = await enqueueDeltaForShop(shop, { topic, webhookId, resourceGid });
 
   // eslint-disable-next-line no-console
   console.log(
     JSON.stringify({
-      event: "products_webhook_dual_write",
+      event: "products_webhook_enqueued",
       topic,
       shop,
       webhookId,
       resourceId: resourceGid,
-      legacyUpsertOk,
-      deltaEnqueued: true,
       deduped: enqueue.deduped,
       jobId: enqueue.jobId,
       durationMs: Date.now() - start,

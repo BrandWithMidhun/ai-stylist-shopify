@@ -65,7 +65,31 @@ export const PRODUCT_KNOWLEDGE_BY_ID_QUERY = `#graphql
       vendor
       status
       tags
+      totalInventory
+      createdAt
       updatedAt
+      featuredImage { url }
+      images(first: 20) {
+        nodes { url }
+      }
+      priceRangeV2 {
+        minVariantPrice { amount currencyCode }
+        maxVariantPrice { amount currencyCode }
+      }
+      variants(first: 100) {
+        nodes {
+          id
+          title
+          sku
+          price
+          compareAtPrice
+          inventoryQuantity
+          availableForSale
+          selectedOptions { name value }
+          image { url }
+          inventoryItem { id }
+        }
+      }
       metafields(first: 50) {
         pageInfo { hasNextPage endCursor }
         nodes {
@@ -104,6 +128,11 @@ export const PRODUCT_METAFIELDS_PAGE_QUERY = `#graphql
 // DELTA. The optional $query param accepts Shopify's search syntax —
 // DELTA uses `updated_at:>=...` to fetch only recently-changed
 // products. INITIAL/MANUAL_RESYNC pass null.
+// PR-C.5: query expanded to carry the full Product write-set so the
+// worker is the single authoritative writer (legacy upsert no longer
+// runs from product webhooks). Field shape matches PRODUCTS_PAGE_QUERY
+// in graphql.server.ts; cost increase per page is bounded by the
+// existing first:50 page size.
 export const PRODUCT_KNOWLEDGE_PAGE_QUERY = `#graphql
   query ProductKnowledgePage($cursor: String, $query: String) {
     products(first: 50, after: $cursor, query: $query) {
@@ -117,7 +146,31 @@ export const PRODUCT_KNOWLEDGE_PAGE_QUERY = `#graphql
         vendor
         status
         tags
+        totalInventory
+        createdAt
         updatedAt
+        featuredImage { url }
+        images(first: 20) {
+          nodes { url }
+        }
+        priceRangeV2 {
+          minVariantPrice { amount currencyCode }
+          maxVariantPrice { amount currencyCode }
+        }
+        variants(first: 100) {
+          nodes {
+            id
+            title
+            sku
+            price
+            compareAtPrice
+            inventoryQuantity
+            availableForSale
+            selectedOptions { name value }
+            image { url }
+            inventoryItem { id }
+          }
+        }
         metafields(first: 50) {
           pageInfo { hasNextPage }
           nodes {
@@ -265,6 +318,24 @@ export type GqlCollectionRef = {
   title: string;
 };
 
+export type GqlKnowledgeProductMoney = {
+  amount: string;
+  currencyCode: string;
+};
+
+export type GqlKnowledgeProductVariant = {
+  id: string;
+  title: string;
+  sku: string | null;
+  price: string;
+  compareAtPrice: string | null;
+  inventoryQuantity: number | null;
+  availableForSale: boolean;
+  selectedOptions: Array<{ name: string; value: string }>;
+  image: { url: string } | null;
+  inventoryItem: { id: string } | null;
+};
+
 export type GqlKnowledgeProduct = {
   id: string;
   handle: string;
@@ -274,7 +345,16 @@ export type GqlKnowledgeProduct = {
   vendor: string | null;
   status: string;
   tags: string[];
+  totalInventory: number | null;
+  createdAt: string;
   updatedAt: string;
+  featuredImage: { url: string } | null;
+  images: { nodes: Array<{ url: string }> };
+  priceRangeV2: {
+    minVariantPrice: GqlKnowledgeProductMoney;
+    maxVariantPrice: GqlKnowledgeProductMoney;
+  } | null;
+  variants: { nodes: GqlKnowledgeProductVariant[] };
   metafields: {
     pageInfo: { hasNextPage: boolean; endCursor: string | null };
     nodes: GqlMetafield[];

@@ -1,28 +1,34 @@
-// Phase 1 (PR-A): write path for the knowledge record.
+// Phase 1 (PR-A → PR-C.5): write path for the knowledge record AND for
+// the full Product column set.
 //
-// The shape of this module is shared across all three call sites that
-// land in later PRs:
-//   PR-B worker         — bulk INITIAL/MANUAL_RESYNC/DELTA crawl
-//   PR-C webhook handlers — per-product reconciliation on
-//                            products/update etc.
-//   PR-D cron           — drift reconciliation for missed webhooks
+// History:
+//   PR-A: introduced as a knowledge-only writer (descriptionText,
+//         hash, sync timestamps); legacy upsertNormalizedProduct
+//         owned title/price/inventory/variants on the webhook path.
+//   PR-C: webhook handlers replaced legacy upsert with DELTA enqueue;
+//         worker called this function only.
+//   PR-C.2.1: reverted to dual-write because this function did not
+//             touch title/price/etc.
+//   PR-C.5: collapsed. This function is now the sole writer on the
+//           DELTA path and writes BOTH knowledge fields AND legacy
+//           Product columns (and reconciles ProductVariant). The
+//           webhook handlers thinned to HMAC + DELTA enqueue; the
+//           legacy upsertNormalizedProduct stays defined for any
+//           future caller (PR-D cron may use it).
 //
-// All three pass NormalizedProductKnowledge (for products) or
-// NormalizedKnowledgeCollection / NormalizedKnowledgeMetaobject. The
-// reconciliation pattern is the same as today's variant reconciliation
-// in upsert.server.ts: full-set replacement keyed by stable Shopify
-// GIDs, idempotent.
+// Call sites:
+//   PR-B worker — bulk INITIAL/MANUAL_RESYNC/DELTA crawl.
+//   PR-D cron — drift reconciliation (pending).
 //
 // Stale-write protection: if Shopify reports an updatedAt older than
 // what we already have, we skip the write. Catches the in-flight race
 // where two webhooks fire seconds apart and the earlier one's GraphQL
 // fetch finishes second.
 //
-// Hash recompute: every upsertProductKnowledge call recomputes
-// knowledgeContentHash from the just-written rich record. This means
-// metafield/collection/metaobject changes that flow in via different
-// upsert paths still produce a fresh hash — the cross-table
-// invalidation refinement (#4) holds.
+// Hash recompute: hash inputs read from `knowledge.*` (the freshly
+// fetched values), not the existing DB row. Pre-C.5 we read title/etc.
+// from the row, which produced stale hashes when the legacy upsert was
+// removed. The C.2 → C.2.1 → C.5 trail in HANDOFF documents the path.
 
 import type { Prisma, StoreMode } from "@prisma/client";
 import prisma from "../../db.server";
@@ -37,6 +43,7 @@ import type {
   NormalizedKnowledgeMetaobject,
   NormalizedProductKnowledge,
 } from "./knowledge-fetch.server";
+import { deriveInventoryStatus } from "./upsert.server";
 
 export type UpsertProductKnowledgeResult = {
   productId: string | null; // null if Product not found locally (skipped)
@@ -60,12 +67,10 @@ export async function upsertProductKnowledge(params: {
   const { shopDomain, storeMode, knowledge } = params;
   const tx = params.tx ?? prisma;
 
-  // Find the existing Product row. We don't create here — the legacy
-  // upsert path (upsert.server.ts) owns Product row creation from the
-  // products/* webhook + sync flows. If the row doesn't exist locally
-  // yet (e.g. webhook arrived before initial sync wrote it), we skip
-  // and let the caller decide whether to retry later.
-  const product = await tx.product.findUnique({
+  // Existing-row probe for stale-write check + previous-hash compare.
+  // We will create the row if missing (PR-C.5: this function is now the
+  // sole product writer on the DELTA path).
+  const existing = await tx.product.findUnique({
     where: {
       shopDomain_shopifyId: {
         shopDomain,
@@ -75,25 +80,133 @@ export async function upsertProductKnowledge(params: {
     select: {
       id: true,
       shopifyUpdatedAt: true,
-      title: true,
-      productType: true,
-      vendor: true,
-      shopifyTags: true,
       knowledgeContentHash: true,
     },
   });
 
-  if (!product) {
-    return { productId: null, hashChanged: false, staleSkipped: false };
+  if (
+    existing?.shopifyUpdatedAt &&
+    knowledge.shopifyUpdatedAt < existing.shopifyUpdatedAt
+  ) {
+    return { productId: existing.id, hashChanged: false, staleSkipped: true };
   }
 
-  // Stale-write protection — see the file header.
-  if (
-    product.shopifyUpdatedAt &&
-    knowledge.shopifyUpdatedAt < product.shopifyUpdatedAt
-  ) {
-    return { productId: product.id, hashChanged: false, staleSkipped: true };
-  }
+  // Resolve collection GIDs to local Collection rows up front — the
+  // hash needs collection handles, and the ProductCollection
+  // reconciliation needs the IDs.
+  const knownCollections = await tx.collection.findMany({
+    where: {
+      shopDomain,
+      shopifyId: { in: knowledge.collectionGids },
+    },
+    select: { id: true, shopifyId: true, handle: true },
+  });
+  const knownCollectionIds = knownCollections.map((c) => c.id);
+
+  // Resolve metaobject handles for any metafield reference that points
+  // at a Metaobject we know. Phase 1 doesn't deeply resolve list.* refs;
+  // single metaobject_reference is the common case and is enough for
+  // the cross-table invalidation invariant.
+  const metaobjectRefGids = knowledge.metafields
+    .map((m) => m.referenceGid)
+    .filter((g): g is string => g !== null && g.includes("/Metaobject/"));
+  const metaobjectRows = metaobjectRefGids.length
+    ? await tx.metaobject.findMany({
+        where: {
+          shopDomain,
+          shopifyId: { in: metaobjectRefGids },
+        },
+        select: { type: true, handle: true },
+      })
+    : [];
+
+  // Hash inputs read from `knowledge.*` (freshly fetched), not the
+  // existing row. Pre-C.5 we read from the row, which masked title /
+  // tag changes once the legacy upsert was removed.
+  const hashInput = {
+    storeMode,
+    title: knowledge.title,
+    productType: knowledge.productType,
+    vendor: knowledge.vendor,
+    descriptionText: knowledge.descriptionText,
+    shopifyTags: knowledge.shopifyTags,
+    collectionHandles: knownCollections.map((c) => c.handle),
+    metafields: knowledge.metafields.map<KnowledgeMetafieldInput>((m) => ({
+      namespace: m.namespace,
+      key: m.key,
+      type: m.type,
+      value: m.value,
+    })),
+    metaobjectRefs: metaobjectRows.map<KnowledgeMetaobjectRefInput>((o) => ({
+      type: o.type,
+      handle: o.handle,
+    })),
+  };
+
+  const newHash = hashKnowledge(hashInput);
+  const hashChanged = (existing?.knowledgeContentHash ?? null) !== newHash;
+  const inventoryStatus = deriveInventoryStatus(knowledge.totalInventory);
+  const now = new Date();
+
+  // Single Product upsert covering both legacy and knowledge columns.
+  const product = await tx.product.upsert({
+    where: {
+      shopDomain_shopifyId: {
+        shopDomain,
+        shopifyId: knowledge.shopifyGid,
+      },
+    },
+    create: {
+      shopDomain,
+      shopifyId: knowledge.shopifyGid,
+      handle: knowledge.handle,
+      title: knowledge.title,
+      descriptionHtml: knowledge.descriptionHtml,
+      descriptionText: knowledge.descriptionText,
+      productType: knowledge.productType,
+      vendor: knowledge.vendor,
+      status: knowledge.status,
+      featuredImageUrl: knowledge.featuredImageUrl,
+      imageUrls: knowledge.imageUrls,
+      priceMin: knowledge.priceMin,
+      priceMax: knowledge.priceMax,
+      currency: knowledge.currency,
+      shopifyTags: knowledge.shopifyTags,
+      totalInventory: knowledge.totalInventory,
+      inventoryStatus,
+      shopifyCreatedAt: knowledge.shopifyCreatedAt,
+      shopifyUpdatedAt: knowledge.shopifyUpdatedAt,
+      syncedAt: now,
+      knowledgeContentHash: newHash,
+      knowledgeContentHashAt: now,
+      lastKnowledgeSyncAt: now,
+      deletedAt: null,
+    },
+    update: {
+      handle: knowledge.handle,
+      title: knowledge.title,
+      descriptionHtml: knowledge.descriptionHtml,
+      descriptionText: knowledge.descriptionText,
+      productType: knowledge.productType,
+      vendor: knowledge.vendor,
+      status: knowledge.status,
+      featuredImageUrl: knowledge.featuredImageUrl,
+      imageUrls: knowledge.imageUrls,
+      priceMin: knowledge.priceMin,
+      priceMax: knowledge.priceMax,
+      currency: knowledge.currency,
+      shopifyTags: knowledge.shopifyTags,
+      totalInventory: knowledge.totalInventory,
+      inventoryStatus,
+      shopifyCreatedAt: knowledge.shopifyCreatedAt,
+      shopifyUpdatedAt: knowledge.shopifyUpdatedAt,
+      syncedAt: now,
+      knowledgeContentHash: newHash,
+      knowledgeContentHashAt: now,
+      lastKnowledgeSyncAt: now,
+      deletedAt: null,
+    },
+  });
 
   // Reconcile ProductMetafield rows. Full-set replacement keyed on
   // (productId, namespace, key) which is the unique constraint.
@@ -134,7 +247,7 @@ export async function upsertProductKnowledge(params: {
         referenceGid: m.referenceGid,
         shopifyMetafieldId: m.shopifyMetafieldId,
         shopifyUpdatedAt: m.shopifyUpdatedAt,
-        syncedAt: new Date(),
+        syncedAt: now,
       },
       update: {
         type: m.type,
@@ -142,23 +255,14 @@ export async function upsertProductKnowledge(params: {
         referenceGid: m.referenceGid,
         shopifyMetafieldId: m.shopifyMetafieldId,
         shopifyUpdatedAt: m.shopifyUpdatedAt,
-        syncedAt: new Date(),
+        syncedAt: now,
       },
     });
   }
 
-  // Reconcile ProductCollection memberships. Resolve each incoming GID
-  // to a local Collection.id; skip any GIDs we don't yet have rows for
-  // (the Collections phase / collections/update webhook will fill them).
-  const knownCollections = await tx.collection.findMany({
-    where: {
-      shopDomain,
-      shopifyId: { in: knowledge.collectionGids },
-    },
-    select: { id: true, shopifyId: true },
-  });
-  const knownCollectionIds = knownCollections.map((c) => c.id);
-
+  // Reconcile ProductCollection memberships. Skip GIDs we don't have
+  // local Collection rows for — the Collections phase / collections/*
+  // webhooks fill them.
   await tx.productCollection.deleteMany({
     where: {
       productId: product.id,
@@ -185,72 +289,58 @@ export async function upsertProductKnowledge(params: {
     });
   }
 
-  // Compute hash inputs from the just-written state plus the row we
-  // already loaded. We re-read metafields and collections here rather
-  // than reusing `knowledge` directly because the hash should reflect
-  // what's actually in the DB after reconciliation (handles late-
-  // arriving collection rows correctly).
-  const collectionRows = await tx.collection.findMany({
+  // Reconcile ProductVariant rows. Same pattern as the legacy path:
+  // deleteMany variants no longer present in the fetched payload, then
+  // per-variant upsert. Mirror of upsert.server.ts:262-307.
+  const incomingVariantGids = knowledge.variants.map((v) => v.shopifyGid);
+  await tx.productVariant.deleteMany({
     where: {
-      id: { in: knownCollectionIds },
+      productId: product.id,
+      shopifyId: { notIn: incomingVariantGids.length ? incomingVariantGids : ["__none__"] },
     },
-    select: { handle: true },
   });
 
-  // Resolve metaobject handles for any metafield reference that points
-  // at a Metaobject we know. Phase 1 doesn't deeply resolve list.* refs;
-  // single metaobject_reference is the common case and is enough for
-  // the cross-table invalidation invariant.
-  const metaobjectRefGids = knowledge.metafields
-    .map((m) => m.referenceGid)
-    .filter((g): g is string => g !== null && g.includes("/Metaobject/"));
-  const metaobjectRows = metaobjectRefGids.length
-    ? await tx.metaobject.findMany({
-        where: {
-          shopDomain,
-          shopifyId: { in: metaobjectRefGids },
+  for (const v of knowledge.variants) {
+    await tx.productVariant.upsert({
+      where: {
+        productId_shopifyId: {
+          productId: product.id,
+          shopifyId: v.shopifyGid,
         },
-        select: { type: true, handle: true },
-      })
-    : [];
+      },
+      create: {
+        productId: product.id,
+        shopifyId: v.shopifyGid,
+        title: v.title,
+        sku: v.sku,
+        price: v.price,
+        compareAtPrice: v.compareAtPrice,
+        inventoryQuantity: v.inventoryQuantity,
+        inventoryItemId: v.inventoryItemId,
+        availableForSale: v.availableForSale,
+        option1: v.option1,
+        option2: v.option2,
+        option3: v.option3,
+        imageUrl: v.imageUrl,
+      },
+      update: {
+        title: v.title,
+        sku: v.sku,
+        price: v.price,
+        compareAtPrice: v.compareAtPrice,
+        inventoryQuantity: v.inventoryQuantity,
+        inventoryItemId: v.inventoryItemId,
+        availableForSale: v.availableForSale,
+        option1: v.option1,
+        option2: v.option2,
+        option3: v.option3,
+        imageUrl: v.imageUrl,
+      },
+    });
+  }
 
-  const hashInput = {
-    storeMode,
-    title: product.title,
-    productType: product.productType,
-    vendor: product.vendor,
-    descriptionText: knowledge.descriptionText,
-    shopifyTags: product.shopifyTags,
-    collectionHandles: collectionRows.map((c) => c.handle),
-    metafields: knowledge.metafields.map<KnowledgeMetafieldInput>((m) => ({
-      namespace: m.namespace,
-      key: m.key,
-      type: m.type,
-      value: m.value,
-    })),
-    metaobjectRefs: metaobjectRows.map<KnowledgeMetaobjectRefInput>((o) => ({
-      type: o.type,
-      handle: o.handle,
-    })),
-  };
-
-  const newHash = hashKnowledge(hashInput);
-  const hashChanged = product.knowledgeContentHash !== newHash;
-
-  await tx.product.update({
-    where: { id: product.id },
-    data: {
-      descriptionHtml: knowledge.descriptionHtml,
-      descriptionText: knowledge.descriptionText,
-      knowledgeContentHash: newHash,
-      knowledgeContentHashAt: new Date(),
-      lastKnowledgeSyncAt: new Date(),
-      shopifyUpdatedAt: knowledge.shopifyUpdatedAt,
-    },
-  });
-
-  // Reference assertion to silence the unused-import warning for
-  // metafields keyset; Set is built so deleteMany above can use it.
+  // Reference assertion to silence the unused-set warning; the Set is
+  // kept for clarity in the deleteMany filter above.
   void incomingMetafieldKeys;
 
   return { productId: product.id, hashChanged, staleSkipped: false };
