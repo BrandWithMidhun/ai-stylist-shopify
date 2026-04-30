@@ -174,12 +174,20 @@ export async function saveCursor(
   // the upserts it points past — exactly-once semantics on resume.
   tx: Prisma.TransactionClient | typeof prisma = prisma,
 ): Promise<void> {
+  // PR-C C.3: also update the matching *CursorAt timestamp so we can
+  // measure how stale a saved cursor is when the worker resumes from
+  // it. One write per save; atomic with the cursor write.
+  const now = new Date();
+  const data: Prisma.CatalogSyncJobUpdateInput = {
+    ...cursors,
+    heartbeatAt: now,
+  };
+  if ("productsCursor" in cursors) data.productsCursorAt = now;
+  if ("metaobjectsCursor" in cursors) data.metaobjectsCursorAt = now;
+  if ("collectionsCursor" in cursors) data.collectionsCursorAt = now;
   await tx.catalogSyncJob.update({
     where: { id: jobId },
-    data: {
-      ...cursors,
-      heartbeatAt: new Date(),
-    },
+    data,
   });
 }
 

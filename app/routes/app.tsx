@@ -6,6 +6,7 @@ import { AppProvider } from "@shopify/shopify-app-react-router/react";
 import { authenticate } from "../shopify.server";
 import { ensureMerchantConfig } from "../lib/merchant-config.server";
 import { syncChatConfigMetafield } from "../lib/chat/metafield-sync.server";
+import { EXPECTED_SCOPES, needsReauth } from "../lib/needs-reauth";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
@@ -30,12 +31,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
-  // eslint-disable-next-line no-undef
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  // PR-C C.3: scope-mismatch detection. session.scope is what the
+  // merchant currently has granted; EXPECTED_SCOPES is what the app
+  // declares. If any expected scope is missing, render a re-auth banner.
+  const reauthRequired = needsReauth(session.scope, EXPECTED_SCOPES);
+
+  return {
+    // eslint-disable-next-line no-undef
+    apiKey: process.env.SHOPIFY_API_KEY || "",
+    reauthRequired,
+  };
 };
 
 export default function App() {
-  const { apiKey } = useLoaderData<typeof loader>();
+  const { apiKey, reauthRequired } = useLoaderData<typeof loader>();
 
   return (
     <AppProvider embedded apiKey={apiKey}>
@@ -48,6 +57,17 @@ export default function App() {
         <s-link href="/app">Starter demo</s-link>
         <s-link href="/app/additional">Additional page</s-link>
       </s-app-nav>
+      {reauthRequired ? (
+        <s-banner tone="warning" heading="Reauthorization required">
+          <s-paragraph>
+            This app needs additional permissions to function correctly.
+            Please reinstall to continue.
+          </s-paragraph>
+          <s-button slot="primary-action" href="/auth/login">
+            Reauthorize
+          </s-button>
+        </s-banner>
+      ) : null}
       <Outlet />
     </AppProvider>
   );

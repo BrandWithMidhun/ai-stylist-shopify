@@ -42,10 +42,16 @@ export async function runCollectionsPhase(
   let costUnits = 0;
   let totalCollections = 0;
   let batchSeq = 0;
+  // PR-C C.3 cursor age probe — see worker-phase-products.ts header.
+  let cursorWrittenAt: Date | null = job.collectionsCursorAt ?? null;
 
   while (hasNextPage && !shouldStop()) {
     batchSeq++;
     await heartbeat(job.id);
+    const cursorAgeMs =
+      cursor !== null && cursorWrittenAt !== null
+        ? Date.now() - cursorWrittenAt.getTime()
+        : null;
     const response = await admin.graphql(COLLECTIONS_PAGE_QUERY, {
       variables: { cursor },
     });
@@ -81,6 +87,7 @@ export async function runCollectionsPhase(
         { collectionsCursor: page.pageInfo.endCursor },
         tx,
       );
+      cursorWrittenAt = new Date();
     });
 
     totalCollections = processedItems;
@@ -98,6 +105,7 @@ export async function runCollectionsPhase(
       processedItems,
       failedItems,
       costThisPage: json.extensions?.cost?.actualQueryCost ?? 0,
+      cursorAgeMs,
     });
 
     hasNextPage = page.pageInfo.hasNextPage;

@@ -53,12 +53,21 @@ export async function runProductsPhase(
   let costUnits = 0;
   let batchSeq = 0;
   let highRateLogged = false;
+  // PR-C C.3 cursor age probe: track when the cursor we are about to
+  // use was last persisted. Initialized from job.productsCursorAt so a
+  // resumed worker measures the cross-restart staleness; updated to
+  // now() after each saveCursor write (matches the column write below).
+  let cursorWrittenAt: Date | null = job.productsCursorAt ?? null;
 
   const queryFilter = buildProductsQueryFilter(job.kind, deltaWatermark);
 
   while (hasNextPage && !shouldStop()) {
     batchSeq++;
     await heartbeat(job.id);
+    const cursorAgeMs =
+      cursor !== null && cursorWrittenAt !== null
+        ? Date.now() - cursorWrittenAt.getTime()
+        : null;
     const response = await admin.graphql(PRODUCT_KNOWLEDGE_PAGE_QUERY, {
       variables: { cursor, query: queryFilter },
     });
@@ -119,6 +128,7 @@ export async function runProductsPhase(
           { productsCursor: page.pageInfo.endCursor },
           tx,
         );
+        cursorWrittenAt = new Date();
       },
       { timeout: 30000, maxWait: 5000 },
     );
@@ -140,6 +150,7 @@ export async function runProductsPhase(
       driftCount,
       costThisPage: pageCost,
       costSoFar: costUnits,
+      cursorAgeMs,
     });
 
     if (
