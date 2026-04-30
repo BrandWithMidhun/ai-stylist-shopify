@@ -10,14 +10,30 @@ type InventoryLevelsUpdatePayload = {
   updated_at?: string;
 };
 
+// PR-C C.2: NO DELTA enqueue here (Q4 / option A). Inventory updates
+// are extremely high-frequency — every order causes decrements — so
+// queueing a DELTA per inventory webhook would flood the worker. Direct
+// narrow upsert of just availability + totalInventory + inventoryStatus
+// stays.
+//
+// Stale-write note: the schema does not currently track an inventory-
+// side shopifyUpdatedAt on ProductVariant (Prisma's @updatedAt tracks
+// our last write, not Shopify's). We log the payload's updated_at for
+// forward characterization but do not skip on staleness here. If a
+// real burst-of-stale-deliveries problem surfaces in production, a
+// followup migration adds ProductVariant.inventoryUpdatedAt.
+
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const start = Date.now();
   const { shop, topic, payload } = await authenticate.webhook(request);
+  const webhookId = request.headers.get("x-shopify-webhook-id") ?? "unknown";
 
   const config = await prisma.merchantConfig.findUnique({
     where: { shop },
     select: { lastFullSyncAt: true },
   });
   if (!config?.lastFullSyncAt) {
+    // eslint-disable-next-line no-console
     console.log(
       `[webhook] ignoring ${topic} for ${shop} — no initial sync yet`,
     );
@@ -26,11 +42,16 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const body = payload as InventoryLevelsUpdatePayload;
   if (body.inventory_item_id === undefined || body.inventory_item_id === null) {
+    // eslint-disable-next-line no-console
     console.log(`[webhook] ${topic} for ${shop} missing inventory_item_id`);
     return new Response();
   }
 
   const inventoryItemId = String(body.inventory_item_id);
+  const locationId =
+    body.location_id !== undefined && body.location_id !== null
+      ? String(body.location_id)
+      : null;
 
   const variants = await prisma.productVariant.findMany({
     where: {
@@ -41,6 +62,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   });
 
   if (variants.length === 0) {
+    // eslint-disable-next-line no-console
     console.log(
       `[webhook] ${topic} for ${shop} item ${inventoryItemId} not in local DB — ignoring`,
     );
@@ -77,5 +99,20 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   });
 
+  // eslint-disable-next-line no-console
+  console.log(
+    JSON.stringify({
+      event: "inventory_update_processed",
+      shop,
+      topic,
+      webhookId,
+      inventoryItemId,
+      locationId,
+      available,
+      payloadUpdatedAt: body.updated_at ?? null,
+      variantCount: variants.length,
+      durationMs: Date.now() - start,
+    }),
+  );
   return new Response();
 };

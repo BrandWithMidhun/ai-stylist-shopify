@@ -1,15 +1,26 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 
-// Phase 1 (PR-C) — C.1 skeleton. Log-only until PR-D builds the
-// CustomerProfile schema. See webhooks.customers.create.tsx.
+// PR-C log-only stub. PR-D wires CustomerProfile schema + real customer
+// write logic. Extend this handler when CustomerProfile lands.
+
+type CustomerPayload = { id?: number | string };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic } = await authenticate.webhook(request);
+  const { shop, topic, payload } = await authenticate.webhook(request);
   const webhookId = request.headers.get("x-shopify-webhook-id") ?? "unknown";
+  const body = (payload ?? {}) as CustomerPayload & Record<string, unknown>;
   // eslint-disable-next-line no-console
   console.log(
-    `[webhook:c1-skeleton] topic=${topic} shop=${shop} webhookId=${webhookId}`,
+    JSON.stringify({
+      event: "customer_webhook_received",
+      topic,
+      shop,
+      webhookId,
+      customerId: body.id ?? null,
+      payloadKeys: Object.keys(body),
+      pendingHandler: "PR-D",
+    }),
   );
   return new Response();
 };

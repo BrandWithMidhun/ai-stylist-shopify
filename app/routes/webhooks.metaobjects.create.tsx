@@ -1,17 +1,30 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 
-// Phase 1 (PR-C) — C.1 skeleton. C.2 replaces the body with
-// enqueueDeltaForShop + (for update/delete) bumpHashForMetaobjectReferents
-// to fan out hash invalidation to every product that references the
-// metaobject via a metafield reference.
+// Skeleton handler. Topic not subscribed in PR-C (Shopify requires a
+// metaobject_type filter and the dev shop has zero metaobject
+// definitions). Wire when real merchant onboarding adds metaobject
+// types — at that point this is a shopify.app.toml subscription change
+// plus enqueueDeltaForShop + bumpHashForMetaobjectReferents fan-out.
+
+type MetaobjectPayload = { id?: number | string; type?: string };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic } = await authenticate.webhook(request);
+  const { shop, topic, payload } = await authenticate.webhook(request);
   const webhookId = request.headers.get("x-shopify-webhook-id") ?? "unknown";
+  const body = (payload ?? {}) as MetaobjectPayload & Record<string, unknown>;
   // eslint-disable-next-line no-console
   console.log(
-    `[webhook:c1-skeleton] topic=${topic} shop=${shop} webhookId=${webhookId}`,
+    JSON.stringify({
+      event: "metaobject_webhook_received",
+      topic,
+      shop,
+      webhookId,
+      metaobjectId: body.id ?? null,
+      metaobjectType: body.type ?? null,
+      payloadKeys: Object.keys(body),
+      pendingHandler: "future-merchant-onboarding",
+    }),
   );
   return new Response();
 };

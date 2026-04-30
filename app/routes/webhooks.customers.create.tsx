@@ -1,23 +1,31 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 
-// Phase 1 (PR-C) — C.1 skeleton.
-//
-// PR-C ships customers/* as LOG-ONLY stubs (per Q1 in PR-C planning).
-// PR-D introduces the CustomerProfile schema and replaces this body with
-// real upsert logic. Subscribing now ensures we don't lose the
-// customers/create deliveries between PR-C deploy and PR-D ship.
-//
-// PR-D author: this is where the real CustomerProfile upsert hooks in.
-// Read shop + payload (customer.id, email, etc.) and call the
-// CustomerProfile creator from PR-D's library.
+// PR-C log-only stub. PR-D wires CustomerProfile schema + real customer
+// write logic. Extend this handler when CustomerProfile lands:
+//   - upsert CustomerProfile by (shop, shopifyCustomerId)
+//   - hydrate CustomerProfileAttribute rows from payload + mode schema
+//   - reconcile any anonymous CustomerSession matched on email
+// For now: HMAC-validated, structured-logged, 200 returned. Subscribing
+// during PR-C ensures we don't drop deliveries between PR-C and PR-D.
+
+type CustomerPayload = { id?: number | string };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic } = await authenticate.webhook(request);
+  const { shop, topic, payload } = await authenticate.webhook(request);
   const webhookId = request.headers.get("x-shopify-webhook-id") ?? "unknown";
+  const body = (payload ?? {}) as CustomerPayload & Record<string, unknown>;
   // eslint-disable-next-line no-console
   console.log(
-    `[webhook:c1-skeleton] topic=${topic} shop=${shop} webhookId=${webhookId}`,
+    JSON.stringify({
+      event: "customer_webhook_received",
+      topic,
+      shop,
+      webhookId,
+      customerId: body.id ?? null,
+      payloadKeys: Object.keys(body),
+      pendingHandler: "PR-D",
+    }),
   );
   return new Response();
 };

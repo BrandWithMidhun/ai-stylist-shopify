@@ -1,14 +1,56 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
+import prisma from "../db.server";
+import { enqueueDeltaForShop } from "../lib/webhooks/enqueue-delta.server";
 
-// Phase 1 (PR-C) — C.1 skeleton. See webhooks.collections.create.tsx.
+type CollectionPayload = { id?: number | string; updated_at?: string };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic } = await authenticate.webhook(request);
+  const { shop, topic, payload } = await authenticate.webhook(request);
   const webhookId = request.headers.get("x-shopify-webhook-id") ?? "unknown";
-  // eslint-disable-next-line no-console
-  console.log(
-    `[webhook:c1-skeleton] topic=${topic} shop=${shop} webhookId=${webhookId}`,
-  );
+
+  const config = await prisma.merchantConfig.findUnique({
+    where: { shop },
+    select: { lastFullSyncAt: true },
+  });
+  if (!config?.lastFullSyncAt) {
+    // eslint-disable-next-line no-console
+    console.log(
+      `[webhook] ignoring ${topic} for ${shop} — no initial sync yet`,
+    );
+    return new Response();
+  }
+
+  const body = payload as CollectionPayload;
+  const resourceGid =
+    body.id !== undefined && body.id !== null
+      ? `gid://shopify/Collection/${String(body.id)}`
+      : null;
+  const payloadUpdatedAt =
+    typeof body.updated_at === "string" ? new Date(body.updated_at) : null;
+
+  if (resourceGid && payloadUpdatedAt) {
+    const existing = await prisma.collection.findUnique({
+      where: { shopDomain_shopifyId: { shopDomain: shop, shopifyId: resourceGid } },
+      select: { shopifyUpdatedAt: true },
+    });
+    if (existing?.shopifyUpdatedAt && existing.shopifyUpdatedAt >= payloadUpdatedAt) {
+      // eslint-disable-next-line no-console
+      console.log(
+        JSON.stringify({
+          event: "stale_webhook_skipped",
+          topic,
+          shop,
+          webhookId,
+          resourceId: resourceGid,
+          existingShopifyUpdatedAt: existing.shopifyUpdatedAt.toISOString(),
+          payloadUpdatedAt: payloadUpdatedAt.toISOString(),
+        }),
+      );
+      return new Response();
+    }
+  }
+
+  await enqueueDeltaForShop(shop, { topic, webhookId, resourceGid });
   return new Response();
 };

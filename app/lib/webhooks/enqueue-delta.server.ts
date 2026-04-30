@@ -1,21 +1,23 @@
-// Phase 1 (PR-C): shared helper for webhook handlers to enqueue DELTA
-// catalog sync jobs.
+// Phase 1 (PR-C, C.2): real implementation of the shared helper webhook
+// handlers call to enqueue a DELTA CatalogSyncJob.
 //
-// C.1 ships this as a STUB — every handler can import + call it, but the
-// real createJob + dedup logic lands in C.2. Keeping the import surface
-// stable across C.1 → C.2 lets C.1 ship with skeleton handlers that
-// already log structurally without dual-rewriting their imports later.
+// Q3 dedup pattern (option b): application-level. A handler that fires
+// while another DELTA is already QUEUED for the shop returns the
+// existing job id with deduped=true rather than inserting a second row.
+// Trade-off vs a partial unique index: no migration, simpler error
+// surface, the worker's `updated_at:>=` filter naturally collapses
+// concurrent edits into a single fetch — so collapsing at the queue
+// layer is correct.
 //
-// C.2 will replace the stub body with:
-//   1. Look for an existing QUEUED DELTA for this shop. If one exists,
-//      return { deduped: true, jobId: existingJob.id } — no new row.
-//      (Q3 decision: application-level dedup, not a partial unique index.)
-//   2. Otherwise call createJob({ shopDomain: shop, kind: 'DELTA' }).
-//      Return { deduped: false, jobId: newJob.id }.
-//   3. Log structurally with topic, webhookId, resourceGid, outcome.
-//
-// Stub behavior: log the call, return { deduped: false }. No DB write.
-// Importers can compose against the final shape today.
+// Race window note: between the SELECT-existing-QUEUED and the INSERT
+// there is a microsecond gap where two concurrent webhook deliveries
+// could both create a QUEUED row. Acceptable for PR-C — the worker
+// fetches `updated_at:>= last successful sync` and gets every change
+// regardless of how many DELTAs are queued. If Addition 3 ever shows
+// real duplicates under burst we can promote this to a partial unique
+// index (`(shopDomain) WHERE status='QUEUED' AND kind='DELTA'`).
+
+import prisma from "../../db.server";
 
 export type EnqueueDeltaReason = {
   topic: string;
@@ -24,7 +26,7 @@ export type EnqueueDeltaReason = {
 };
 
 export type EnqueueDeltaResult = {
-  jobId?: string;
+  jobId: string;
   deduped: boolean;
 };
 
@@ -32,10 +34,50 @@ export async function enqueueDeltaForShop(
   shopDomain: string,
   reason: EnqueueDeltaReason,
 ): Promise<EnqueueDeltaResult> {
-  // C.1 stub. Real implementation in C.2.
+  const start = Date.now();
+
+  // Single atomic transaction so the SELECT and the INSERT see a
+  // consistent snapshot. Postgres default isolation (READ COMMITTED) is
+  // enough — we only need one writer to win the insert race within the
+  // tx; the loser's repeated SELECT will see the new row.
+  const result = await prisma.$transaction(async (tx) => {
+    const existing = await tx.catalogSyncJob.findFirst({
+      where: {
+        shopDomain,
+        kind: "DELTA",
+        status: "QUEUED",
+      },
+      select: { id: true },
+      orderBy: { enqueuedAt: "asc" },
+    });
+    if (existing) {
+      return { jobId: existing.id, deduped: true };
+    }
+    const created = await tx.catalogSyncJob.create({
+      data: {
+        shopDomain,
+        kind: "DELTA",
+        status: "QUEUED",
+      },
+      select: { id: true },
+    });
+    return { jobId: created.id, deduped: false };
+  });
+
+  const durationMs = Date.now() - start;
   // eslint-disable-next-line no-console
   console.log(
-    `[webhook:enqueue-delta:stub] shop=${shopDomain} topic=${reason.topic} webhookId=${reason.webhookId} resourceGid=${reason.resourceGid ?? "null"}`,
+    JSON.stringify({
+      event: "delta_enqueue",
+      shop: shopDomain,
+      topic: reason.topic,
+      webhookId: reason.webhookId,
+      resourceId: reason.resourceGid ?? null,
+      jobId: result.jobId,
+      deduped: result.deduped,
+      durationMs,
+    }),
   );
-  return { deduped: false };
+
+  return result;
 }
