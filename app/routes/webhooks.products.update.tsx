@@ -1,11 +1,24 @@
 import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
+import {
+  normalizeFromWebhook,
+  upsertNormalizedProduct,
+  type WebhookProductPayload,
+} from "../lib/catalog/upsert.server";
 import { enqueueDeltaForShop } from "../lib/webhooks/enqueue-delta.server";
 
-type ProductUpdatePayload = { id?: number | string; updated_at?: string };
+// PR-C C.2.1: dual-write pattern. See webhooks.products.create.tsx
+// header for the full rationale. Legacy upsert covers title/price/
+// inventory/etc.; DELTA enqueue covers metafields + collections + hash.
+
+type ProductPayload = WebhookProductPayload & {
+  id?: number | string;
+  updated_at?: string;
+};
 
 export const action = async ({ request }: ActionFunctionArgs) => {
+  const start = Date.now();
   const { shop, topic, payload } = await authenticate.webhook(request);
   const webhookId = request.headers.get("x-shopify-webhook-id") ?? "unknown";
 
@@ -21,7 +34,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return new Response();
   }
 
-  const body = payload as ProductUpdatePayload;
+  const body = payload as ProductPayload;
   const resourceGid =
     body.id !== undefined && body.id !== null
       ? `gid://shopify/Product/${String(body.id)}`
@@ -51,6 +64,44 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     }
   }
 
-  await enqueueDeltaForShop(shop, { topic, webhookId, resourceGid });
+  let legacyUpsertOk = false;
+  try {
+    const normalized = normalizeFromWebhook(body);
+    await prisma.$transaction(async (tx) => {
+      await upsertNormalizedProduct(shop, normalized, tx);
+    });
+    legacyUpsertOk = true;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.log(
+      JSON.stringify({
+        event: "products_legacy_upsert_failed",
+        topic,
+        shop,
+        webhookId,
+        resourceId: resourceGid,
+        error: err instanceof Error ? err.message : String(err),
+      }),
+    );
+  }
+
+  const enqueue = await enqueueDeltaForShop(shop, { topic, webhookId, resourceGid });
+
+  // eslint-disable-next-line no-console
+  console.log(
+    JSON.stringify({
+      event: "products_webhook_dual_write",
+      topic,
+      shop,
+      webhookId,
+      resourceId: resourceGid,
+      legacyUpsertOk,
+      deltaEnqueued: true,
+      deduped: enqueue.deduped,
+      jobId: enqueue.jobId,
+      durationMs: Date.now() - start,
+    }),
+  );
+
   return new Response();
 };
