@@ -29,6 +29,7 @@ import {
 import { sleep } from "../lib/catalog/shopify-throttle.server";
 import { processJob } from "./worker-phase";
 import { createHealthState, startHealthServer } from "./worker-health";
+import { startCronTick } from "./cron-tick.server";
 import { log } from "./worker-logger";
 
 const POLL_MIN_MS = 2000;
@@ -71,6 +72,12 @@ async function main(): Promise<void> {
     sweptCount: swept.resumedJobIds.length,
     resumedJobIds: swept.resumedJobIds,
   });
+
+  // PR-D D.2: spawn the daily cron tick. Runs on a 60s interval
+  // alongside the claim loop. Each tick reads MerchantConfig + at
+  // most one INSERT/UPDATE per scheduled shop — negligible
+  // contention with the claim loop's prisma usage.
+  const cronTickHandle = startCronTick(prisma);
 
   health.status = "ok";
 
@@ -152,6 +159,7 @@ async function main(): Promise<void> {
   log.info("worker exiting", {
     reason: "shouldStop",
   });
+  clearInterval(cronTickHandle);
   await prisma.$disconnect();
   // eslint-disable-next-line no-undef
   process.exit(0);

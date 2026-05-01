@@ -52,6 +52,8 @@ Configure these as **shared variables** at the Railway project level so both ser
 |---|---|---|
 | `KNOWLEDGE_WORKER_HEARTBEAT_TIMEOUT_MS` | `300000` (5 min) | How long a RUNNING job goes without a heartbeat before `sweepStuckJobs` resets it to QUEUED |
 | `WORKER_LOG_LEVEL` | `info` | One of `debug`, `info`, `warn`, `error` |
+| `CRON_HOUR` | `3` | Local hour (0-23, in each shop's timezone) at which the daily catch-up DELTA fires. Apply on the worker service only — web doesn't read it. |
+| `CRON_FORCE_TICK_NOW` | unset | When set to `"1"` at worker boot, the cron tick fires one immediate enqueue regardless of local hour, then resets and resumes normal scheduling. Boot-once flag (matches PR-B `sweepStuckJobs` pattern). Use for verification after schema changes; safe to leave unset afterward. |
 
 ## Worker-specific variables
 
@@ -96,6 +98,34 @@ Returns:
 ```
 
 `status` is `starting` during boot, `ok` once ready, `503` (HTTP status) + `stopping` when SIGTERM is acknowledged.
+
+## Daily catch-up cron (PR-D)
+
+The worker hosts an in-process cron tick on a 60s interval (alongside the claim loop). Each tick:
+
+1. Reads all `MerchantConfig` rows.
+2. Computes local hour per `MerchantConfig.timezone` (IANA, e.g. `Asia/Kolkata`) via `Intl.DateTimeFormat`.
+3. If local hour matches `CRON_HOUR` (default 3) AND `lastCronEnqueueDate` ≠ today's local date, calls `enqueueDeltaForShop(shop, { topic: "cron", triggerSource: "CRON" })` and stamps `lastCronEnqueueDate`.
+4. Lazy-refreshes `MerchantConfig.timezone` from Shopify `shop.ianaTimezone` once per shop per day (when `timezoneSyncedAt` is null or > 24h old).
+
+The cron-driven DELTA flows through the same worker phase machine as webhook-driven and manual DELTAs; the only difference is `CatalogSyncJob.triggerSource = "CRON"` for cron-originated rows.
+
+Per-shop errors during a tick are logged structured and isolated — one bad shop doesn't poison the rest of the loop. The interval keeps running on the next 60s tick.
+
+### Force-fire one tick (verification)
+
+To exercise the cron path immediately after a schema change or migration without waiting for the local-hour gate:
+
+1. Set `CRON_FORCE_TICK_NOW=1` on the worker service in Railway.
+2. Restart the worker. Boot logs include `cron tick force-fire requested`.
+3. The first tick (within ~60s of boot) enqueues a DELTA for every shop regardless of local hour. Subsequent ticks honor normal scheduling.
+4. Optionally clear the env var. Leaving it set is harmless — it only fires once per boot.
+
+Verify the enqueue with:
+
+```
+psql $DATABASE_URL -c "SELECT id, \"shopDomain\", \"triggerSource\", status, \"enqueuedAt\" FROM \"CatalogSyncJob\" WHERE \"triggerSource\" = 'CRON' ORDER BY \"enqueuedAt\" DESC LIMIT 5;"
+```
 
 ## Manual test scripts (post-deploy)
 

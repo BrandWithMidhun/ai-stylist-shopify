@@ -23,6 +23,11 @@ export type EnqueueDeltaReason = {
   topic: string;
   webhookId: string;
   resourceGid?: string | null;
+  // PR-D D.2: identifies what enqueued the row. Webhook handlers leave
+  // it undefined (column stays null); cron tick passes "CRON" so the
+  // dashboard can filter cron-driven runs separately when monitoring
+  // webhook reliability via DELTA drift.
+  triggerSource?: string | null;
 };
 
 export type EnqueueDeltaResult = {
@@ -58,6 +63,7 @@ export async function enqueueDeltaForShop(
         shopDomain,
         kind: "DELTA",
         status: "QUEUED",
+        triggerSource: reason.triggerSource ?? null,
       },
       select: { id: true },
     });
@@ -73,6 +79,7 @@ export async function enqueueDeltaForShop(
       topic: reason.topic,
       webhookId: reason.webhookId,
       resourceId: reason.resourceGid ?? null,
+      triggerSource: reason.triggerSource ?? null,
       jobId: result.jobId,
       deduped: result.deduped,
       durationMs,
