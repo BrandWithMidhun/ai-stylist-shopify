@@ -1,6 +1,6 @@
 # HANDOFF — AI Stylist Shopify App
 
-**Last updated:** 2026-04-30, after PR-C shipped (commits `9475119`, `8247140`, `8447d86`, `6a3deff`).
+**Last updated:** 2026-04-30, after PR-C.5 shipped + verified (commit `1eda3c2` on top of the four PR-C SHAs).
 **Supersedes:** Previous HANDOFF.
 **North star:** `docs/recommendation-engine-brief.md` v0.3 (commit `22e849c`).
 **Scope:** `docs/scope-decisions.md` (commit `616fe70`).
@@ -39,9 +39,9 @@ What this does NOT mean:
 
 ## Where we are
 
-**Production:** Phase 1 PR-C shipped (commits `9475119`, `8247140`, `8447d86`, `6a3deff`). All 18 webhook subscriptions live (products/collections/inventory/customers/orders + GDPR + app lifecycle). Webhook handlers do real work: products/{create,update} dual-write (legacy upsert for non-knowledge fields + DELTA enqueue for knowledge fan-out); collections/{create,update,delete} stale-write-checked + DELTA enqueue; inventory_levels/update direct narrow upsert (no DELTA per high-frequency rule); customers/* and orders/* log-only stubs awaiting PR-D and Phase 3. `enqueueDeltaForShop` collapses webhook bursts into one QUEUED DELTA per shop. Re-auth banner wired into the embedded admin shell with `write_X ⇒ read_X` implication. Cursor age probe instrumented in PRODUCTS + COLLECTIONS phases of the worker. Phase 1 is 3 of 4 sub-PRs complete; PR-D (daily catch-up cron + CustomerProfile schema) remaining.
+**Production:** Phase 1 PR-C + PR-C.5 shipped (5 commits total: `9475119`, `8247140`, `8447d86`, `6a3deff`, `1eda3c2`). All 18 webhook subscriptions live (products/collections/inventory/customers/orders + GDPR + app lifecycle). Webhook handlers do real work: products/{create,update} thin (HMAC + stale-write check + DELTA enqueue + 200) — worker is now sole authoritative writer for the full Product column set on the DELTA path; collections/{create,update,delete} stale-write-checked + DELTA enqueue; inventory_levels/update direct narrow upsert (no DELTA per high-frequency rule); customers/* and orders/* log-only stubs awaiting PR-D and Phase 3. `enqueueDeltaForShop` collapses webhook bursts into one QUEUED DELTA per shop. Re-auth banner wired into the embedded admin shell with `write_X ⇒ read_X` implication. Cursor age probe instrumented in PRODUCTS + COLLECTIONS phases of the worker. Phase 1 is 3 of 4 sub-PRs complete; PR-D (daily catch-up cron + CustomerProfile schema) remaining.
 
-**Local:** All work pushed through PR-C (`6a3deff`). Branch synced with origin/main.
+**Local:** All work pushed through PR-C.5 (`1eda3c2`). Branch synced with origin/main.
 
 **Sync button:** Functional. Clicking queues a `CatalogSyncJob` row; the worker drains it within ~5s. MANUAL_RESYNC kind cancels any in-flight DELTA job for the shop before claiming.
 
@@ -129,15 +129,36 @@ Below cut #5 the plan is unrealistic without cutting features themselves.
 
 **Verification:**
 - Addition 1 (subscription registration): 18 topics confirmed via `shopify app deploy` + Shopify Admin API `webhookSubscriptions` query, plus end-to-end product-edit test on `100-pure-linen-fabric-gift-box`.
-- Addition 2 (end-to-end webhook → DELTA → hash change): PASS on C.2.1 retry. Pre-edit hash `f8206f23…85564d821` → post-edit `a4064287…1e45efd2`; title + shopifyUpdatedAt + syncedAt + lastKnowledgeSyncAt + knowledgeContentHash all advanced/changed correctly. DELTA `cmolq8yxy000bqh36r65pdkpi`: 810ms drain, `processedProducts=1`, `driftCount=1`. The C.2 first-attempt failure is what surfaced the missing legacy-write path (worker `upsertProductKnowledge` writes only knowledge-record fields; replacing the legacy upsert in webhooks left no writer for `title`/`productType`/`vendor`/`shopifyTags`/`featuredImageUrl`/`imageUrls`/`priceMin/Max`/`currency`/`totalInventory`/`inventoryStatus`/variants).
+- Addition 2 (end-to-end webhook → DELTA → hash change): PASS on C.2.1 retry. Pre-edit hash `f8206f23…85564d821` → post-edit `a4064287…1e45efd2`; title + shopifyUpdatedAt + syncedAt + lastKnowledgeSyncAt + knowledgeContentHash all advanced/changed correctly. DELTA `cmolq8yxy000bqh36r65pdkpi`: 810ms drain, `processedProducts=1`, `driftCount=1`. The C.2 first-attempt failure is what surfaced the missing legacy-write path (worker `upsertProductKnowledge` writes only knowledge-record fields; replacing the legacy upsert in webhooks left no writer for `title`/`productType`/`vendor`/`shopifyTags`/`featuredImageUrl`/`imageUrls`/`priceMin/Max`/`currency`/`totalInventory`/`inventoryStatus`/variants). PR-C.5 closed this structurally — see below.
 - Addition 3 (dedup burst): PASS — 5 sequential `enqueueDeltaForShop` calls → 1 fresh + 4 deduped, single jobId, drained by production worker in 1.3s.
 - Q5 (re-auth banner): PASS programmatically (8/8 tests including `write_X ⇒ read_X` implication contract); negative-direction visual confirmation post-deploy (no banner renders on `/app` load with current dev shop scopes).
 
 **Dedup design — QUEUED-only is correct, not merely acceptable.** `enqueueDeltaForShop` dedups against `status='QUEUED'` rows only; not RUNNING. Promoting to QUEUED+RUNNING would introduce a correctness gap: mid-fetch edits where the running DELTA's `updated_at:>=` window has already paginated past a product would be silently missed if a follow-up DELTA-B got deduped against the running DELTA-A. The current scope guarantees every edit window opens at least one DELTA fetch.
 
-**Two-writer structural debt.** Legacy `upsertNormalizedProduct` (webhook payload, fast) + `upsertProductKnowledge` (worker GraphQL fetch, knowledge fan-out) both run on every products/{create,update} webhook delivery. Both writes converge on Shopify's authoritative state (idempotent), but a brief window can show stale title/price between webhook ack and worker drain. Resolution path: collapse to single writer in worker — move legacy-field writes into `upsertProductKnowledge` or a sibling worker function; webhook becomes thin (HMAC + DELTA enqueue). **PR-C.5 deferred — re-evaluate when PR-D cron planning starts; if PR-D's cron absorbs the collapse (which it must, because cron also needs to write the same fields), PR-C.5 never ships standalone.** Trigger is architectural, not calendrical.
-
 **Cursor age observability.** `saveCursor` now writes the matching `*CursorAt` column atomically with the cursor; PRODUCTS + COLLECTIONS phase loops log `cursorAgeMs` per batch. No real values during PR-C operation — DELTA path uses `updated_at:>=` filter, not saved cursors. First values surface on the next MANUAL_RESYNC, INITIAL run, or stuck-job resume (or when PR-D's cron exercises it). PR-B's "cursor TTL anomaly to investigate" status moves to "monitoring — instrumentation in place".
+
+### PR-C.5 — Two-writer collapse ✓ SHIPPED
+
+**Shipped:** One commit — `1eda3c2` (collapse two-writer pattern; worker becomes single authoritative writer for products).
+
+**Pattern picked.** Extend `upsertProductKnowledge` to write the full Product column set (legacy + knowledge fields). The sibling-function alternative was rejected — it added an indirection without simplifying the call site. Single function, single call from the worker, hash inputs read from freshly-fetched `knowledge.*` (not the existing-row column values that had been masking title/tag changes in the C.2 first-attempt regression).
+
+**Files modified (5 files, +366 / -195):**
+- `app/lib/catalog/queries/knowledge.server.ts` — `PRODUCT_KNOWLEDGE_PAGE_QUERY` and `PRODUCT_KNOWLEDGE_BY_ID_QUERY` expanded with `featuredImage`, `images(first:20)`, `priceRangeV2`, `totalInventory`, `createdAt`, `variants(first:100)`. Type `GqlKnowledgeProduct` expanded; `GqlKnowledgeProductMoney`/`GqlKnowledgeProductVariant` added.
+- `app/lib/catalog/knowledge-fetch.server.ts` — `NormalizedProductKnowledge` expanded with `handle`, `title`, `productType`, `vendor`, `status`, `shopifyTags`, `featuredImageUrl`, `imageUrls`, `priceMin/Max`, `currency`, `totalInventory`, `shopifyCreatedAt`, `variants`. `NormalizedKnowledgeVariant` added. `normalizeKnowledgeProduct` populates all new fields.
+- `app/lib/catalog/knowledge-upsert.server.ts` — `upsertProductKnowledge` rewritten end-to-end. Order: existing-row probe → stale-write check → resolve collection/metaobject GIDs → compute hash from fresh `knowledge.*` → single `tx.product.upsert` with all legacy + knowledge columns including `knowledgeContentHash`/`knowledgeContentHashAt`/`lastKnowledgeSyncAt` → reconcile metafields → reconcile collections → reconcile variants (deleteMany + per-variant upsert mirroring `upsert.server.ts:262-307`). Imports `deriveInventoryStatus` from `upsert.server`.
+- `app/routes/webhooks.products.create.tsx` — thinned. Drops `normalizeFromWebhook`, `upsertNormalizedProduct`, `WebhookProductPayload` imports; drops the legacy upsert try/catch and the `products_legacy_upsert_failed` log. The `products_webhook_dual_write` log is replaced with `products_webhook_enqueued` (drops `legacyUpsertOk`/`deltaEnqueued`; keeps `topic`/`shop`/`webhookId`/`resourceId`/`deduped`/`jobId`/`durationMs`). Stale-write gate unchanged — now gates only the DELTA enqueue.
+- `app/routes/webhooks.products.update.tsx` — same thinning as create.
+
+**Files NOT touched.** `webhooks.products.delete.tsx` (soft-delete + DELTA pattern unchanged; different correctness path). Other webhook handlers (no legacy writer to collapse). `prisma/schema.prisma` (zero migrations in PR-C.5). `app/lib/catalog/upsert.server.ts` — `upsertNormalizedProduct` stays defined but unused on the products-webhook DELTA path.
+
+**Verification (artifacts captured in `.pr-c5-artifacts/`, removed pre-commit):**
+- Lint: clean. Build: clean (server modules unchanged at 139). Tests: 26/26 pass.
+- End-to-end (post-deploy): canonical Addition 2 retry against `100-pure-linen-fabric-gift-box` (title appended `" (test C.5)"`). Pre-edit hash `a4064287…` → post-edit `ca418d64…`. Three timestamps (`syncedAt`, `lastKnowledgeSyncAt`, `knowledgeContentHashAt`) collapsed to a single instant `18:35:14.460`, confirming the consolidated single-writer architecture works.
+
+**Latency contract.** Webhook → DB row update extends from ~150ms (legacy in-handler write) to ~5-30s end-to-end (DELTA enqueue → worker poll 2-5s → GraphQL fetch → upsert in tx). Acceptable per HANDOFF dedup-design rationale; **no stale-state window at any point** — the previous architecture had ~150ms title appearance with a ~5s stale-hash window; the new architecture has ~6.5s end-to-end save → DB but a single coherent write. Downstream consumers should not assume sub-second propagation; if a UI surface needs faster feedback for merchant-edit confirmation, build it on top of the webhook ack (synchronous), not the DB read (asynchronous).
+
+**Authoritative writer for products.** `upsertProductKnowledge` in `app/lib/catalog/knowledge-upsert.server.ts` is the sole writer for the full Product column set on the DELTA path. Future schema additions for product fields (legacy or knowledge) go through this function. `upsertNormalizedProduct` in `app/lib/catalog/upsert.server.ts` is unused on the DELTA path but stays defined; PR-D cron MUST call `upsertProductKnowledge` (not `upsertNormalizedProduct`) to maintain the single-writer architecture.
 
 ### PR-D — Daily delta cron + Customer Profile schema
 
@@ -155,14 +176,14 @@ Below cut #5 the plan is unrealistic without cutting features themselves.
 
 **Bundling:** Yes — cron + Customer Profile schema bundled because (a) cron is small and (b) Customer Profile schema must land before any module that depends on it (Conversations Phase 5, Lookbook Phase 7). Doing it now closes the schema dependency early.
 
-**Notes inherited from PR-C:**
+**Notes inherited from PR-C / PR-C.5:**
 - **Customer/order webhook handlers are log-only stubs.** `customers/{create,update,delete}` await PR-D's CustomerProfile schema; `orders/{create,updated,cancelled}` await Phase 3's order ingest pipeline. The stub log events (`customer_webhook_received`, `order_webhook_received`) document the payload shapes received. Replace the stub bodies with real upsert logic when the schema lands.
 - **Metaobjects subscriptions remain off.** Skeleton handlers exist for forward compat but `shopify.app.toml` does not subscribe — Shopify requires a metaobject_type filter and the dev shop has zero metaobject definitions. Re-enable when a real merchant has metaobject types defined; PR-D's cron is the natural backstop for missed metaobject changes in the meantime.
 - **3 cursorAt columns ready for use.** `productsCursorAt`, `metaobjectsCursorAt`, `collectionsCursorAt`. The shared `saveCursor` helper already writes the matching column on each cursor save; PR-D's cron just needs to use `saveCursor` (which the worker phases already call).
-- **Two-writer collapse opportunity.** PR-C.5 (legacy upsert + worker upsert consolidation) was deferred pending architectural trigger. PR-D's cron also needs to write the legacy fields (title/price/etc.) it fetches via GraphQL — exactly the same problem the webhooks solved with the dual-write. Decide in PR-D planning whether to (a) fold the collapse into PR-D's worker-side writes (preferred — single PR, single architecture decision), (b) ship PR-C.5 first as a tiny prelude, or (c) propagate the dual-write pattern into the cron (least preferred — entrenches the debt).
-- **Authoritative writer for non-knowledge product fields** is now `upsertNormalizedProduct` in `app/lib/catalog/upsert.server.ts`. Future schema additions for non-knowledge fields go through this function, not `upsertProductKnowledge` (which deliberately stays knowledge-only).
+- **Single-writer architecture for products is locked in.** PR-C.5 (`1eda3c2`) collapsed the two-writer pattern: `upsertProductKnowledge` writes the full Product column set (legacy + knowledge) on the DELTA path. PR-D's cron MUST use `upsertProductKnowledge`, not `upsertNormalizedProduct`. The "two-writer collapse opportunity" decision that was open against PR-D in the prior HANDOFF revision is moot — the collapse already shipped.
 - **`lastKnowledgeSyncAt` vs `knowledgeContentHashAt` semantics.** Both are timestamp columns and can be queried independently. `lastKnowledgeSyncAt` advances on every DELTA drain regardless of whether content actually changed — it is the *attempt-time* signal. `knowledgeContentHashAt` advances only when the hash itself changes — it is the *content-change-time* signal. Downstream consumers wanting "fresh as of" should query `knowledgeContentHashAt`; consumers wanting "last sync attempted" should query `lastKnowledgeSyncAt`. This is a documentation contract, not a schema gap.
 - **Dedup scope for cron-triggered DELTAs.** `enqueueDeltaForShop` dedups against QUEUED-only (see PR-C section above for the correctness rationale). If cron fires while a DELTA is RUNNING, the cron creates a fresh QUEUED row that runs immediately after — this is intentional, do not collapse.
+- **Latency contract for product propagation.** Webhook → DB row update is ~5-30s end-to-end (DELTA enqueue → worker poll 2-5s → GraphQL fetch → upsert). No stale-state window at any point. PR-D's cron inherits the same contract.
 
 **Acceptance:**
 - Daily cron runs against dev store at scheduled time, enqueues DELTA, worker drains, drift count logged to summary
@@ -170,7 +191,7 @@ Below cut #5 the plan is unrealistic without cutting features themselves.
 - Order-derived `CustomerEvent` rows populated (verify count > 0 for customers with orders)
 - Schema diff against the brief §5 schema spec verified column-by-column
 
-**Phase 1 progress:** PR-A, PR-B, PR-C shipped. PR-D remaining.
+**Phase 1 progress:** PR-A, PR-B, PR-C, PR-C.5 shipped. PR-D remaining.
 
 **Phase 1 close:** All four PRs landed. Sync system fully autonomous. Customer Profile schema in place. Phase 2 unblocked.
 
@@ -575,7 +596,7 @@ This section is the truth-of-the-moment for what's actually in the repo and live
 - 2,632 dev-store products fully ingested into rich knowledge record (PR-B); embeddings still on the old (title + desc + tags) record awaiting Phase 3 re-embed
 - Voyage embedding integration + pgvector retrieval
 - Shopify Admin + Storefront API auth; **18 webhook subscriptions live** (PR-C): products/{create,update,delete}, collections/{create,update,delete}, inventory_levels/update, customers/{create,update,delete}, orders/{create,updated,cancelled}, plus app/uninstalled, app/scopes_update, customers/data_request, customers/redact, shop/redact
-- Webhook handlers (PR-C): products dual-write (legacy upsert + DELTA enqueue), collections stale-write-checked + DELTA enqueue, inventory direct narrow upsert, customers/orders log-only stubs
+- Webhook handlers (PR-C + PR-C.5): products thin (HMAC + stale-write check + DELTA enqueue + 200 — worker is sole authoritative writer for full Product column set); collections stale-write-checked + DELTA enqueue; inventory direct narrow upsert; customers/orders log-only stubs
 - `enqueueDeltaForShop` shared helper (PR-C) collapses webhook bursts into one QUEUED DELTA per shop (QUEUED-only dedup; correctness-preserving against mid-fetch edits)
 - Re-auth banner in embedded admin shell (PR-C) with `write_X ⇒ read_X` implication
 - DB-backed `CatalogSyncJob` schema + library (PR-A); cursorAt columns added (PR-C C.1)
@@ -594,17 +615,15 @@ This section is the truth-of-the-moment for what's actually in the repo and live
 **Key operational debt:**
 - Migration discipline (see CLAUDE.md): no `prisma migrate dev` ever. Migrations applied only on Railway deploy. PR-A advisory lock incident root cause now structurally prevented.
 - Cursor TTL anomaly first observed during PR-B testing (cursors went stale during ~70s container restart in 2/5 graceful-shutdown tests). Status moved from "to investigate" to "monitoring — instrumentation in place" via PR-C C.3 cursor age probe. First real `cursorAgeMs` values surface on the next MANUAL_RESYNC, INITIAL run, or stuck-job resume.
-- **Two-writer pattern in products webhooks** (introduced PR-C C.2.1): legacy `upsertNormalizedProduct` + worker `upsertProductKnowledge` both run on every products/{create,update}. Idempotent and correctness-safe but architectural debt. Resolution path is PR-C.5 (collapse to single writer in worker), deferred — re-evaluate when PR-D cron planning starts; if PR-D's cron absorbs the collapse (which it must, because cron also needs to write the same legacy fields), PR-C.5 never ships standalone. Trigger is architectural, not calendrical.
 - **`lastKnowledgeSyncAt` is an attempt-time signal, not a content-change signal.** It advances on every DELTA drain regardless of whether the hash changed. Use `knowledgeContentHashAt` for content-change-time queries. This is a documentation contract for downstream consumers, not a schema gap.
+- **`upsertNormalizedProduct` is unused on the products-webhook DELTA path** but stays defined in `app/lib/catalog/upsert.server.ts`. PR-D cron must call `upsertProductKnowledge`, not `upsertNormalizedProduct`. If PR-D ships without referencing `upsertNormalizedProduct`, consider removing the dead function in a small cleanup commit at PR-D close (or after the next consumer audit confirms no callers).
 - 2,632 dev-store products need re-embedding against new richer record once Phase 3 lands. Re-embed cadence decision deferred to Phase 3 planning.
 
-**Risks closed during PR-C:**
+**Risks closed during PR-C / PR-C.5:**
 - Webhook subscription registration timing (Risk 1 from PR-C planning) — empirically resolved via Addition 1.
 - Dedup correctness under burst (Risk 2 from PR-C planning) — empirically resolved via Addition 3 (5 calls → 1 fresh + 4 deduped).
 - Shopify protected-data dev-mode access (was blocking customers/* and orders/* subscription registration) — closed when dev-mode access activated in Partners between `cd60315` and `9475119`. **Note for first-merchant onboarding:** production-review submission for non-dev merchants is still required and is an open task surfaced when we approach soft-launch — not addressed in PR-C.
-
-**Risks opened during PR-C:**
-- Two-writer race (R-C.1): brief window between webhook ack and worker drain where title/price reflect payload but knowledge fields haven't fan-out yet. Both converge; impact is observability, not correctness. Tracked above as operational debt.
+- **Two-writer race (R-C.1): CLOSED structurally by PR-C.5 (`1eda3c2`).** Webhook handlers no longer write Product columns directly; the worker is the sole authoritative writer on the DELTA path. End-to-end verification on `100-pure-linen-fabric-gift-box` confirmed the three timestamps (`syncedAt`, `lastKnowledgeSyncAt`, `knowledgeContentHashAt`) collapse to a single instant. The transient stale-hash window observed during the C.2 first-attempt regression is gone.
 
 ---
 
@@ -656,4 +675,4 @@ Plus three perennials:
 
 ---
 
-*Next planning artifact: PR-B planning prompt for Claude Code — worker service + first INITIAL backfill.*
+*Next planning artifact: PR-D planning prompt — daily catch-up cron + CustomerProfile schema.*
