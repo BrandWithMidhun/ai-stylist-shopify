@@ -75,6 +75,18 @@ model MerchantConfig {
   // out the new ingestion path without overloading the existing flag —
   // webhook handlers added in PR-C will gate on this one.
   lastKnowledgeSyncAt      DateTime?
+  // PR-D: IANA timezone (e.g. "Asia/Kolkata") populated from Shopify
+  // shop.ianaTimezone. Drives the in-worker cron tick that enqueues a
+  // daily DELTA at 03:00 local. Default "UTC" for shops we haven't
+  // refreshed yet. timezoneSyncedAt records the last refresh — cron
+  // refreshes once per day per shop when stale.
+  timezone                 String       @default("UTC")
+  timezoneSyncedAt         DateTime?
+  // PR-D: idempotency guard for the daily cron tick. The cron tick
+  // computes the shop's local date, compares against this column, and
+  // skips the enqueue if today's tick already fired. Stored as DATE
+  // (no time component) so the comparison is exact.
+  lastCronEnqueueDate      DateTime?    @db.Date
   createdAt                DateTime     @default(now())
   updatedAt                DateTime     @updatedAt
 }
@@ -463,6 +475,12 @@ model CatalogSyncJob {
   //   INITIAL/MANUAL_RESYNC: { batchCount, durationMs, ... }
   //   DELTA: { driftCount, ... }
   summary              Json?
+  // PR-D: source that triggered the row. Null for legacy rows; "CRON"
+  // for cron-tick-driven DELTAs; "WEBHOOK" / "MANUAL" reserved for
+  // future use by enqueueDeltaForShop callers + manual resync UI.
+  // Lets the dashboard filter cron-driven runs separately when
+  // monitoring webhook reliability via DELTA drift.
+  triggerSource        String?
   createdAt            DateTime             @default(now())
   updatedAt            DateTime             @updatedAt
 
@@ -515,4 +533,178 @@ model TaggingRule {
   updatedAt      DateTime @updatedAt
 
   @@index([shopDomain, enabled, priority])
+}
+
+// PR-D: Customer profile is the first-class entity for the customer side
+// of the recommendation engine (brief §5). Identity + computed attributes
+// live here; mode-specific structured attributes live in
+// CustomerProfileAttribute (key/value with mode tag) so adding a new
+// store mode does not require a migration. Behavioral events stream into
+// CustomerEvent. CustomerSession bridges anonymous-cookie sessions to
+// identified profiles (Phase 5 wires the merge primitive).
+//
+// originatedFromAgent: true when the profile was created by the chat
+// agent before the Shopify customer existed (anonymous → identification
+// via lookbook download or substantive quiz completion). A future
+// customers/create webhook reconciles by email when the merchant invites
+// the customer or they create an account.
+//
+// deletedAt + nulled PII columns implement the GDPR redact contract
+// (customers/redact, customers/delete) — see softDeleteCustomerProfile
+// in app/lib/customers/redact.server.ts.
+model CustomerProfile {
+  id                       String    @id @default(cuid())
+  shopDomain               String
+  shopifyCustomerId        String?
+  email                    String?
+  phone                    String?
+  firstName                String?
+  lastName                 String?
+  locale                   String?
+  // Demographic. Free-string today; constrain when the quiz wires in.
+  gender                   String?
+  ageBand                  String?
+  region                   String?
+  // Behavioral aggregates. Recompute path is best-effort: customers/*
+  // and orders/* webhooks update these incrementally; PR-D backfill
+  // seeds initial values. Drift is acceptable; analytics queries can
+  // recompute from CustomerEvent if exact counts matter.
+  conversationCount        Int       @default(0)
+  lastSessionAt            DateTime?
+  ordersCount              Int       @default(0)
+  totalSpendCents          Int       @default(0)
+  // Phase 3+ predictions. NULL today; populated when the learning system
+  // lands. Adding the columns now avoids a Phase 3 migration that hits
+  // every row.
+  predictedStyleCluster    String?
+  aovBand                  String?
+  repurchasePredisposition Float?
+  // Provenance.
+  originatedFromAgent      Boolean   @default(false)
+  shopifyCreatedAt         DateTime?
+  shopifyUpdatedAt         DateTime?
+  syncedAt                 DateTime  @default(now())
+  // GDPR redact / customers/delete sets deletedAt and nulls the PII
+  // columns above. Behavioral aggregates and shopifyCustomerId stay so
+  // analytics queries don't break.
+  deletedAt                DateTime?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  attributes CustomerProfileAttribute[]
+  sessions   CustomerSession[]
+  events     CustomerEvent[]
+
+  // shopifyCustomerId is nullable for anonymous-originated profiles per
+  // brief §5 (e.g. lookbook download or substantive quiz before any
+  // Shopify customer exists). Postgres treats NULL as distinct in unique
+  // indexes, so multiple anonymous rows per shop are allowed. They merge
+  // into an identified profile when the customer authenticates and
+  // Phase 5's merge primitive runs.
+  @@unique([shopDomain, shopifyCustomerId])
+  @@index([shopDomain, email])
+  @@index([shopDomain, phone])
+  @@index([shopDomain, deletedAt])
+}
+
+// Mode-tagged key/value. Adding a new store mode is a constants change
+// in code, not a schema migration — the (storeMode, key) pair carries
+// the schema. Examples per brief §5:
+//   FASHION:    bodyType=hourglass, fitPreference=oversized, occasion=daily
+//   FURNITURE:  roomType=living_room, dimensions=10x12, materialPreference=wood
+//   ELECTRONICS: useCase=gaming, budgetBand=premium
+// source values: QUIZ | CHAT | PURCHASE | AGENT | RULE.
+model CustomerProfileAttribute {
+  id         String    @id @default(cuid())
+  profileId  String
+  shopDomain String
+  storeMode  StoreMode
+  key        String
+  value      String    @db.Text
+  source     String
+  confidence Float?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  profile CustomerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, storeMode, key])
+  @@index([shopDomain, storeMode, key, value])
+}
+
+// Anonymous + identified sessions — bridge for the merge primitive that
+// Phase 5 will exercise. PR-D creates the table; storefront wiring
+// arrives in Phase 5.
+//
+// cookieSessionId is the storefront widget's anonymous cookie UUID; it
+// is the lookup column for cookie-based queries (uniquely indexed).
+// CustomerEvent.sessionId references this row's PK (id), not the cookie
+// — so a session merge that updates profileId here automatically
+// reflects on every CustomerEvent emitted before identification.
+model CustomerSession {
+  id              String    @id @default(cuid())
+  shopDomain      String
+  cookieSessionId String
+  profileId       String?
+  startedAt       DateTime  @default(now())
+  lastActiveAt    DateTime  @default(now())
+  identifiedAt    DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  profile CustomerProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  events  CustomerEvent[]
+
+  @@unique([shopDomain, cookieSessionId])
+  @@index([profileId])
+}
+
+// Append-only behavioral stream. Drives the learning system + analytics
+// (brief §5, §7). 90-day retention applies only to ConversationMessage
+// (Phase 5); CustomerEvent is a "derived signal" per scope-decisions §3
+// and survives indefinitely.
+//
+// kinds remain behavioral-only — profile attribute changes (e.g.
+// customers/update with new email) are NOT events; they update the
+// CustomerProfile row directly.
+enum CustomerEventKind {
+  PRODUCT_VIEWED
+  PRODUCT_CLICKED
+  ADD_TO_CART
+  CHECKOUT_STARTED
+  ORDER_PLACED
+  LOOKBOOK_DOWNLOADED
+  QUIZ_COMPLETED
+  CHAT_STARTED
+  CHAT_ENDED
+  RECOMMENDATION_SHOWN
+  RECOMMENDATION_CLICKED
+}
+
+model CustomerEvent {
+  id         String            @id @default(cuid())
+  shopDomain String
+  profileId  String?
+  // FK to CustomerSession.id (the cuid PK, not the cookie UUID).
+  // onDelete: SetNull preserves analytics rows if a session is ever
+  // deleted; profileId behaves the same for the same reason.
+  sessionId  String?
+  kind       CustomerEventKind
+  // Free-form context. Per kind:
+  //   PRODUCT_VIEWED:     { productGid, source }
+  //   ORDER_PLACED:       { orderGid, totalCents, items: [{ productGid, qty, ... }] }
+  //   LOOKBOOK_DOWNLOADED: { lookbookId }
+  //   ...
+  // GDPR redact scrubs PII keys via softDeleteCustomerProfile; behavioral
+  // keys (productGid, kind, totalCents, items, etc.) are preserved.
+  context    Json
+  occurredAt DateTime          @default(now())
+  createdAt  DateTime          @default(now())
+
+  profile CustomerProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  session CustomerSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([shopDomain, profileId, occurredAt])
+  @@index([shopDomain, sessionId, occurredAt])
+  @@index([shopDomain, kind, occurredAt])
 }
