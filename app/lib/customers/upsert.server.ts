@@ -30,6 +30,7 @@ export type CustomerProfileUpsertInput = {
   firstName?: string | null;
   lastName?: string | null;
   locale?: string | null;
+  region?: string | null;
   shopifyCreatedAt?: Date | null;
   shopifyUpdatedAt?: Date | null;
 };
@@ -61,6 +62,7 @@ export async function upsertCustomerProfile(
         firstName: input.firstName ?? null,
         lastName: input.lastName ?? null,
         locale: input.locale ?? null,
+        region: input.region ?? null,
         shopifyCreatedAt: input.shopifyCreatedAt ?? null,
         shopifyUpdatedAt: input.shopifyUpdatedAt ?? null,
         syncedAt: new Date(),
@@ -79,6 +81,7 @@ export async function upsertCustomerProfile(
       firstName: input.firstName ?? null,
       lastName: input.lastName ?? null,
       locale: input.locale ?? null,
+      region: input.region ?? null,
       shopifyCreatedAt: input.shopifyCreatedAt ?? null,
       shopifyUpdatedAt: input.shopifyUpdatedAt ?? null,
       originatedFromAgent: false,

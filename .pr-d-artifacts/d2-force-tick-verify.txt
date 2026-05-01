@@ -1,0 +1,43 @@
+=== D.2 force-tick verification ===
+Date: 2026-05-01
+HEAD: 3e8d3fb (PR-D D.2: in-worker cron tick + timezone refresh + triggerSource wiring)
+CRON_FORCE_TICK_NOW: 1 (set in Railway worker service ai-stylist-shopify)
+
+=== Worker boot logs (excerpt) ===
+2026-05-01T17:09:35.821Z  worker boot  pid=24 nodeVersion=v20.20.2 nodeEnv=production
+2026-05-01T17:09:35.826Z  health endpoint listening  port=8080
+2026-05-01T17:09:35.990Z  boot sweep complete  resumedJobIds=[] sweptCount=0
+2026-05-01T17:09:35.990Z  cron tick scheduler starting  forceFirstTick=true intervalMs=60000 cronHour=3
+2026-05-01T17:10:35.992Z  cron tick force-fire requested  cronHour=3
+2026-05-01T17:10:36.041Z  delta_enqueue  shop=ai-fashion-store.myshopify.com topic=cron webhookId=cron-2026-05-01-3 triggerSource=CRON jobId=cmon65czs0000pe0oqvaya37a deduped=false durationMs=22
+2026-05-01T17:10:36.058Z  cron tick enqueued delta  shop=ai-fashion-store.myshopify.com timezone=America/New_York localHour=13 localDate=2026-05-01 cronHour=3 force=true jobId=cmon65czs0000pe0oqvaya37a
+2026-05-01T17:10:36.058Z  cron tick force-fire consumed; resuming normal schedule
+2026-05-01T17:10:38.538Z  job claimed  jobId=cmon65czs0000pe0oqvaya37a kind=DELTA shopDomain=ai-fashion-store.myshopify.com
+2026-05-01T17:10:39.017Z  phase begin  phase=COLLECTIONS
+2026-05-01T17:10:39.257Z  phase end  phase=COLLECTIONS processedItems=3 costUnits=3
+2026-05-01T17:10:39.263Z  phase begin  phase=METAOBJECTS
+2026-05-01T17:10:39.422Z  phase end  phase=METAOBJECTS processedItems=0 costUnits=9
+2026-05-01T17:10:39.428Z  phase begin  phase=PRODUCTS
+2026-05-01T17:10:40.063Z  products batch  batchSeq=1 pageSize=1 processedItems=1 costSoFar=5
+2026-05-01T17:10:40.068Z  phase end  phase=PRODUCTS processedItems=1 costUnits=5
+2026-05-01T17:10:40.094Z  job succeeded  durationMs=1547 costUnits=17 processedCollections=3 processedMetaobjects=0 processedProducts=1
+
+=== CatalogSyncJob query (post-verification) ===
+SQL:
+  SELECT id, "shopDomain", kind, status, "enqueuedAt", "triggerSource"
+  FROM "CatalogSyncJob"
+  ORDER BY "enqueuedAt" DESC;
+
+Top 5 of 13 rows:
+  cmon65czs0000pe0oqvaya37a  ai-fashion-store.myshopify.com  DELTA  SUCCEEDED  2026-05-01 17:10:36.041  CRON   <- forced tick
+  cmomkcy0d0000pj0o3l89ofgl  ai-fashion-store.myshopify.com  DELTA  SUCCEEDED  2026-05-01 07:00:38.318  CRON   <- natural 03:00 America/New_York firing
+  cmoltq9xg0001ns36mtikpwlt  ai-fashion-store.myshopify.com  DELTA  SUCCEEDED  2026-04-30 18:35:10.66   NULL   <- historical PR-C webhook
+  cmolq8yxy000bqh36r65pdkpi  ai-fashion-store.myshopify.com  DELTA  SUCCEEDED  2026-04-30 16:57:44.423  NULL   <- historical PR-C webhook
+  cmolpaa7l0001r0361qcrihoc  ai-fashion-store.myshopify.com  DELTA  SUCCEEDED  2026-04-30 16:30:46.065  NULL   <- historical PR-C webhook
+
+=== Verdict: PASS ===
+- Force-tick mechanism works (one tick fired after boot, then force flag consumed)
+- Natural cron firing observed at 03:00 America/New_York earlier today (07:00 UTC) — local-hour gate validated independently of force flag
+- triggerSource='CRON' written to column for both forced and natural cron firings
+- Backward compat preserved: pre-D.2 rows show NULL
+- DELTA job claimed + drained successfully end-to-end (1547ms, 17 cost units)
