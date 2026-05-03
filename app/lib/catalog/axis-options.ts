@@ -121,6 +121,9 @@ export const AXIS_OPTIONS: Record<StoreMode, AxisOptions> = {
     },
   },
 
+  // VALIDATED 2026-05-03 (PR-2.2 planning): schema reviewed. No
+  // changes; no production exposure to this mode yet. Revisit when
+  // first ELECTRONICS merchant onboards.
   ELECTRONICS: {
     category: {
       type: "single",
@@ -190,6 +193,9 @@ export const AXIS_OPTIONS: Record<StoreMode, AxisOptions> = {
     },
   },
 
+  // VALIDATED 2026-05-03 (PR-2.2 planning): schema reviewed. No
+  // changes; no production exposure to this mode yet. Revisit when
+  // first FURNITURE merchant onboards.
   FURNITURE: {
     category: {
       type: "single",
@@ -272,6 +278,9 @@ export const AXIS_OPTIONS: Record<StoreMode, AxisOptions> = {
     },
   },
 
+  // VALIDATED 2026-05-03 (PR-2.2 planning): schema reviewed. No
+  // changes; no production exposure to this mode yet. Revisit when
+  // first BEAUTY merchant onboards.
   BEAUTY: {
     category: {
       type: "single",
@@ -350,6 +359,9 @@ export const AXIS_OPTIONS: Record<StoreMode, AxisOptions> = {
     },
   },
 
+  // VALIDATED 2026-05-03 (PR-2.2 planning): schema reviewed. No
+  // changes; no production exposure to this mode yet. Revisit when
+  // first JEWELLERY merchant onboards.
   JEWELLERY: {
     category: {
       type: "single",
@@ -471,6 +483,12 @@ export const AXIS_OPTIONS: Record<StoreMode, AxisOptions> = {
     },
   },
 
+  // VALIDATED 2026-05-03 (PR-2.2 planning): GENERAL is deliberately
+  // minimal — fallback for "no-mode-fits" merchants we haven't
+  // profiled. Free-form axis types intentional. Stage 1 hard filters
+  // degrade to ILIKE predicates (slower but correct). Do NOT
+  // constrain without production evidence from a GENERAL-mode
+  // merchant.
   GENERAL: {
     category: { type: "text" },
     color: {

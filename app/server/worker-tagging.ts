@@ -44,6 +44,7 @@ import {
   writeBudgetWarningIfCrossed,
 } from "../lib/catalog/tagging-cost.server";
 import { sleep } from "../lib/catalog/shopify-throttle.server";
+import { processInitialBackfill } from "./worker-tagging-backfill";
 import { log } from "./worker-logger";
 
 const TAGGING_POLL_MIN_MS = 2000;
@@ -141,8 +142,16 @@ async function runLoop(shouldStop: () => boolean): Promise<void> {
       triggerSource: job.triggerSource,
     });
 
+    // PR-2.2 Item 2: queue-collision observability. If a SINGLE_PRODUCT
+    // job waited >5 min in QUEUED AND a RUNNING INITIAL_BACKFILL exists
+    // on the same shop, the backfill is blocking webhook-triggered
+    // work. Pure observability — no behavior change. Useful for
+    // production-onboarding analysis when claim-priority becomes a
+    // real concern (deferred to that phase).
+    await maybeLogBackfillBlockingEvent(job);
+
     try {
-      await processTaggingJob(job);
+      await processTaggingJob(job, shouldStop);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       log.error("tagging job crashed in handler", {
@@ -166,20 +175,18 @@ async function runLoop(shouldStop: () => boolean): Promise<void> {
   log.info("tagging loop exiting", { event: "tagging_loop_exit" });
 }
 
-async function processTaggingJob(job: TaggingJob): Promise<void> {
-  // INITIAL_BACKFILL is 2.2 territory; defend the contract.
+async function processTaggingJob(
+  job: TaggingJob,
+  shouldStop: () => boolean,
+): Promise<void> {
+  // PR-2.2: INITIAL_BACKFILL handler delegated to the backfill module.
+  // The handler manages its own lifecycle (cursor-resume, mid-run
+  // budget check, per-product failure isolation) and writes the job's
+  // terminal status itself. shouldStop is plumbed through so the
+  // handler can exit cleanly between products on SIGTERM, leaving
+  // the row RUNNING-with-stale-heartbeat for the next boot's sweep.
   if (job.kind === "INITIAL_BACKFILL") {
-    log.warn("INITIAL_BACKFILL claimed in PR-2.1; cancelling", {
-      event: "tagging_backfill_unsupported",
-      jobId: job.id,
-      shopDomain: job.shopDomain,
-    });
-    await finishTaggingJob(job.id, {
-      status: "CANCELLED",
-      errorClass: "OTHER",
-      errorMessage: "INITIAL_BACKFILL handler arrives in PR-2.2",
-      summary: { outcome: "cancelled_not_implemented" },
-    });
+    await processInitialBackfill({ job, shouldStop });
     return;
   }
 
@@ -430,6 +437,47 @@ async function callTaggerWithRetry(params: {
   }
   // All retries exhausted.
   return last!;
+}
+
+// PR-2.2 Item 2: queue-collision observability.
+//
+// Emits a structured log event when a SINGLE_PRODUCT job has been
+// QUEUED for >5 minutes AND a RUNNING INITIAL_BACKFILL exists on the
+// same shop. Pure observability — no behavior change. Future
+// production-onboarding work will use this signal to decide whether
+// to implement claim-priority (favor SINGLE_PRODUCT over
+// INITIAL_BACKFILL).
+//
+// MANUAL_RETAG also represents merchant-visible work and is included
+// in the same blocked-by-backfill check.
+const BACKFILL_BLOCKING_THRESHOLD_MS = 5 * 60 * 1000;
+
+async function maybeLogBackfillBlockingEvent(job: TaggingJob): Promise<void> {
+  if (job.kind !== "SINGLE_PRODUCT" && job.kind !== "MANUAL_RETAG") return;
+  const waitedMs = Date.now() - job.enqueuedAt.getTime();
+  if (waitedMs <= BACKFILL_BLOCKING_THRESHOLD_MS) return;
+
+  try {
+    const blocking = await prisma.taggingJob.findFirst({
+      where: {
+        shopDomain: job.shopDomain,
+        kind: "INITIAL_BACKFILL",
+        status: "RUNNING",
+      },
+      select: { id: true },
+    });
+    if (!blocking) return;
+    log.info("tagging queue blocked by backfill", {
+      event: "tagging_queue_blocked_by_backfill",
+      shopDomain: job.shopDomain,
+      productId: job.productId,
+      waitedMs,
+      blockingJobId: blocking.id,
+    });
+  } catch {
+    // Observability best-effort — swallow errors so the main claim
+    // path is unaffected.
+  }
 }
 
 // PR-2.1: helper for graceful shutdown — release any RUNNING TaggingJob
