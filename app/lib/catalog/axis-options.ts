@@ -119,6 +119,46 @@ export const AXIS_OPTIONS: Record<StoreMode, AxisOptions> = {
       type: "single",
       values: ["budget", "mid_range", "premium", "luxury"],
     },
+    // PR-2.2-mech.1 (2026-05-04): added in response to limited-5
+    // backfill evidence — AI proposed `sustainability` for 4/5 products
+    // (80% hit rate). INFERRED from product description language;
+    // merchants reviewing in 2.3 should validate against actual
+    // sourcing before surfacing to buyers as fact. The `conventional`
+    // value is intentional — it gives the AI an in-vocabulary positive
+    // statement for products that aren't explicitly sustainable,
+    // preventing forced-omission or invented values for that case.
+    sustainability: {
+      type: "multi",
+      values: [
+        "eco_friendly",
+        "organic",
+        "recycled",
+        "fair_trade",
+        "vegan",
+        "cruelty_free",
+        "biodegradable",
+        "conventional",
+      ],
+    },
+    // PR-2.2-mech.1 (2026-05-04): added in response to limited-5
+    // backfill evidence — AI proposed `season` for 3/5 products (60%
+    // hit rate, values: all_season, summer). `monsoon` included for
+    // India-relevant context (dev shop is India-based, Linen Trail
+    // vendor). Harmless for non-monsoon geographies — the AI just
+    // won't propose it. `transitional` covers the spring/autumn
+    // middle-ground that some products genuinely fit.
+    season: {
+      type: "multi",
+      values: [
+        "summer",
+        "winter",
+        "monsoon",
+        "spring",
+        "autumn",
+        "all_season",
+        "transitional",
+      ],
+    },
   },
 
   // VALIDATED 2026-05-03 (PR-2.2 planning): schema reviewed. No
