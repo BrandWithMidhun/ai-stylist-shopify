@@ -1,0 +1,234 @@
+PR-2.1 schema diff — IVFFlat strip evidence
+============================================
+
+Date authored: 2026-05-03
+Migration:     prisma/migrations/20260503130000_add_tagging_review_and_jobs/migration.sql
+Author:        Claude Code (PR-2.1 execution)
+Schema before: prisma/schema.prisma at HEAD 7f36539 (PR-D close)
+Schema after:  prisma/schema.prisma at HEAD 7f36539 + PR-2.1 working-tree edits
+
+Purpose of this file
+--------------------
+Documents (a) what `prisma migrate diff` emitted, (b) the one line that was
+stripped before committing the migration, (c) the final committed SQL.
+
+Read this file if you ever need to understand why the committed migration
+SQL does not match the raw output of `prisma migrate diff` byte-for-byte.
+
+The strip discipline is the same one PR-D D.1 established. See HANDOFF.md
+"Key operational debt" → "pgvector IVFFlat indexes are unmodellable in
+Prisma DSL" for the full rationale.
+
+
+===============================================================================
+SECTION 1 — Raw `prisma migrate diff` output (pre-strip)
+===============================================================================
+
+Command (run from repo root with .env loaded):
+
+    npx prisma migrate diff \
+      --from-schema-datasource prisma/schema.prisma \
+      --to-schema-datamodel    prisma/schema.prisma \
+      --script
+
+Captured to:  .pr-2-1-artifacts/migrate-diff-raw.txt
+Captured at:  2026-05-03 ~13:20 local
+
+The full raw output, with the line that MUST be stripped marked >>>STRIP<<<:
+
+    -- CreateEnum
+    CREATE TYPE "TagReviewStatus" AS ENUM ('PENDING_REVIEW', 'APPROVED', 'REJECTED');
+
+    -- CreateEnum
+    CREATE TYPE "TaggingJobKind" AS ENUM ('SINGLE_PRODUCT', 'INITIAL_BACKFILL', 'MANUAL_RETAG');
+
+    -- CreateEnum
+    CREATE TYPE "TaggingJobStatus" AS ENUM ('QUEUED', 'RUNNING', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'BUDGET_PAUSED');
+
+>>> STRIP <<<  -- DropIndex
+>>> STRIP <<<  DROP INDEX "Product_embedding_cosine_idx";
+
+    -- AlterTable
+    ALTER TABLE "MerchantConfig" ADD COLUMN     "taggingBudgetExceededAt" TIMESTAMP(3),
+    ADD COLUMN     "taggingBudgetWarnedAt" TIMESTAMP(3);
+
+    -- AlterTable
+    ALTER TABLE "ProductTag" ADD COLUMN     "reviewedAt" TIMESTAMP(3),
+    ADD COLUMN     "reviewedBy" TEXT,
+    ADD COLUMN     "status" "TagReviewStatus" NOT NULL DEFAULT 'PENDING_REVIEW';
+
+    -- CreateTable
+    CREATE TABLE "TaggingJob" (
+        "id" TEXT NOT NULL,
+        "shopDomain" TEXT NOT NULL,
+        "productId" TEXT,
+        "kind" "TaggingJobKind" NOT NULL,
+        "status" "TaggingJobStatus" NOT NULL DEFAULT 'QUEUED',
+        "triggerSource" TEXT NOT NULL,
+        "enqueuedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "startedAt" TIMESTAMP(3),
+        "finishedAt" TIMESTAMP(3),
+        "heartbeatAt" TIMESTAMP(3),
+        "totalProducts" INTEGER,
+        "processedProducts" INTEGER NOT NULL DEFAULT 0,
+        "failedProducts" INTEGER NOT NULL DEFAULT 0,
+        "skippedProducts" INTEGER NOT NULL DEFAULT 0,
+        "costUsdMicros" BIGINT NOT NULL DEFAULT 0,
+        "inputTokens" INTEGER NOT NULL DEFAULT 0,
+        "outputTokens" INTEGER NOT NULL DEFAULT 0,
+        "errorClass" TEXT,
+        "errorMessage" TEXT,
+        "errorCount" INTEGER NOT NULL DEFAULT 0,
+        "summary" JSONB,
+        "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        "updatedAt" TIMESTAMP(3) NOT NULL,
+
+        CONSTRAINT "TaggingJob_pkey" PRIMARY KEY ("id")
+    );
+
+    -- CreateIndex
+    CREATE INDEX "TaggingJob_shopDomain_status_idx" ON "TaggingJob"("shopDomain", "status");
+
+    -- CreateIndex
+    CREATE INDEX "TaggingJob_shopDomain_kind_status_idx" ON "TaggingJob"("shopDomain", "kind", "status");
+
+    -- CreateIndex
+    CREATE INDEX "TaggingJob_heartbeatAt_idx" ON "TaggingJob"("heartbeatAt");
+
+    -- CreateIndex
+    CREATE INDEX "TaggingJob_shopDomain_productId_idx" ON "TaggingJob"("shopDomain", "productId");
+
+    -- CreateIndex
+    CREATE INDEX "ProductTag_shopDomain_status_idx" ON "ProductTag"("shopDomain", "status");
+
+
+===============================================================================
+SECTION 2 — Why the DROP INDEX line is stripped
+===============================================================================
+
+The line:
+
+    DROP INDEX "Product_embedding_cosine_idx";
+
+is a FALSE POSITIVE from `prisma migrate diff`. The Prisma schema DSL cannot
+express pgvector IVFFlat indexes — they live in raw SQL inside migration
+20260426150000_add_pgvector_and_product_embedding/migration.sql. Because
+Prisma never sees the index in schema.prisma but sees it in the live DB,
+every `migrate diff` against the live datasource emits a DROP for it.
+
+What would happen if we accepted the DROP:
+
+  - The IVFFlat index `Product_embedding_cosine_idx` would be physically
+    removed from Postgres on the next `prisma migrate deploy`.
+  - The recommendation engine's pgvector cosine-distance retrieval (Phase 3
+    Stage 2 of the six-stage pipeline) would degrade from O(log N) IVFFlat
+    lookup to a sequential scan over every Product row in the shop.
+  - On the dev shop's 2,632 products, every recommendation call would
+    sequentially scan ~2.6K vectors. Tolerable in dev. Catastrophic on a
+    50K-product merchant.
+  - The damage is silent — no error, just slow recs. We would only catch it
+    via Phase 3 latency metrics, possibly weeks after deploy.
+
+Therefore: the DROP line is omitted from the committed migration. The
+omission is documented in the migration SQL header (lines 1-21 of
+prisma/migrations/20260503130000_add_tagging_review_and_jobs/migration.sql)
+so a future reader of the migration alone (without this artifact) sees the
+discipline applied.
+
+The same strip discipline was applied in PR-D D.1
+(20260501023350_add_customer_profile_schema/migration.sql) — that file is
+the precedent and its header comment is the template.
+
+
+===============================================================================
+SECTION 3 — Two additions beyond the diff output
+===============================================================================
+
+The committed migration SQL contains two things that `prisma migrate diff`
+does NOT emit:
+
+(a) Two partial unique indexes on TaggingJob. Prisma DSL cannot express a
+    WHERE clause on @@unique, so partial uniques are added in raw SQL after
+    the auto-generated indexes. The same pattern is used by
+    20260427152535_add_catalog_sync_job/migration.sql for CatalogSyncJob's
+    "at most one RUNNING per shop" partial unique index.
+
+    Index 1:  TaggingJob_shopDomain_productId_queued_uniq
+              UNIQUE on (shopDomain, productId)
+              WHERE status = 'QUEUED' AND productId IS NOT NULL
+              Purpose: enforces QUEUED-only dedup for SINGLE_PRODUCT and
+                       MANUAL_RETAG kinds at the DB layer.
+
+    Index 2:  TaggingJob_shopDomain_initial_backfill_active_uniq
+              UNIQUE on (shopDomain)
+              WHERE kind = 'INITIAL_BACKFILL' AND status IN ('QUEUED', 'RUNNING')
+              Purpose: at most one INITIAL_BACKFILL per shop in flight.
+
+(b) One-time data backfill UPDATE for ProductTag.status. Predicate:
+
+        UPDATE "ProductTag" SET "status" = 'APPROVED' WHERE "source" = 'HUMAN';
+
+    Pre-existing rows with source='HUMAN' represent merchant-marked-reviewed
+    tags from feature 005d (the existing api.products.$id.mark-reviewed
+    route). These are implicitly approved; flipping them to status='APPROVED'
+    in the migration preserves that history across the schema change.
+
+    Predicate is EXACTLY source='HUMAN'. Risk #3 from the planning round
+    flagged that a broader UPDATE would silently mark un-reviewed AI tags
+    as APPROVED, which would let unreviewed AI suggestions leak into the
+    Stage 4 merchant-signal injection ranking boost. The predicate is
+    deliberately narrow.
+
+    AI rows stay PENDING_REVIEW. Pre-existing RULE rows also stay
+    PENDING_REVIEW; they get lifted to APPROVED on the next rule-engine
+    write per product (Item 8 of PR-2.1 changes rule-engine.server.ts to
+    write status='APPROVED' on RULE-source tags going forward).
+
+
+===============================================================================
+SECTION 4 — Final committed SQL
+===============================================================================
+
+The committed migration.sql is the authoritative source. Reading order:
+
+  prisma/migrations/20260503130000_add_tagging_review_and_jobs/migration.sql
+
+Structure of the committed file:
+
+  Lines  1-21:  Comment header — IVFFlat strip discipline + the two
+                non-diff additions explained above.
+  Lines 23-24:  CreateEnum TagReviewStatus
+  Lines 26-27:  CreateEnum TaggingJobKind
+  Lines 29-37:  CreateEnum TaggingJobStatus
+  Lines 41-44:  AlterTable MerchantConfig (taggingBudgetWarnedAt,
+                taggingBudgetExceededAt)
+  Lines 49-52:  AlterTable ProductTag (reviewedAt, reviewedBy, status)
+  Line  61:     One-time UPDATE: source='HUMAN' → status='APPROVED'
+  Lines 64-89:  CreateTable TaggingJob
+  Lines 92-95:  Standard CreateIndex on TaggingJob (4 indexes)
+  Lines 99-106: Partial unique #1 (QUEUED-only dedup)
+  Lines 110-114: Partial unique #2 (INITIAL_BACKFILL singleton)
+  Line  117:    Standard CreateIndex on ProductTag.status
+
+The DROP INDEX "Product_embedding_cosine_idx"; line that appeared in
+Section 1 of this file IS NOT PRESENT anywhere in the committed migration.
+
+That omission is the entire point of this artifact.
+
+
+===============================================================================
+SECTION 5 — Verification gate (S8 of the smoke test)
+===============================================================================
+
+Smoke step S8 verifies the strip succeeded post-deploy:
+
+    SELECT indexname FROM pg_indexes WHERE tablename = 'Product';
+
+The result must include "Product_embedding_cosine_idx". If it does not,
+the strip failed (or someone bypassed this discipline) and the migration
+must be reverted before any further work proceeds.
+
+That gate is captured at smoke-time in
+.pr-2-1-artifacts/migration-verify.txt.
+
+End of file.

@@ -30,6 +30,7 @@ import { sleep } from "../lib/catalog/shopify-throttle.server";
 import { processJob } from "./worker-phase";
 import { createHealthState, startHealthServer } from "./worker-health";
 import { startCronTick } from "./cron-tick.server";
+import { startTaggingLoop } from "./worker-tagging";
 import { log } from "./worker-logger";
 
 const POLL_MIN_MS = 2000;
@@ -78,6 +79,13 @@ async function main(): Promise<void> {
   // most one INSERT/UPDATE per scheduled shop — negligible
   // contention with the claim loop's prisma usage.
   const cronTickHandle = startCronTick(prisma);
+
+  // PR-2.1: spawn the tagging poll loop. Runs in this same process
+  // alongside the catalog sync claim loop. INDEPENDENT poll interval
+  // and INDEPENDENT heartbeat clock (TaggingJob.heartbeatAt is
+  // distinct from CatalogSyncJob.heartbeatAt). A long Anthropic call
+  // in the tagging loop does not stall the sync loop and vice versa.
+  const taggingLoopHandle = startTaggingLoop(() => shouldStop);
 
   health.status = "ok";
 
@@ -160,6 +168,7 @@ async function main(): Promise<void> {
     reason: "shouldStop",
   });
   clearInterval(cronTickHandle);
+  taggingLoopHandle.stop();
   await prisma.$disconnect();
   // eslint-disable-next-line no-undef
   process.exit(0);

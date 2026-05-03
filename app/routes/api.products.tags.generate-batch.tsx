@@ -1,24 +1,30 @@
 import { randomUUID } from "node:crypto";
 import type { ActionFunctionArgs } from "react-router";
-import pLimit from "p-limit";
 import { z } from "zod";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import {
   checkRateLimit,
   completeJob,
-  failJob,
-  incrementJobProgress,
   setJobTotal,
   startJob,
 } from "../lib/catalog/jobs.server";
-import { generateTagsForProductById } from "../lib/catalog/ai-tagger.server";
+import { enqueueTaggingForProduct } from "../lib/catalog/enqueue-tagging.server";
+
+// PR-2.1: this route used to spawn an in-memory pLimit loop that
+// called ai-tagger directly per product. That path is DEPRECATED.
+// We now enqueue one TaggingJob row per product into the DB-backed
+// queue and let the worker drain them. The in-memory job created via
+// startJob/setJobTotal/completeJob is preserved so the existing
+// caller's response shape stays the same; we mark the in-memory job
+// completed immediately because the real work moved to the queue.
+//
+// Cleanup of this route in 2.2 will replace the in-memory job
+// surface with TaggingJob rollup queries.
 
 const BodySchema = z.object({
   productIds: z.array(z.string()).optional(),
 });
-
-const CONCURRENCY = 5;
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -56,51 +62,58 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     });
   }
 
-  const jobId = randomUUID();
-  startJob(session.shop, "batch_tag", jobId);
-  setJobTotal(jobId, productIds.length);
+  const inMemoryJobId = randomUUID();
+  startJob(session.shop, "batch_tag", inMemoryJobId);
+  setJobTotal(inMemoryJobId, productIds.length);
 
-  void runBatch(session.shop, jobId, productIds);
+  // PR-2.1 routing: enqueue one TaggingJob per product. The DB
+  // partial unique index dedups against any QUEUED row that already
+  // exists. The worker drains independently. Errors here are
+  // collected and reported in the response, but the per-product
+  // enqueue is independent — one bad enqueue does not block the rest.
+  const enqueueResults = await enqueuePerProduct(session.shop, productIds);
+  // Mark the in-memory job done — the queue handles real progress.
+  completeJob(inMemoryJobId);
 
-  return Response.json({ jobId });
+  return Response.json({
+    ok: true,
+    jobId: inMemoryJobId,
+    queuedCount: enqueueResults.queued,
+    dedupedCount: enqueueResults.deduped,
+    failedCount: enqueueResults.failed,
+    taggingJobIds: enqueueResults.jobIds,
+  });
 };
 
-async function runBatch(
+async function enqueuePerProduct(
   shopDomain: string,
-  jobId: string,
   productIds: string[],
-): Promise<void> {
-  try {
-    const limit = pLimit(CONCURRENCY);
-    await Promise.all(
-      productIds.map((id) =>
-        limit(async () => {
-          try {
-            const result = await generateTagsForProductById({
-              shopDomain,
-              productId: id,
-            });
-            if (result.ok) {
-              incrementJobProgress(jobId, 1, 0);
-            } else {
-              // eslint-disable-next-line no-console
-              console.error(
-                `[batch-tag] ${shopDomain} product ${id} failed: ${result.error}`,
-              );
-              incrementJobProgress(jobId, 1, 1);
-            }
-          } catch (err) {
-            // eslint-disable-next-line no-console
-            console.error(`[batch-tag] ${shopDomain} product ${id} threw`, err);
-            incrementJobProgress(jobId, 1, 1);
-          }
-        }),
-      ),
-    );
-    completeJob(jobId);
-  } catch (err) {
-    failJob(jobId, err);
+): Promise<{
+  queued: number;
+  deduped: number;
+  failed: number;
+  jobIds: string[];
+}> {
+  let queued = 0;
+  let deduped = 0;
+  let failed = 0;
+  const jobIds: string[] = [];
+  for (const id of productIds) {
+    try {
+      const r = await enqueueTaggingForProduct({
+        shopDomain,
+        productId: id,
+        triggerSource: "MANUAL",
+        kind: "MANUAL_RETAG",
+      });
+      jobIds.push(r.jobId);
+      if (r.deduped) deduped += 1;
+      else queued += 1;
+    } catch {
+      failed += 1;
+    }
   }
+  return { queued, deduped, failed, jobIds };
 }
 
 async function scopeToShop(

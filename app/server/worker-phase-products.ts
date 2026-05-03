@@ -22,6 +22,7 @@ import {
 } from "../lib/catalog/queries/knowledge.server";
 import { normalizeKnowledgeProduct } from "../lib/catalog/knowledge-fetch.server";
 import { upsertProductKnowledge } from "../lib/catalog/knowledge-upsert.server";
+import { enqueueTaggingForProduct } from "../lib/catalog/enqueue-tagging.server";
 import {
   heartbeat,
   saveCursor,
@@ -92,6 +93,14 @@ export async function runProductsPhase(
       });
     }
 
+    // PR-2.1: collect (productId, hashChanged) for products that
+    // upserted successfully. After the transaction commits, we
+    // enqueue a tagging job for each hashChanged=true product. The
+    // enqueue is OUTSIDE the upsert transaction by design — tagging
+    // shouldn't ride on the catalog-sync transaction's lifetime, and
+    // an enqueue failure should not abort the catalog sync.
+    const hashChangedProductIds: string[] = [];
+
     await prisma.$transaction(
       async (tx) => {
         for (const { node, extras } of enrichedNodes) {
@@ -104,7 +113,12 @@ export async function runProductsPhase(
               tx,
             });
             processedItems++;
-            if (result.hashChanged) driftCount++;
+            if (result.hashChanged) {
+              driftCount++;
+              if (result.productId) {
+                hashChangedProductIds.push(result.productId);
+              }
+            }
             if (result.staleSkipped) {
               log.debug("product upsert stale-skipped", {
                 jobId: job.id,
@@ -132,6 +146,36 @@ export async function runProductsPhase(
       },
       { timeout: 30000, maxWait: 5000 },
     );
+
+    // PR-2.1: enqueue tagging for each hashChanged product. Errors
+    // here are logged and swallowed — a tagging-enqueue failure must
+    // never fail the catalog sync.
+    for (const productId of hashChangedProductIds) {
+      try {
+        const enqueueResult = await enqueueTaggingForProduct({
+          shopDomain: job.shopDomain,
+          productId,
+          triggerSource: "DELTA_HASH_CHANGE",
+        });
+        log.info("tagging job enqueued from DELTA hash change", {
+          event: "tagging_job_enqueued",
+          jobId: enqueueResult.jobId,
+          shopDomain: job.shopDomain,
+          productId,
+          deduped: enqueueResult.deduped,
+          triggerSource: "DELTA_HASH_CHANGE",
+          syncJobId: job.id,
+        });
+      } catch (err) {
+        log.warn("tagging enqueue failed; continuing sync", {
+          event: "tagging_enqueue_error",
+          jobId: job.id,
+          shopDomain: job.shopDomain,
+          productId,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
 
     await updateProgress(job.id, {
       processedProducts: processedItems,

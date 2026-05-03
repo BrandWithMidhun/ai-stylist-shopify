@@ -2,6 +2,7 @@ import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 import prisma from "../db.server";
 import { enqueueDeltaForShop } from "../lib/webhooks/enqueue-delta.server";
+import { enqueueTaggingForProduct } from "../lib/catalog/enqueue-tagging.server";
 
 // PR-C → C.2.1 → C.5 evolution:
 //   C.2: webhook called legacy upsertNormalizedProduct + enqueueDelta.
@@ -67,6 +68,27 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const enqueue = await enqueueDeltaForShop(shop, { topic, webhookId, resourceGid });
 
+  // PR-2.1: PRODUCTS_CREATE additionally enqueues a SINGLE_PRODUCT
+  // TaggingJob so the new product gets tagged once the worker drains
+  // the DELTA. PRODUCTS_UPDATE does NOT enqueue here — the DELTA path
+  // in worker-phase-products handles update-driven retag based on
+  // hashChanged, which is the precise signal (an update that didn't
+  // change content shouldn't retag).
+  let taggingEnqueueResult: { jobId: string; deduped: boolean } | null = null;
+  if (topic === "PRODUCTS_CREATE" && resourceGid) {
+    const localProduct = await prisma.product.findUnique({
+      where: { shopDomain_shopifyId: { shopDomain: shop, shopifyId: resourceGid } },
+      select: { id: true },
+    });
+    if (localProduct) {
+      taggingEnqueueResult = await enqueueTaggingForProduct({
+        shopDomain: shop,
+        productId: localProduct.id,
+        triggerSource: "WEBHOOK_CREATE",
+      });
+    }
+  }
+
   // eslint-disable-next-line no-console
   console.log(
     JSON.stringify({
@@ -77,6 +99,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       resourceId: resourceGid,
       deduped: enqueue.deduped,
       jobId: enqueue.jobId,
+      taggingJobId: taggingEnqueueResult?.jobId ?? null,
+      taggingDeduped: taggingEnqueueResult?.deduped ?? null,
       durationMs: Date.now() - start,
     }),
   );

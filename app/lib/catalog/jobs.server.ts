@@ -9,8 +9,22 @@
 // Phase 1 (PR-A): the "sync" kind moved to a DB-backed model in
 // app/lib/catalog/sync-jobs.server.ts so the future Phase 8 dashboard can
 // read sync state, the worker (PR-B) can survive restarts, and the
-// catch-up cron (PR-D) can enqueue runs durably. The other kinds stay
-// here — they're Phase 2 territory.
+// catch-up cron (PR-D) can enqueue runs durably.
+//
+// PR-2.1: the "batch_tag" kind is now SUPERSEDED by the DB-backed
+// TaggingJob queue (app/lib/catalog/tagging-jobs.server.ts). The kind
+// remains defined here so existing callers (the
+// api.products.tags.generate-batch route) continue to compile, but
+// the route now silently routes individual products through
+// enqueueTaggingForProduct instead of starting an in-memory loop. The
+// startJob/setJobTotal/incrementJobProgress/completeJob/failJob
+// surface here is preserved for the route's progress-bar response
+// shape (the job appears completed instantly because the queue
+// handles all real work asynchronously). Full removal is a 2.2
+// cleanup pass per the planning round.
+//
+// The other in-memory kinds (apply_rules, rematch_taxonomy) are
+// untouched in 2.1 — separate concerns, separate cleanup.
 
 export type JobKind = "batch_tag" | "rematch_taxonomy" | "apply_rules";
 

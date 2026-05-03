@@ -1,0 +1,7 @@
+
+> typecheck
+> react-router typegen && tsc --noEmit
+
+app/routes/app.config.tsx(280,19): error TS2322: Type '{ label: string; name: string; type: string; min: number; max: number; value: string; details: string; onInput: (event: Event) => void; }' is not assignable to type 'Omit<ReactProps$4, "accessory"> & ReactBaseElementProps<TextField>'.
+  Property 'type' does not exist on type 'Omit<ReactProps$4, "accessory"> & ReactBaseElementProps<TextField>'.
+exit: 2

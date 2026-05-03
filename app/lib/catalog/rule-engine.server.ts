@@ -181,6 +181,10 @@ export async function applyRules(
             axis: w.axis,
             value: w.value,
             source: "RULE",
+            // PR-2.1: rules are merchant-authored deterministic logic,
+            // therefore implicitly approved. No review queue entry for
+            // rule-derived tags.
+            status: "APPROVED",
             confidence: 1.0,
             locked: false,
           },
@@ -190,7 +194,7 @@ export async function applyRules(
             productId: params.product.id,
             shopDomain: params.shopDomain,
             axis: w.axis,
-            action: "ADD",
+            action: "ADD_RULE",
             previousValue: null,
             newValue: w.value,
             source: "RULE",

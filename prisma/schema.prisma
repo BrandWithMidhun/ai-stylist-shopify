@@ -87,6 +87,13 @@ model MerchantConfig {
   // skips the enqueue if today's tick already fired. Stored as DATE
   // (no time component) so the comparison is exact.
   lastCronEnqueueDate      DateTime?    @db.Date
+  // PR-2.1: tagging budget tripwires. Set when the per-day cumulative
+  // Anthropic spend for the shop crosses 80% of the daily cap
+  // (taggingBudgetWarnedAt) and 100% (taggingBudgetExceededAt). The
+  // worker-tagging loop reads these to refuse new claims for the day;
+  // the next day rollover resets to NULL via the cost-recording path.
+  taggingBudgetWarnedAt    DateTime?
+  taggingBudgetExceededAt  DateTime?
   createdAt                DateTime     @default(now())
   updatedAt                DateTime     @updatedAt
 }
@@ -323,18 +330,42 @@ model ProductVariant {
   @@index([inventoryItemId])
 }
 
+// PR-2.1: review state machine added alongside source.
+//
+// `source` is who *generated* the tag (AI / RULE / HUMAN).
+// `status` is what the merchant has *decided* about it
+// (PENDING_REVIEW / APPROVED / REJECTED).
+//
+// New AI tags land as (source=AI, status=PENDING_REVIEW). Rules write
+// (source=RULE, status=APPROVED) — rules are merchant-deterministic,
+// implicitly approved. HUMAN-marked tags land as (source=HUMAN,
+// status=APPROVED). The migration backfills source='HUMAN' rows to
+// status='APPROVED' as a one-time UPDATE.
+//
+// REJECTED rows persist (not deleted). The AI prompt receives the
+// rejected (axis, value) pairs as exclusions so re-tag does not
+// re-suggest values the merchant already vetoed.
+enum TagReviewStatus {
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+}
+
 model ProductTag {
-  id         String   @id @default(cuid())
+  id         String          @id @default(cuid())
   productId  String
   shopDomain String
   axis       String
   value      String
   confidence Float?
   source     String
-  locked     Boolean  @default(false)
+  locked     Boolean         @default(false)
   metadata   Json?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  status     TagReviewStatus @default(PENDING_REVIEW)
+  reviewedAt DateTime?
+  reviewedBy String? // Shopify staff member GID (gid://shopify/StaffMember/<id>)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -342,6 +373,7 @@ model ProductTag {
   @@index([shopDomain, axis, value])
   @@index([productId])
   @@index([shopDomain, source])
+  @@index([shopDomain, status])
 }
 
 model ProductTagAudit {
@@ -707,4 +739,93 @@ model CustomerEvent {
   @@index([shopDomain, profileId, occurredAt])
   @@index([shopDomain, sessionId, occurredAt])
   @@index([shopDomain, kind, occurredAt])
+}
+
+// PR-2.1: DB-backed queue for AI tagging runs. Parallel to
+// CatalogSyncJob but distinct because (a) tagging is the first feature
+// that costs real money per call (so cost observability is first-class
+// on the row) and (b) tagging failure must not block catalog sync.
+//
+// Three kinds:
+//   SINGLE_PRODUCT   — fired by webhooks (PRODUCTS_CREATE) or by the
+//                      worker DELTA path when knowledgeContentHash
+//                      changes. Routed to the SINGLE_PRODUCT/MANUAL
+//                      daily cap.
+//   INITIAL_BACKFILL — first-pass tagging across the full catalog
+//                      (PR-2.2 territory). Routed to the BACKFILL
+//                      cap (separate, larger).
+//   MANUAL_RETAG     — merchant-triggered single-product retag from
+//                      the embed app. Routed to the daily cap.
+//
+// triggerSource is a free string mirroring CatalogSyncJob's pattern:
+// WEBHOOK_CREATE | DELTA_HASH_CHANGE | MANUAL | INITIAL_BACKFILL | CRON.
+//
+// Cost is in microdollars (1 USD = 1_000_000 micros) stored as BigInt
+// to avoid float drift; checkBudgetForKind sums per-day across rows
+// for the daily cap; per-job costUsdMicros is the per-run rollup.
+//
+// Partial unique indexes (NOT expressible in Prisma DSL — added in raw
+// SQL by the migration):
+//   - (shopDomain, productId) WHERE status='QUEUED' AND productId IS
+//     NOT NULL — enforces QUEUED-only dedup for SINGLE_PRODUCT/
+//     MANUAL_RETAG rows at the DB layer.
+//   - (shopDomain) WHERE kind='INITIAL_BACKFILL' AND status IN
+//     ('QUEUED','RUNNING') — at most one backfill per shop in flight.
+enum TaggingJobKind {
+  SINGLE_PRODUCT
+  INITIAL_BACKFILL
+  MANUAL_RETAG
+}
+
+enum TaggingJobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  BUDGET_PAUSED
+}
+
+model TaggingJob {
+  id                String           @id @default(cuid())
+  shopDomain        String
+  // NULL for INITIAL_BACKFILL (job spans all products); set for
+  // SINGLE_PRODUCT and MANUAL_RETAG.
+  productId         String?
+  kind              TaggingJobKind
+  status            TaggingJobStatus @default(QUEUED)
+  triggerSource     String
+  // Lifecycle.
+  enqueuedAt        DateTime         @default(now())
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  heartbeatAt       DateTime?
+  // Counts. totalProducts populates for INITIAL_BACKFILL only;
+  // SINGLE_PRODUCT/MANUAL_RETAG leave it null and write
+  // processedProducts in {0,1}.
+  totalProducts     Int?
+  processedProducts Int              @default(0)
+  failedProducts    Int              @default(0)
+  skippedProducts   Int              @default(0)
+  // Cost ledger. costUsdMicros is the per-job total Anthropic spend
+  // in microdollars; inputTokens/outputTokens are the underlying token
+  // counts so we can recompute against future model price changes.
+  costUsdMicros     BigInt           @default(0)
+  inputTokens       Int              @default(0)
+  outputTokens      Int              @default(0)
+  // Error surface. errorClass is one of RATE_LIMIT | AUTH |
+  // MALFORMED_JSON | CONNECTION | OTHER (free string per the
+  // CatalogSyncJobFailure precedent).
+  errorClass        String?
+  errorMessage      String?          @db.Text
+  errorCount        Int              @default(0)
+  // Free-form summary written at finishJob.
+  summary           Json?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([shopDomain, status])
+  @@index([shopDomain, kind, status])
+  @@index([heartbeatAt])
+  @@index([shopDomain, productId])
 }
