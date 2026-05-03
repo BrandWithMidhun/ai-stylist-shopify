@@ -75,6 +75,16 @@ export function startTaggingLoop(shouldStop: () => boolean): TaggingLoopHandle {
   let stopped = false;
   const localStop = () => stopped || shouldStop();
 
+  // Unconditional boot event — fires before runLoop's async-fire so the
+  // log line lands during worker boot regardless of whether the boot
+  // sweep finds any stuck rows. Mirrors worker.ts:48 (`worker boot`)
+  // for consistency. Identified as an observability gap during PR-2.1
+  // smoke verification (CHECK 2 of pre-smoke verification).
+  log.info("tagging loop starting", {
+    event: "tagging_loop_started",
+    pollIntervalMs: `${TAGGING_POLL_MIN_MS}-${TAGGING_POLL_MAX_MS}`,
+  });
+
   void runLoop(localStop);
 
   return {
