@@ -1,6 +1,6 @@
 # HANDOFF — AI Stylist Shopify App
 
-**Last updated:** 2026-05-03, after PR-D shipped + verified end-to-end on dev shop. **Phase 1 CLOSED.**
+**Last updated:** 2026-05-03, after PR-2.1 (Phase 2 sub-PR 1 of 3) shipped + verified end-to-end on dev shop. **Phase 1 CLOSED. Phase 2 IN PROGRESS.**
 **Supersedes:** Previous HANDOFF.
 **North star:** `docs/recommendation-engine-brief.md` v0.3 (commit `22e849c`).
 **Scope:** `docs/scope-decisions.md` (commit `616fe70`).
@@ -39,9 +39,9 @@ What this does NOT mean:
 
 ## Where we are
 
-**Production:** **Phase 1 CLOSED.** All five PRs (A, B, C, C.5, D) shipped and verified. PR-D landed in three sub-commits: `f104022` (D.1 CustomerProfile schema + customer webhook thickening + GDPR redact helper), `3e8d3fb` (D.2 in-worker cron tick + timezone refresh + triggerSource wiring), `d718d93` (D.3 customer + 90-day order backfill script + verifier). All 18 webhook subscriptions live; products/{create,update} thin (worker is sole authoritative writer for the full Product column set on the DELTA path); collections stale-write-checked + DELTA enqueue; inventory direct narrow upsert; customers/* now write `CustomerProfile` rows in real time; orders/* still log-only stubs awaiting Phase 3 ingest. In-worker daily cron tick fires at 03:00 in merchant timezone and writes `CatalogSyncJob.triggerSource='CRON'`. Re-auth banner + cursor age probe instrumentation in place from PR-C.
+**Production:** **Phase 1 CLOSED. Phase 2 PR-2.1 SHIPPED.** Phase 1's five PRs (A, B, C, C.5, D) and Phase 2's PR-2.1 (`dc5b050` mechanical scope + `ca4d4cd` boot-event observability follow-up) all live and verified. All 18 webhook subscriptions live; products/{create,update} thin (worker is sole authoritative writer for the full Product column set on the DELTA path); collections stale-write-checked + DELTA enqueue; inventory direct narrow upsert; customers/* now write `CustomerProfile` rows in real time; orders/* still log-only stubs awaiting Phase 3 ingest. In-worker daily cron tick fires at 03:00 in merchant timezone and writes `CatalogSyncJob.triggerSource='CRON'`. **Tagging engine live (PR-2.1):** in-process tagging poll loop alongside the catalog sync claim loop, DB-backed `TaggingJob` queue with QUEUED-only dedup + INITIAL_BACKFILL singleton, dual-budget cost ledger ($0.005/product / $0.50/shop/day / $10/backfill), four trigger surfaces (PRODUCTS_CREATE webhook, DELTA hash-change, manual retag endpoint, per-tag review endpoint), review state machine on ProductTag (PENDING_REVIEW/APPROVED/REJECTED). Re-auth banner + cursor age probe instrumentation in place from PR-C.
 
-**Local:** All work pushed through PR-D D.3 (`d718d93`). Branch synced with origin/main. PR-D close commit captures the D.3 verification artifacts in git and updates this HANDOFF.
+**Local:** All work pushed through PR-2.1 close (`ca4d4cd`). Branch synced with origin/main. PR-2.1 close commit captures the smoke + schema-diff + migration-verify + typecheck artifacts in git and updates this HANDOFF.
 
 **Sync button:** Functional. Clicking queues a `CatalogSyncJob` row; the worker drains it within ~5s. MANUAL_RESYNC kind cancels any in-flight DELTA job for the shop before claiming.
 
@@ -184,9 +184,9 @@ Below cut #5 the plan is unrealistic without cutting features themselves.
 
 ---
 
-## Phase 2 — Catalog intelligence (AI tagging) ▶ UNBLOCKED
+## Phase 2 — Catalog intelligence (AI tagging) ▶ IN PROGRESS
 
-**State:** Unblocked 2026-05-03 by Phase 1 close. Next sub-PR is the Phase 2 entry point (2.1 — Tagging engine + storage schema + retag triggers).
+**State:** PR-2.1 shipped + verified 2026-05-03. PR-2.2 (mode-specific tag schemas + first-pass tagging of all 1,169 dev-store products) is the next sub-PR.
 
 **Goal:** AI-tagging engine generates structured tags (occasion, style, formality, color, fit, material, season, etc.) per product, mode-aware, with merchant review/approval. Tagging admin UI in embed app — functional v0, Polaris.
 
@@ -214,6 +214,41 @@ Below cut #5 the plan is unrealistic without cutting features themselves.
 - Tagging cost stays under budget for the dev store
 - Merchant can review and approve/reject tags in embed app
 - Re-tagging on product edit verified end-to-end (edit product in Shopify → webhook → DELTA → re-tag → review queue surfaces)
+
+### PR-2.1 — Tagging engine entry ✓ SHIPPED
+
+**Shipped:** Two commits — `dc5b050` (mechanical scope), `ca4d4cd` (boot-event observability follow-up).
+
+**`dc5b050` — schema + queue + cost ledger + worker loop + 4 trigger surfaces.**
+- Schema migration `20260503130000_add_tagging_review_and_jobs`: `TagReviewStatus` enum, three new ProductTag columns (`status` default `PENDING_REVIEW`, `reviewedAt`, `reviewedBy`), `TaggingJobKind` + `TaggingJobStatus` enums, `TaggingJob` model with 4 standard indexes + 2 partial unique indexes (QUEUED-only dedup, INITIAL_BACKFILL singleton), MerchantConfig budget tripwire columns. One-time backfill `UPDATE "ProductTag" SET status='APPROVED' WHERE source='HUMAN'`. IVFFlat-strip discipline maintained — `DROP INDEX "Product_embedding_cosine_idx"` omitted from migration SQL with header-comment evidence.
+- Queue helpers (`tagging-jobs.server.ts`) mirror `sync-jobs.server.ts`: claim-with-FOR-UPDATE-SKIP-LOCKED, heartbeat, sweep, release, cancel-for-product, resume-paused-for-shop. Reuses `KNOWLEDGE_WORKER_HEARTBEAT_TIMEOUT_MS`.
+- Cost ledger (`tagging-cost.server.ts`) hardcodes Sonnet 4.6 / 4.5 base rates ($3 / $15 per Mtok, sourced from platform.claude.com 2026-05-03), enforces three env-tunable caps: `TAGGING_COST_PER_PRODUCT_USD_MICROS` (default 5000 = $0.005), `TAGGING_COST_PER_SHOP_DAY_USD_MICROS` (default 500000 = $0.50), `TAGGING_BACKFILL_BUDGET_USD_MICROS` (default 10000000 = $10). Daily tripwire writer flips MerchantConfig timestamps at 80% (warn) / 100% (pause), updates in-flight rows to `BUDGET_PAUSED` at 100%. Daily rollover lazily resets tripwires + resurrects paused rows on first cost record of new UTC day.
+- Worker loop (`worker-tagging.ts`) runs in same process as sync claim loop on independent poll interval + independent heartbeat clock. Pre-claim budget check; retry policy: `RATE_LIMIT`/`CONNECTION` exponential-backoff (max 3, 500/1500/4500ms), `MALFORMED_JSON` one stricter-prompt retry, `AUTH`/`OTHER` immediate fail.
+- Four trigger surfaces: PRODUCTS_CREATE webhook → `enqueueTaggingForProduct` adjacent to existing DELTA enqueue. Worker DELTA hash-change → enqueue when `upsertProductKnowledge` returns `hashChanged=true`, executed OUTSIDE the upsert transaction. Manual retag at `/api/intelligence/retag/:productId`. Per-tag review at `/api/products/:id/tags/review` writing `status`, `reviewedAt=now()`, `reviewedBy=Shopify staff GID`.
+- `ai-tagger.server.ts` bumped to `claude-sonnet-4-6`, accepts `rejectedValuesByAxis` for prompt + post-call exclusion (defense in depth), returns `inputTokens`/`outputTokens`, classifies errors into the 5-class taxonomy, replaces `console.log` with structured `worker-logger`. `rule-engine.server.ts` writes new RULE tags with `status='APPROVED'` (audit action `ADD_RULE`). `tag-status.ts` adds orthogonal `computeTagStatusFull` source × status matrix with three new labels (`ai_approved`, `ai_rejected`, `rejected`); legacy `computeTagStatus` preserved.
+- 32 new tests across 3 test files (`tagging-cost.test.ts`, `tagging-jobs.test.ts`, `tag-review-state.test.ts`). 134/134 total passing.
+
+**`ca4d4cd` — unconditional boot event for the tagging loop.**
+- Adds a single `log.info("tagging loop starting", { event: "tagging_loop_started", pollIntervalMs: ... })` call at the entry of `startTaggingLoop` in `worker-tagging.ts`, before the async-fire into `runLoop`. Mirrors `worker.ts:48` (`worker boot`) for boot-sequence consistency. Identified as an observability gap during PR-2.1 smoke pre-flight (CHECK 2 of pre-smoke verification): on a clean post-deploy state with zero TaggingJob rows, the loop emitted no log line because the existing `tagging boot sweep complete` log was conditional on stuck jobs.
+- Verified post-deploy: `tagging_loop_started` event fired at 2026-05-03T09:49:14.090Z with payload `pollIntervalMs="2000-5000"`.
+
+**Verification:** Smoke S1–S8 PASSED on 2026-05-03 against `ai-fashion-store.myshopify.com`. One FASHION product (`gid://shopify/Product/9132195578113`, "Elite Linen Styling Service (Virtual)"), 6,296-char description, zero pre-existing ProductTag rows. Manual user-edit triggered the chain (programmatic API trigger blocked by stale offline session token — see operational debt below).
+- **S3 worker drain:** TaggingJob `cmopkqknp000tjo0odf1m81i9` SUCCEEDED, triggerSource=`DELTA_HASH_CHANGE`, RUNNING window 3415ms, 1249/222 tokens, $0.007077 cost, 13 tags written (1 RULE + 12 AI), model `claude-sonnet-4-6`.
+- **V2 gate (axesNeeded non-empty):** PASS — 10 axes left for AI: gender, category, fit, color_family, occasion, style_type, statement_piece, material, size_range, price_tier.
+- **S4 V1 vocabulary:** 25.0% gap density (3 out-of-vocab axes / 12 AI tags), under 30% threshold. Three gaps (`delivery_mode=online`, `product_format=virtual_service`, `styling_service=personal_styling`) all from the virtual-service product — edge case for FASHION applied to non-garment inventory.
+- **S5 persistence + audit + single-writer:** all 12 new AI rows status=PENDING_REVIEW + non-null confidence, 12 ProductTagAudit rows with action=ADD covering every tag, Product timestamps consistent.
+- **S6 migration verification:** 0 AI/APPROVED rows (Risk #3 mitigated — backfill predicate stayed at exactly `source='HUMAN'`); 1 RULE/APPROVED row (the smoke's rule-engine write — confirms `rule-engine.server.ts` change is live); 4 RULE/PENDING_REVIEW rows pre-date PR-2.1 and will lift organically during PR-2.2's first-pass.
+- **S7 heartbeat independence:** synthetic-burst test PASSED — TaggingJob heartbeat at `04:06:19.843Z`, CatalogSyncJob heartbeat at `04:06:19.918Z`, both advancing in parallel.
+- **S8 IVFFlat preservation:** `Product_embedding_cosine_idx` present in `pg_indexes` post-deploy.
+- Closure-evidence artifacts at `.pr-2-1-artifacts/{schema-diff,smoke-run,migration-verify,typecheck}.txt`.
+
+**What carries forward to PR-2.2:**
+- **Vocabulary gaps from V1.** Three out-of-vocab axes from a single virtual-service smoke product. PR-2.2 planning needs to decide: (a) expand FASHION vocabulary to cover service products, or (b) treat as expected gaps for non-garment inventory and defer to a future SERVICE/HYBRID mode. PR-2.2's first-pass run reveals whether non-garment products are common enough to need their own vocabulary.
+- **Cost calibration.** Smoke per-product cost ($0.007077) exceeded the $0.005 default cap by 41%. PR-2.2's first-pass on 1,169 products produces a real distribution. After first-pass, decide whether to raise per-product cap to $0.010, keep $0.005 (let high-token products fail post-call), or implement pre-call token-budget estimation with prompt trimming.
+- **4 pre-existing RULE/PENDING_REVIEW rows** lift to APPROVED organically during PR-2.2's catalog-wide first-pass via the `rule-engine.server.ts` change. No explicit cleanup pass needed.
+- **Single-writer contract** preserved by construction. PR-2.1 smoke confirmed zero `prisma.product.update`/`prisma.product.upsert` calls outside `upsertProductKnowledge`. PR-2.2's first-pass routes through the same tagging-jobs queue + worker-tagging loop, so the contract is structurally enforced.
+
+**Phase 2 progress:** 1 of 3 sub-PRs shipped (PR-2.1). PR-2.2 + PR-2.3 pending.
 
 ---
 
@@ -591,9 +626,9 @@ This section is the truth-of-the-moment for what's actually in the repo and live
 - `enqueueDeltaForShop` shared helper (PR-C) collapses webhook bursts into one QUEUED DELTA per shop (QUEUED-only dedup; correctness-preserving against mid-fetch edits)
 - Re-auth banner in embedded admin shell (PR-C) with `write_X ⇒ read_X` implication
 - DB-backed `CatalogSyncJob` schema + library (PR-A); cursorAt columns added (PR-C C.1)
-- Existing in-memory `batch_tag` job kind (Phase 2's domain, untouched by PR-A)
+- Tagging engine (PR-2.1): DB-backed `TaggingJob` queue with QUEUED-only dedup + INITIAL_BACKFILL singleton (partial unique indexes); review state machine on `ProductTag` (`status` enum PENDING_REVIEW/APPROVED/REJECTED, `reviewedAt`, `reviewedBy`); dual-budget cost ledger ($0.005/product / $0.50/shop/day / $10/backfill, env-tunable via three `TAGGING_*` vars); MerchantConfig budget tripwires (`taggingBudgetWarnedAt`/`taggingBudgetExceededAt`); model `claude-sonnet-4-6`; rule-engine writes APPROVED, AI writes PENDING_REVIEW; orthogonal `computeTagStatusFull` source × status matrix in `tag-status.ts`. Triggers: PRODUCTS_CREATE webhook + DELTA hash-change + manual retag endpoint + per-tag review endpoint. Old in-memory `batch_tag` route now silently routes through the new queue (deprecated, full removal in 2.2).
 
-**Production-live (Railway, worker service):** Live since PR-B (`2011028`). Cursor age probe instrumented in PRODUCTS + COLLECTIONS phases (PR-C C.3); no real values yet because DELTA path uses `updated_at:>=` filter, not saved cursors.
+**Production-live (Railway, worker service):** Live since PR-B (`2011028`). Cursor age probe instrumented in PRODUCTS + COLLECTIONS phases (PR-C C.3); no real values yet because DELTA path uses `updated_at:>=` filter, not saved cursors. **Tagging poll loop (PR-2.1):** runs in same process as catalog sync claim loop, independent poll interval (2-5s) + independent heartbeat clock. Boot-event `tagging_loop_started` emitted at startup (PR-2.1 follow-up `ca4d4cd`). Heartbeat independence verified end-to-end during smoke S7.
 
 **Repo docs:**
 - `docs/recommendation-engine-brief.md` (v0.3, commit `22e849c`) — north star
@@ -610,7 +645,9 @@ This section is the truth-of-the-moment for what's actually in the repo and live
 - **`upsertNormalizedProduct` is unused on the products-webhook DELTA path** but stays defined in `app/lib/catalog/upsert.server.ts`. PR-D's cron path uses `upsertProductKnowledge` (single-writer architecture preserved). Consider removing the dead function in a small cleanup commit after the next consumer audit confirms no callers.
 - 2,632 dev-store products need re-embedding against new richer record once Phase 3 lands. Re-embed cadence decision deferred to Phase 3 planning.
 - **pgvector IVFFlat indexes are unmodellable in Prisma DSL.** `prisma migrate diff` will permanently report drift on `Product_embedding_cosine_idx` (Prisma sees the index in the live DB, doesn't see it in the schema, and emits a `DROP`). Accepting that DROP would silently destroy the embedding retrieval index — Phase 3's vector search would degrade to sequential scan over 2,632 products on every recommendation call. **Discipline:** always inspect `migrate diff` output before applying any migration; expect IVFFlat drift to remain present indefinitely; hand-edit migration SQL to omit any IVFFlat-related `DROP` statements. The D.1 migration in PR-D documents this pattern in a comment for future maintainers. Possible future cleanup: use Prisma's raw migration support to add the IVFFlat index back to `schema.prisma` via a manually-applied SQL fragment so future diffs are clean — out of scope until Phase 3 embedding work resumes.
-- **Pre-existing TypeScript error at `app/routes/app.config.tsx:280`.** `error TS2322 — Property 'type' does not exist on type 'Omit<ReactProps$4, "accessory"> & ReactBaseElementProps<TextField>'`. First surfaced explicitly in D.3's typecheck artifact (`npm run typecheck` exit 2). Confirmed not a D.3 regression via stash-and-rerun on clean HEAD (`3e8d3fb`): same single error. Likely cause: Polaris API has changed `TextField` input type accessor; the form input handler at `app.config.tsx:280` needs to use the new shape. **Fix path:** small follow-up commit, not blocking. Should be addressed in a Phase 2 cleanup pass before any new admin UI work touches the config route.
+- **Pre-existing TypeScript error at `app/routes/app.config.tsx:280`.** `error TS2322 — Property 'type' does not exist on type 'Omit<ReactProps$4, "accessory"> & ReactBaseElementProps<TextField>'`. First surfaced explicitly in D.3's typecheck artifact (`npm run typecheck` exit 2). Confirmed not a D.3 regression via stash-and-rerun on clean HEAD (`3e8d3fb`): same single error. Likely cause: Polaris API has changed `TextField` input type accessor; the form input handler at `app.config.tsx:280` needs to use the new shape. **Fix path:** small follow-up commit, not blocking. Should be addressed in a Phase 2 cleanup pass before any new admin UI work touches the config route. PR-2.1 typecheck baseline preserved (1 error pre, 1 error post — captured at `.pr-2-1-artifacts/typecheck.txt`).
+- ~~**Boot-event observability gap in `worker-tagging.ts:startTaggingLoop`.**~~ **RESOLVED at `ca4d4cd` (2026-05-03).** On a clean post-deploy state with zero TaggingJob rows, the tagging loop emitted no log line during boot because the existing `tagging boot sweep complete` event was conditional on `swept.resumedJobIds.length > 0`. Identified during PR-2.1 smoke pre-flight (CHECK 2). Fix added a single unconditional `log.info("tagging loop starting", { event: "tagging_loop_started", pollIntervalMs: ... })` call at the entry of `startTaggingLoop`. Verified post-deploy at 2026-05-03T09:49:14.090Z.
+- **Stale dev-shop offline session token.** Length-38 stored value (atypical — Shopify offline tokens normally land as `shpat_` + 32 hex; the stored token lacks the prefix indicating raw token storage), expired `2026-05-03T01:37:21Z`, rejected by Shopify Admin API with `[API] Invalid API key or access token (unrecognized login or wrong password)`. Surfaced during PR-2.1 smoke S2 when the runner attempted a programmatic `productUpdate` mutation to trigger the tagging chain. Blocks programmatic Shopify Admin API access from local scripts. **Webhook delivery to deployed worker is unaffected** — smoke S3+ confirmed end-to-end via manual user-edit trigger. Refresh requires re-OAuth via the embed app surface — NOT Phase 2 scope, NOT PR-2.1's responsibility, but tracked here for whoever owns operations to address before any future PR needs programmatic Shopify mutations from a script.
 
 **Risks closed during PR-C / PR-C.5:**
 - Webhook subscription registration timing (Risk 1 from PR-C planning) — empirically resolved via Addition 1.

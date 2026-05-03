@@ -1,0 +1,15 @@
+S6 — Migration verification
+Captured: 2026-05-03T09:36:21.955Z
+Scope: ALL shops on the deployed Postgres
+
+source       status            count
+------------------------------------------------
+AI           PENDING_REVIEW   82
+RULE         PENDING_REVIEW   4
+RULE         APPROVED         1
+
+Assertions:
+  AI/APPROVED:           0  (expected 0 unless smoke ran review endpoint)
+  RULE/PENDING_REVIEW:   4  (pre-2.1 RULE rows; new ones write APPROVED)
+  HUMAN/REJECTED:        0
+  HUMAN/PENDING_REVIEW:  0

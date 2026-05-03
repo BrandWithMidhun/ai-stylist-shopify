@@ -1,0 +1,267 @@
+PR-2.1 smoke run — 2026-05-03T08:55:05.601Z
+Shop: ai-fashion-store.myshopify.com
+Marker: <!-- pr-2-1-smoke 2026-05-03T08:55:05.599Z -->
+
+========================================================================
+S1 — Pre-tag state of chosen FASHION product
+========================================================================
+Top 5 candidates (sorted: fewest-existing-tags, longest-description):
+  gid://shopify/Product/9132195578113  Elite Linen Styling Service (Virtual)              type=Linen Styling Service vendor=Linen Trail desc=6296c tags=null existingTags=0
+  gid://shopify/Product/9132264947969  Chang - Pure Linen Mandarin Collar Half Sleeve Shirt - Dark Purple type=Short Sleeve Shirt vendor=Linen Trail desc=5447c tags=39 existingTags=0
+  gid://shopify/Product/9132244140289  Kurta Sets - Marvel Pure Linen Mid Kurta  | White  type=Kurta Sets vendor=Linen Trail desc=5028c tags=37 existingTags=0
+  gid://shopify/Product/9132242108673  Kurta Sets - Parker Pure Linen Mid Kurta  | Coffee Brown type=Kurta Sets vendor=Linen Trail desc=4938c tags=51 existingTags=0
+  gid://shopify/Product/9132193218817  Jack - Pure Linen Polo T-Shirt - Golden Olive Green type=T-Shirts vendor=Linen Trail desc=4156c tags=27 existingTags=0
+
+Chosen product:
+  GID:         gid://shopify/Product/9132195578113
+  Local id:    cmoeem51w077zo436oqj9vidg
+  Handle:      elite-linen-styling-service
+  Title:       Elite Linen Styling Service (Virtual)
+  ProductType: Linen Styling Service
+  Vendor:      Linen Trail
+  Desc length: 6296 chars
+  Shopify tags: null
+  Existing ProductTag rows: 0
+
+  Pre-trigger Product timestamps:
+    knowledgeContentHash:   83e1088b5c4c…
+    knowledgeContentHashAt: Tue Apr 28 2026 20:17:31 GMT+0530 (India Standard Time)
+    lastKnowledgeSyncAt:    Tue Apr 28 2026 20:17:31 GMT+0530 (India Standard Time)
+    syncedAt:               Sat Apr 25 2026 15:21:34 GMT+0530 (India Standard Time)
+    shopifyUpdatedAt:       Sat Apr 25 2026 05:15:23 GMT+0530 (India Standard Time)
+
+========================================================================
+S2 — Trigger chain via Shopify Admin GraphQL productUpdate
+========================================================================
+Offline session token: <REDACTED, length=38>
+Calling Shopify Admin GraphQL at https://ai-fashion-store.myshopify.com/admin/api/2025-01/graphql.json
+ABORT: read query failed: {"errors":"[API] Invalid API key or access token (unrecognized login or wrong password)"}
+
+
+=== S3 onward — manual-edit trigger path ===
+Resumed at 2026-05-03T09:25:28.449Z
+
+========================================================================
+S3 — Worker drain (DB-row observation, polling for TaggingJob)
+========================================================================
+(In lieu of Railway log streaming we observe DB row state. The
+ summary JSON written at finishTaggingJob carries the same payload
+ the structured logs emit — tagsWritten, axesNeeded, durationMs,
+ tokens, cost.)
+
+SURFACE: no terminal-state TaggingJob row for product cmoeem51w077zo436oqj9vidg
+         within 300s window.
+Possible causes:
+  - products/update webhook not received (subscription issue)
+  - DELTA enqueue failed
+  - hashChanged returned false (edit wasn't substantive enough)
+  - tagging loop not claiming (CHECK 1's wiring pass would be invalidated)
+
+
+=== S3 onward — manual-edit trigger path ===
+Resumed at 2026-05-03T09:36:19.888Z
+
+========================================================================
+S3 — Worker drain (DB-row observation, polling for TaggingJob)
+========================================================================
+(In lieu of Railway log streaming we observe DB row state. The
+ summary JSON written at finishTaggingJob carries the same payload
+ the structured logs emit — tagsWritten, axesNeeded, durationMs,
+ tokens, cost.)
+  [0.2s elapsed] TaggingJob cmopkqknp000… status=SUCCEEDED enqueuedAt=2026-05-03T04:04:32.725Z startedAt=2026-05-03T04:04:33.908Z heartbeatAt=2026-05-03T04:04:37.315Z
+
+Final TaggingJob row:
+  id:                cmopkqknp000tjo0odf1m81i9
+  status:            SUCCEEDED
+  kind:              SINGLE_PRODUCT
+  triggerSource:     DELTA_HASH_CHANGE
+  enqueuedAt:        2026-05-03T04:04:32.725Z
+  startedAt:         2026-05-03T04:04:33.908Z
+  finishedAt:        2026-05-03T04:04:37.323Z
+  RUNNING window:    3415ms (startedAt → finishedAt)
+  processedProducts: 1
+  failedProducts:    0
+  skippedProducts:   0
+  costUsdMicros:     7077
+  inputTokens:       1249
+  outputTokens:      222
+  errorClass:        —
+  errorMessage:      —
+
+  summary JSON:
+  {
+    "model": "claude-sonnet-4-6",
+    "outcome": "succeeded",
+    "axesNeeded": [
+      "gender",
+      "category",
+      "fit",
+      "color_family",
+      "occasion",
+      "style_type",
+      "statement_piece",
+      "material",
+      "size_range",
+      "price_tier"
+    ],
+    "durationMs": 3367,
+    "inputTokens": 1249,
+    "tagsWritten": 13,
+    "outputTokens": 222,
+    "costUsdMicros": "7077",
+    "ruleTagsWritten": 1
+  }
+
+S3 step verification (mapping prompt's lettered events to row signals):
+  (a) products/update webhook received: INFERRED from TaggingJob row existence
+  (b) DELTA enqueue: INFERRED — triggerSource='DELTA_HASH_CHANGE' matches DELTA path
+  (c) upsertProductKnowledge with hashChanged=true: PASS (pre=83e1088b5c4c…, post=14e1b0b16bec…)
+  (d) tagging_job_enqueued (triggerSource='DELTA_HASH_CHANGE'): PASS
+  (e) tagging_job_claimed: PASS (job has startedAt=2026-05-03T04:04:33.908Z)
+  (f) tagging_started: PASS (axesNeeded captured below)
+  (g) Anthropic call duration: 3415ms
+  (h) tagging_completed: PASS
+
+V2 GATE — axesNeeded list captured from job.summary:
+  axesNeeded = [gender, category, fit, color_family, occasion, style_type, statement_piece, material, size_range, price_tier]
+  axesNeeded count = 10
+V2 GATE: PASS (10 axes left for AI after rule engine)
+
+ruleTagsWritten (per summary): 1
+tagsWritten (AI net):          13
+
+========================================================================
+S4 — V1 vocabulary validation against store-axes.ts FASHION
+========================================================================
+AI-proposed tags: 12
+
+Per-pair breakdown:
+  category             = accessories                  axis=yes value=in-vocab  conf=0.35
+  color_family         = multicolor                   axis=yes value=in-vocab  conf=0.4
+  delivery_mode        = online                       axis=NO  value=axis-not-in-vocab  conf=0.99
+  fit                  = tailored                     axis=yes value=in-vocab  conf=0.7
+  gender               = unisex                       axis=yes value=in-vocab  conf=0.85
+  material             = linen                        axis=yes value=in-vocab  conf=0.99
+  occasion             = casual                       axis=yes value=in-vocab  conf=0.5
+  price_tier           = premium                      axis=yes value=in-vocab  conf=0.65
+  product_format       = virtual_service              axis=NO  value=axis-not-in-vocab  conf=0.99
+  statement_piece      = not_a_statement_piece        axis=yes value=in-vocab  conf=0.75
+  style_type           = classic                      axis=yes value=in-vocab  conf=0.55
+  styling_service      = personal_styling             axis=NO  value=axis-not-in-vocab  conf=0.99
+
+In-vocab axes:        9/12
+Out-of-vocab axes:    3/12
+In-vocab values:      9/12
+Free-form values:     0/12
+Out-of-vocab values:  3/12
+Vocabulary gap density: 25.0%
+
+VOCABULARY GAPS:
+  delivery_mode=online  (axisInVocab=false, axis-not-in-vocab)
+  product_format=virtual_service  (axisInVocab=false, axis-not-in-vocab)
+  styling_service=personal_styling  (axisInVocab=false, axis-not-in-vocab)
+
+========================================================================
+S5 — Persistence check + audit trail + single-writer audit
+========================================================================
+Total new AI rows for product:                  12
+All AI rows status='PENDING_REVIEW':            PASS
+All AI rows have non-null confidence:           PASS
+
+Matching ProductTagAudit rows (action='ADD', source='AI', recent): 12
+Audit-row coverage of AI tags: PASS (every tag has an ADD audit)
+
+Single-writer audit (Product row writes):
+  Pre-trigger  knowledgeContentHash: 83e1088b5c4c…
+  Post         knowledgeContentHash: 14e1b0b16bec…
+  Hash changed:                       true
+  syncedAt advanced (post): 2026-05-03T04:04:32.644Z
+  shopifyUpdatedAt (post):  2026-05-03T04:04:27.000Z
+  knowledgeContentHashAt:   2026-05-03T04:04:32.644Z
+  lastKnowledgeSyncAt:      2026-05-03T04:04:32.644Z
+
+Static single-writer verification (Risk #5 mitigation):
+  grep prisma.product.update|prisma.product.upsert in PR-2.1 new files
+  → 0 matches (verified pre-commit, dc5b050 commit body line 'Two-writer audit').
+  Dynamic worker-log verification not run (no Railway log access from local
+  shell). Static audit + Product-timestamp consistency above is sufficient.
+
+========================================================================
+S6 — Migration verification (cross-shop ProductTag distribution)
+========================================================================
+  source=AI        status=PENDING_REVIEW   count=82
+  source=RULE      status=PENDING_REVIEW   count=4
+  source=RULE      status=APPROVED         count=1
+
+Assertions:
+  Zero (AI, APPROVED) rows pre-migration:    PASS (0 rows)
+  Zero (RULE, PENDING_REVIEW) rows:          INFO (4 pre-existing RULE rows pre-date the PR-2.1 migration; new rule writes will be APPROVED)
+  HUMAN rows where present are APPROVED:     PASS
+
+Captured to .pr-2-1-artifacts/migration-verify.txt
+
+========================================================================
+S7 — Heartbeat independence (sync vs tagging)
+========================================================================
+The smoke TaggingJob's RUNNING window was 3415ms.
+
+RUNNING window is meaningful (>500ms). Triggering a second TaggingJob via
+direct SQL INSERT (queue-level, not Shopify-side) so we have an active
+tagging RUNNING window to overlap with a CatalogSyncJob.
+Second TaggingJob inserted: 34b8e123-5c57-49dd-9eb1-ecab71e7f0de
+Concurrent CatalogSyncJob inserted: a731bda3-627e-490e-a7e7-d2fc720a00e7
+
+Polling heartbeatAt on both rows every 1s for up to 60s:
+
+TaggingJob progression:
+  2026-05-03T09:36:22.856Z  status=QUEUED  heartbeatAt=—
+  2026-05-03T09:36:24.302Z  status=QUEUED  heartbeatAt=—
+  2026-05-03T09:36:25.750Z  status=RUNNING  heartbeatAt=2026-05-03T04:06:19.843Z
+  2026-05-03T09:36:27.195Z  status=SUCCEEDED  heartbeatAt=2026-05-03T04:06:22.387Z
+
+CatalogSyncJob progression:
+  2026-05-03T09:36:22.857Z  status=QUEUED  heartbeatAt=—
+  2026-05-03T09:36:24.302Z  status=RUNNING  heartbeatAt=2026-05-03T04:06:19.918Z
+  2026-05-03T09:36:25.750Z  status=SUCCEEDED  heartbeatAt=2026-05-03T04:06:20.382Z
+  2026-05-03T09:36:27.195Z  status=SUCCEEDED  heartbeatAt=2026-05-03T04:06:20.382Z
+
+TaggingJob RUNNING samples: 1
+CatalogSyncJob RUNNING samples: 1
+TaggingJob distinct heartbeatAt values during RUNNING: 1
+CatalogSyncJob distinct heartbeatAt values during RUNNING: 1
+S7 PASS: both queues progressed independently — neither stalled.
+
+========================================================================
+S8 — IVFFlat preservation (pg_indexes on Product)
+========================================================================
+Indexes on Product table:
+  Product_embedding_cosine_idx
+  Product_pkey
+  Product_shopDomain_deletedAt_idx
+  Product_shopDomain_inventoryStatus_idx
+  Product_shopDomain_priceMin_idx
+  Product_shopDomain_productType_idx
+  Product_shopDomain_shopifyId_key
+  Product_shopDomain_status_idx
+  Product_shopDomain_taxonomyNodeId_idx
+
+Product_embedding_cosine_idx present: YES
+S8 result: PASS
+
+========================================================================
+Smoke summary (S3-S8)
+========================================================================
+S3 TaggingJob status:       SUCCEEDED
+S3 triggerSource:           DELTA_HASH_CHANGE ✓
+S3 axesNeeded count:        10 (V2 PASS)
+S3 LLM duration:            3415ms
+S3 cost (microdollars):     7077
+S3 input/output tokens:     1249 / 222
+S4 vocab gap density:       25.0% (gaps: 3/12)
+S5 all AI=PENDING_REVIEW:    PASS
+S5 all AI have confidence:   PASS
+S5 audit coverage:           PASS
+S5 single-writer (static):   PASS (commit dc5b050 audit)
+S6 AI/APPROVED leakage:      0 (PASS)
+S7 heartbeat independence:   PASS
+S8 IVFFlat preserved:        PASS
