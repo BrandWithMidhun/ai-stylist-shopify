@@ -1,0 +1,17 @@
+[shopify-api/INFO] version 13.0.0, environment React Router
+
+Verification results for shop: ai-fashion-store.myshopify.com
+================================================================================
+[PASS] CustomerProfile count matches Shopify customersCount
+        expected: 3 (EXACT)
+        actual:   3
+[PASS] ORDER_PLACED event count matches Shopify ordersCount (created_at:>=2026-02-02)
+        expected: 0 (EXACT)
+        actual:   0
+[SKIP] At least one CustomerProfile has at least one ORDER_PLACED event
+        expected: skipped (Shopify reports 0 orders in window)
+        actual:   n/a
+        note:     empty-order shop is a valid state; vacuously satisfied
+================================================================================
+SUMMARY: 2 PASS, 0 FAIL, 1 SKIP
+OVERALL: PASS

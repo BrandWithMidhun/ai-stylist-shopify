@@ -1,0 +1,7 @@
+[shopify-api/INFO] version 13.0.0, environment React Router
+{"event":"backfill_customers_started","shopDomain":"ai-fashion-store.myshopify.com","orderWindow":"created_at:>=2026-02-02","windowDays":90}
+[shopify-api/INFO] Creating new session | {shop: ai-fashion-store.myshopify.com, isOnline: false}
+{"event":"backfill_customer","shopDomain":"ai-fashion-store.myshopify.com","customerId":"gid://shopify/Customer/9326325104897","profileId":"cmopdc5950000tcerrp55vkqb","created":true,"ordersFetched":0,"eventsInserted":0,"eventsSkipped":0}
+{"event":"backfill_customer","shopDomain":"ai-fashion-store.myshopify.com","customerId":"gid://shopify/Customer/9326325137665","profileId":"cmopdc5gf0001tcer4qhm4n8w","created":true,"ordersFetched":0,"eventsInserted":0,"eventsSkipped":0}
+{"event":"backfill_customer","shopDomain":"ai-fashion-store.myshopify.com","customerId":"gid://shopify/Customer/9326325203201","profileId":"cmopdc5lf0002tceryruucx5g","created":true,"ordersFetched":0,"eventsInserted":0,"eventsSkipped":0}
+{"event":"backfill_customers_done","shopDomain":"ai-fashion-store.myshopify.com","customersProcessed":3,"customersFailed":0,"totalOrdersFetched":0,"totalEventsInserted":0,"totalEventsSkipped":0,"minOrderCreatedAtSeen":null}
