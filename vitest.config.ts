@@ -9,7 +9,11 @@ import tsconfigPaths from "vite-tsconfig-paths";
 export default defineConfig({
   plugins: [tsconfigPaths()],
   test: {
-    include: ["app/**/*.test.ts"],
+    // PR-2.2-mech.3: scripts/ added to cover the report-backfill.ts
+    // classifier helper. The reporter is a tsx-invoked script, but
+    // its pure helpers are imported into vitest like any other
+    // module — test-discovery just needs to look there.
+    include: ["app/**/*.test.ts", "scripts/**/*.test.ts"],
     environment: "node",
     globals: false,
   },

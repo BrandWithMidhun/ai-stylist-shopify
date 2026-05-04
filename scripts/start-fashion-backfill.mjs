@@ -198,7 +198,7 @@ async function main() {
     `  target:     ${target} products\n` +
     `  projected:  ~$${totalUsd.toFixed(2)}\n\n` +
     `The worker will claim within 2-5s and drain serially. Run\n` +
-    `  node scripts/report-backfill.mjs --shop ${args.shop}\n` +
+    `  npx tsx scripts/report-backfill.ts --shop ${args.shop}\n` +
     `after the run completes for the verification artifacts.\n`,
   );
 
