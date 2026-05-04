@@ -1,6 +1,6 @@
 # HANDOFF — AI Stylist Shopify App
 
-**Last updated:** 2026-05-04, after PR-2.2 (Phase 2 sub-PR 2 of 3) shipped + verified end-to-end on dev shop via n=50 limited backfill. **Phase 1 CLOSED. Phase 2 IN PROGRESS — 2 of 3 sub-PRs shipped.**
+**Last updated:** 2026-05-04, after PR-2.3 closure (Phase 2 sub-PR 3 of 3 shipped as re-scoping commit). **Phase 1 CLOSED. Phase 2 CLOSED.**
 **Supersedes:** Previous HANDOFF.
 **North star:** `docs/recommendation-engine-brief.md` v0.3 (commit `22e849c`).
 **Scope:** `docs/scope-decisions.md` (commit `616fe70`).
@@ -39,7 +39,7 @@ What this does NOT mean:
 
 ## Where we are
 
-**Production:** **Phase 1 CLOSED. Phase 2 PR-2.1 + PR-2.2 SHIPPED.** Phase 1's five PRs (A, B, C, C.5, D) and Phase 2's PR-2.1 (`dc5b050` + `ca4d4cd` + close at `6cd82ce`) and PR-2.2 (`a7c196a` + `a0a640f` + `a1ae025` + `35ca74e` + `86fe3b9`) all live and verified. All 18 webhook subscriptions live; products/{create,update} thin (worker is sole authoritative writer for the full Product column set on the DELTA path); collections stale-write-checked + DELTA enqueue; inventory direct narrow upsert; customers/* now write `CustomerProfile` rows in real time; orders/* still log-only stubs awaiting Phase 3 ingest. In-worker daily cron tick fires at 03:00 in merchant timezone. **Tagging engine end-to-end (PR-2.1 + PR-2.2):** INITIAL_BACKFILL handler with cursor-resume + mid-run budget gate is live in the worker; FASHION vocabulary expanded from 11 to 16 axes via two evidence-driven extensions (sustainability + season at PR-2.2-mech.1; sleeve_length + pattern + collar_type at PR-2.2-mech.4); rule-engine re-tag bug fixed (PR-2.2-mech.2); reporter converted to TypeScript with imports from canonical vocabulary source (PR-2.2-mech.3); cost-per-Kc anchor recalibrated $0.0011 → $0.0032 from n=50 actual data (PR-2.2-mech.4). Tagging engine ready for the merchant-facing review surface in the Phase 4 portal scaffold (where the review UI lands alongside Dashboard Overview, Customer Profile, AI Agents config, and the rest of the substantive merchant-facing dashboard). PR-2.3 closes Phase 2 with a re-scoping commit; the review UI does NOT ship in the embed app.
+**Production:** **Phase 1 CLOSED. Phase 2 PR-2.1 + PR-2.2 SHIPPED.** Phase 1's five PRs (A, B, C, C.5, D) and Phase 2's PR-2.1 (`dc5b050` + `ca4d4cd` + close at `6cd82ce`) and PR-2.2 (`a7c196a` + `a0a640f` + `a1ae025` + `35ca74e` + `86fe3b9`) all live and verified. All 18 webhook subscriptions live; products/{create,update} thin (worker is sole authoritative writer for the full Product column set on the DELTA path); collections stale-write-checked + DELTA enqueue; inventory direct narrow upsert; customers/* now write `CustomerProfile` rows in real time; orders/* still log-only stubs awaiting Phase 3 ingest. In-worker daily cron tick fires at 03:00 in merchant timezone. **Tagging engine end-to-end (PR-2.1 + PR-2.2):** INITIAL_BACKFILL handler with cursor-resume + mid-run budget gate is live in the worker; FASHION vocabulary expanded from 11 to 16 axes via two evidence-driven extensions (sustainability + season at PR-2.2-mech.1; sleeve_length + pattern + collar_type at PR-2.2-mech.4); rule-engine re-tag bug fixed (PR-2.2-mech.2); reporter converted to TypeScript with imports from canonical vocabulary source (PR-2.2-mech.3); cost-per-Kc anchor recalibrated $0.0011 → $0.0032 from n=50 actual data (PR-2.2-mech.4). Tagging engine ready for the merchant-facing review surface in the Phase 4 portal scaffold (where the review UI lands alongside Dashboard Overview, Customer Profile, AI Agents config, and the rest of the substantive merchant-facing dashboard). PR-2.3 closes Phase 2 with a re-scoping commit; the review UI does NOT ship in the embed app. PR-2.3 (this commit) is the re-scoping commit — HANDOFF amendment recording the surface architecture correction. No code shipped. Phase 2 acceptance is met by PR-2.1 (tagging engine entry) + PR-2.2 (first-pass tagging + vocabulary calibration verified n=50 against ai-fashion-store.myshopify.com) + this PR-2.3 closure record. Tagging review UI lands in Phase 4 portal scaffold (sub-bundle 4.3 alongside Customer Profile + AI Agents config) per HANDOFF Phase 4 scope.
 
 **Local:** All work pushed through PR-2.2-mech.4 (`86fe3b9`). Branch synced with origin/main. PR-2.2 close commit captures the n=50 take-4 reporter artifacts in git and updates this HANDOFF.
 
@@ -302,7 +302,7 @@ Below cut #5 the plan is unrealistic without cutting features themselves.
 - **Minor vocabulary candidates from n=50 below the 10% threshold:** `skin_friendliness` 8%, `fabric_weight` 8%, `fabric_treatment` 8%, `pleat_style` 6%. Defer; the Phase 4 portal review UI will surface them as merchant-rejectable tags. If catalog-wide hit-rates rise post-merchant-traffic, revisit.
 - **First-pass tagging on the full dev catalog was DEFERRED.** The n=50 evidence verified mechanical correctness, AI quality, and vocabulary alignment. Running unlimited (~$5-8 spend) would produce confirmatory not exploratory evidence. Full-catalog tagging is now a normal merchant-triggerable operation via the Phase 4 portal review UI's "Tag all products" action, not a Phase 2 verification step.
 
-**Phase 2 progress:** 2 of 3 sub-PRs shipped (PR-2.1 + PR-2.2). PR-2.3 closes Phase 2 as a re-scoping commit (review UI deferred to Phase 4 portal scaffold).
+**Phase 2 progress:** 3 of 3 sub-PRs shipped (PR-2.1 + PR-2.2 + PR-2.3 closure record). Phase 2 CLOSED. Tagging review UI deferred to Phase 4 portal scaffold sub-bundle 4.3.
 
 ---
 
@@ -783,4 +783,4 @@ Plus three perennials:
 
 ---
 
-*Next planning artifact: Phase 2 (Catalog Intelligence) planning prompt — entry sub-PR 2.1 (Tagging engine + storage schema + retag triggers).*
+*Next planning artifact: Phase 3 (Pipeline rewrite + reviews + order ingest + AI attribution) planning round — entry sub-bundle 3.1 (Pipeline core + eval harness + conditional re-embed).*
