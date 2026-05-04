@@ -47,6 +47,41 @@ describe("classifyTagPair (PR-2.2-mech.3 regression)", () => {
     });
   });
 
+  describe("FASHION mode — PR-2.2-mech.4 vocabulary additions (n=50 evidence)", () => {
+    it("sleeve_length=full_sleeve classifies as in-vocab", () => {
+      expect(classifyTagPair("sleeve_length", "full_sleeve", "FASHION").kind).toBe("in-vocab");
+    });
+
+    it("sleeve_length=half_sleeve classifies as in-vocab", () => {
+      expect(classifyTagPair("sleeve_length", "half_sleeve", "FASHION").kind).toBe("in-vocab");
+    });
+
+    it("pattern=solid classifies as in-vocab", () => {
+      expect(classifyTagPair("pattern", "solid", "FASHION").kind).toBe("in-vocab");
+    });
+
+    it("pattern=pinstripe classifies as in-vocab", () => {
+      expect(classifyTagPair("pattern", "pinstripe", "FASHION").kind).toBe("in-vocab");
+    });
+
+    it("collar_type=regular_collar classifies as in-vocab", () => {
+      expect(classifyTagPair("collar_type", "regular_collar", "FASHION").kind).toBe("in-vocab");
+    });
+
+    it("collar_type=spread_collar classifies as in-vocab", () => {
+      expect(classifyTagPair("collar_type", "spread_collar", "FASHION").kind).toBe("in-vocab");
+    });
+
+    it("collar_style classifies as axis-not-in-vocab (deliberate omission — schema canonicalizes on collar_type)", () => {
+      // The AI inconsistently used `collar_style` for the same concept
+      // as `collar_type` in the n=50 evidence (14% hit rate). PR-2.2-
+      // mech.4 deliberately did NOT add `collar_style` to the schema
+      // — only `collar_type`. This test pins that deliberate omission
+      // so a future "fix" doesn't accidentally add the duplicate axis.
+      expect(classifyTagPair("collar_style", "regular_collar", "FASHION").kind).toBe("axis-not-in-vocab");
+    });
+  });
+
   describe("FASHION mode — pre-existing core axes still work (no regression)", () => {
     it("gender=male classifies as in-vocab", () => {
       expect(classifyTagPair("gender", "male", "FASHION").kind).toBe("in-vocab");

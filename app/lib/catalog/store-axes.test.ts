@@ -36,6 +36,66 @@ describe("FASHION axis vocabulary", () => {
     expect(fashion).toContain("season");
   });
 
+  it("includes the PR-2.2-mech.4 additions (sleeve_length, pattern, collar_type)", () => {
+    const fashion = STARTER_AXES.FASHION;
+    expect(fashion).toContain("sleeve_length");
+    expect(fashion).toContain("pattern");
+    expect(fashion).toContain("collar_type");
+  });
+
+  it("DELIBERATELY does NOT include collar_style (schema canonicalizes on collar_type)", () => {
+    // The AI inconsistently used `collar_style` for the same concept
+    // as `collar_type` in the n=50 backfill evidence (14% hit rate).
+    // PR-2.2-mech.4 only added `collar_type`. Pin the omission so a
+    // future contributor doesn't accidentally add the duplicate.
+    const fashion = STARTER_AXES.FASHION;
+    expect(fashion).not.toContain("collar_style");
+  });
+
+  it("sleeve_length axis declares a single-value enum with both half/short and full/long synonyms", () => {
+    const def = AXIS_OPTIONS.FASHION.sleeve_length;
+    expect(def.type).toBe("single");
+    if (def.type === "single") {
+      expect(def.values).toContain("full_sleeve");
+      expect(def.values).toContain("half_sleeve");
+      // Industry-synonyms also present so the AI can use either:
+      expect(def.values).toContain("long_sleeve");
+      expect(def.values).toContain("short_sleeve");
+      expect(def.values).toContain("sleeveless");
+      expect(def.values).toContain("three_quarter_sleeve");
+    }
+  });
+
+  it("pattern axis declares a single-value enum covering common fabric patterns", () => {
+    const def = AXIS_OPTIONS.FASHION.pattern;
+    expect(def.type).toBe("single");
+    if (def.type === "single") {
+      // n=50 observed values:
+      expect(def.values).toContain("solid");
+      expect(def.values).toContain("pinstripe");
+      // Coverage for common merchant-side filters:
+      expect(def.values).toContain("striped");
+      expect(def.values).toContain("checked");
+      expect(def.values).toContain("printed");
+      expect(def.values).toContain("colorblock");
+    }
+  });
+
+  it("collar_type axis declares a single-value enum covering common shirt + jacket collars", () => {
+    const def = AXIS_OPTIONS.FASHION.collar_type;
+    expect(def.type).toBe("single");
+    if (def.type === "single") {
+      // n=50 observed values:
+      expect(def.values).toContain("regular_collar");
+      expect(def.values).toContain("spread_collar");
+      // Indian-ethnic context (mandarin/band) and shirt variants:
+      expect(def.values).toContain("mandarin_collar");
+      expect(def.values).toContain("band_collar");
+      expect(def.values).toContain("button_down_collar");
+      expect(def.values).toContain("no_collar");
+    }
+  });
+
   it("sustainability axis declares a multi-value enum with conventional fallback", () => {
     const def = AXIS_OPTIONS.FASHION.sustainability;
     expect(def.type).toBe("multi");

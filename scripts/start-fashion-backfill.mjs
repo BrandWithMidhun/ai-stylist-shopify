@@ -19,12 +19,18 @@ import { randomUUID } from "node:crypto";
 
 const { Client } = pg;
 
-// Cost-per-Kc anchor: derived from PR-2.1 smoke evidence —
-// $0.007077 at 6,296 input chars (descriptionHtml + ~400-token
-// system prompt and metadata overhead). cost-per-Kc ≈ $0.0011.
-// Update this constant when the cost-per-Kc anchor materially shifts
-// (e.g. Anthropic pricing change or material model swap).
-const COST_PER_KCHAR_USD = 0.0011;
+// Cost-per-Kc anchor for projection. Recalibrated 2026-05-04 from
+// PR-2.2 n=50 run: $0.3502 actual / 108.75 Kc total description =
+// $0.0032/Kc. Previous anchor ($0.0011) was derived from PR-2.1 smoke
+// (single 6,296c product) and didn't account for system prompt + axis
+// vocabulary + product metadata overhead, which adds ~constant per-
+// call cost the per-Kc anchor undercounts. Three consecutive runs
+// (smoke + take-1 + n=50) showed ~190%+ projection-vs-actual
+// divergence under the old anchor. Update this constant when the
+// cost-per-Kc anchor materially shifts (e.g. Anthropic pricing
+// change, material model swap, or vocabulary expansion that
+// changes the system prompt size).
+const COST_PER_KCHAR_USD = 0.0032;
 
 // Mean wall-clock per Anthropic call, anchored to PR-2.1 smoke (3415ms
 // for the full p100 product). Used for runtime estimation only.

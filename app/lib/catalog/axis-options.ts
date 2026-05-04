@@ -159,6 +159,81 @@ export const AXIS_OPTIONS: Record<StoreMode, AxisOptions> = {
         "transitional",
       ],
     },
+    // PR-2.2-mech.4 (2026-05-04): added in response to n=50 backfill
+    // evidence — AI proposed `sleeve_length` for 30/50 products (60%
+    // hit rate, values: full_sleeve, half_sleeve). half_sleeve and
+    // short_sleeve are semantically overlapping (industry uses both
+    // interchangeably); both included because the AI specifically
+    // proposed half_sleeve and the dev shop's Indian-fashion context
+    // tends to use that spelling. Same for full_sleeve vs.
+    // long_sleeve.
+    sleeve_length: {
+      type: "single",
+      values: [
+        "sleeveless",
+        "cap_sleeve",
+        "short_sleeve",
+        "half_sleeve",
+        "three_quarter_sleeve",
+        "full_sleeve",
+        "long_sleeve",
+      ],
+    },
+    // PR-2.2-mech.4 (2026-05-04): added in response to n=50 backfill
+    // evidence — AI proposed `pattern` for 16/50 products (32% hit
+    // rate, values: solid, pinstripe). Includes `colorblock` for
+    // multi-color garment design and `jacquard` for woven-pattern
+    // fabrics. Excludes very-niche patterns (paisley, batik, ikat)
+    // — AI can propose those and they'll surface as out-of-vocab
+    // signal in future runs if hit-rates warrant.
+    pattern: {
+      type: "single",
+      values: [
+        "solid",
+        "striped",
+        "pinstripe",
+        "checked",
+        "gingham",
+        "plaid",
+        "printed",
+        "embroidered",
+        "jacquard",
+        "textured",
+        "colorblock",
+      ],
+    },
+    // PR-2.2-mech.4 (2026-05-04): added in response to n=50 backfill
+    // evidence — AI proposed `collar_type` for 16/50 products (32%
+    // hit rate, values: regular_collar, spread_collar). The AI
+    // ALSO inconsistently used `collar_style` for the same concept
+    // on 7 products (14% hit rate); resolution is to canonicalize
+    // on `collar_type` (industry-standard term in Shopify metafields,
+    // GS1 taxonomy). The schema deliberately omits `collar_style`
+    // so the AI sees only `collar_type` in starterAxes and uses it
+    // consistently going forward. PENDING_REVIEW tags using the
+    // orphaned `collar_style` axis from the n=50 run remain in the
+    // database; merchant rejects via 2.3 review UI when it lands.
+    //
+    // Vocabulary: regular/spread/cutaway/button-down for common
+    // shirts; mandarin/band for Indian ethnic; cuban for short-
+    // sleeve resort shirts; shawl/notched/peak for jackets.
+    collar_type: {
+      type: "single",
+      values: [
+        "no_collar",
+        "regular_collar",
+        "spread_collar",
+        "cutaway_collar",
+        "mandarin_collar",
+        "band_collar",
+        "cuban_collar",
+        "button_down_collar",
+        "wing_collar",
+        "shawl_collar",
+        "notched_collar",
+        "peak_collar",
+      ],
+    },
   },
 
   // VALIDATED 2026-05-03 (PR-2.2 planning): schema reviewed. No
