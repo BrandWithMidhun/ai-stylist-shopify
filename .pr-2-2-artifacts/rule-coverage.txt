@@ -1,0 +1,22 @@
+Rule-engine coverage stats
+Generated: 2026-05-04T11:14:27.491Z
+
+----------------------------------------
+Total rule-tag rows written:      45
+Total AI-tag rows written:        760
+Distinct products tagged:         50
+
+Mean axesNeeded (per product):    13.96
+Median axesNeeded:                14
+----------------------------------------
+axesNeeded distribution histogram (axes-asked-of-AI per product):
+  11 axes: ███                                                1
+  12 axes: ███████████                                        4
+  13 axes: ███████████████████████████████                    11
+  14 axes: ██████████████████████████████████████████         15
+  15 axes: ██████████████████████████████████████████████████ 18
+  16 axes: ███                                                1
+
+----------------------------------------
+Per-axis rule firing counts:
+  sub_category         45

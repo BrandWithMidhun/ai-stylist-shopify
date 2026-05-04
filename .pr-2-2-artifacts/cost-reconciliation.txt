@@ -1,0 +1,23 @@
+Cost reconciliation
+Generated: 2026-05-04T11:14:27.490Z
+Job:       cuid_9cfc2379b77347bcaffc05af0b00a45e
+
+----------------------------------------
+Projected total (kickoff):     $0.1196
+Projected per-product:         $0.002393
+Sampled mean description:      2175 chars
+
+Actual total:                  $0.3502
+Actual total (microdollars):   350205
+
+Divergence:                    +192.8%
+----------------------------------------
+Backfill budget cap:           $10.0000
+Budget remaining:              $9.6498
+Budget utilization:            3.5%
+
+
+PROJECTION RECALIBRATION NEEDED — actual diverged from projected by 192.8%.
+The cost-per-Kc anchor in scripts/start-fashion-backfill.mjs may be stale.
+Recompute: actual_total_usd / sum(description_lengths_in_kchars)
+           = $0.3502 / X kchars = new cost-per-Kc

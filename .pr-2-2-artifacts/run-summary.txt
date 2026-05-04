@@ -1,0 +1,31 @@
+INITIAL_BACKFILL run summary
+Generated: 2026-05-04T11:14:27.486Z
+Shop:      ai-fashion-store.myshopify.com  (mode: FASHION)
+Job:       cuid_9cfc2379b77347bcaffc05af0b00a45e
+Status:    SUCCEEDED
+
+----------------------------------------
+Total products attempted:    50
+Processed (succeeded):       50  (100.0%)
+Failed:                      0
+Distinct products tagged:    50
+----------------------------------------
+Total cost (microdollars):   350205
+Total cost (USD):            $0.3502
+Mean cost per processed:     $0.007004
+Total input tokens:          49340
+Total output tokens:         13479
+----------------------------------------
+Wall-clock duration:         3.0 min
+Started:                     2026-05-04T05:37:37.281Z
+Finished:                    2026-05-04T05:40:38.463Z
+----------------------------------------
+Anthropic error class counts:
+  RATE_LIMIT:     0
+  AUTH:           0
+  MALFORMED_JSON: 0
+  CONNECTION:     0
+  OTHER:          0
+
+Approximate per-product stats derived from total cost / processed count.
+(Per-product cost not stored individually; future iterations may add it.)

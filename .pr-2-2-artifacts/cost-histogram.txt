@@ -1,0 +1,43 @@
+Cost / shape histograms
+Generated: 2026-05-04T11:14:27.492Z
+Distinct products tagged: 50
+Mean tags per product:    15.20
+
+----------------------------------------
+Description-length distribution (proxy for cost shape):
+  <500c    ████████████████                                   6
+  500-1k   █████                                              2
+  1-2k     ████████████████████████████████                   12
+  2-3k     ██████████████████████████████████████████████████ 19
+  3-4k     ████████████████                                   6
+  4-5k     █████████████                                      5
+  5k+                                                         0
+
+----------------------------------------
+Tags-written-per-product distribution:
+  12 tags: ███████                                            2
+  13 tags: ███████████                                        3
+  14 tags: ██████████████████████████████████████████████████ 14
+  15 tags: ███████████████████████████████████████████        12
+  16 tags: ███████████████████████████████████████            11
+  17 tags: ███████████                                        3
+  18 tags: ███████                                            2
+  19 tags: ███████                                            2
+  20 tags: ████                                               1
+
+----------------------------------------
+Top 5 products by tags written:
+   20 tags     471c  Executive Grey Linen Set - Trevor Half Sleeve Shirt Blue Gre
+   19 tags    1648c  Mark - Pure Linen Half Sleeve Shirt - Red Pinstripe
+   19 tags    1196c  Brandon Double Button Broad Pure Linen Trousers - Slow Green
+   18 tags     870c  Neil - Pure Linen Trousers - Cocoa Brown
+   18 tags    1532c  Enso - Pure Linen Half Sleeve Shirt - Coffee Brown
+
+Top 5 products by description length:
+    4000c   14 tags  Bob Boxer - Slate Grey
+    4000c   15 tags  Bob Boxer - Lavender
+    4000c   15 tags  Bob Boxer - Oyster Yellow
+    4000c   16 tags  Bob Boxer - Spring Green
+    4000c   16 tags  Bob Boxer - Dark Fern Green
+
+Total cost across run: $0.3502

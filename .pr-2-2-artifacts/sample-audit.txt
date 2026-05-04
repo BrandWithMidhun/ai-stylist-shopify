@@ -1,0 +1,371 @@
+Sample audit (n=15, stratified by description length)
+Generated: 2026-05-04T11:14:27.493Z
+Mode: FASHION
+
+Hand-eyeball this for systematic AI failures. Red flags:
+  - Same value across many unrelated products (e.g. occasion=casual on every item)
+  - Axes that don't match product category (e.g. material=cotton on a metal jewellery item)
+  - Missing obvious tags (e.g. no color_family on a clearly-colored item)
+  - Confidence values clustered at extremes (all 0.99 or all 0.5)
+
+================================================================================
+
+Product:       gid://shopify/Product/9132167266561
+Title:         Aire - Relaxed Elastic Pure Linen Trousers - Regal Blue
+ProductType:   Men's Trousers
+Vendor:        Linen Trail
+Desc length:   1232 chars
+Desc preview:  Regal Blue pure linen trousers with a relaxed fit and back elastic provide timeless style and comfort for every season. The back elastic guarantees ease of movement and when paired with our 100% Pure …
+Tags written:  16
+  gender               = male                           conf=0.99 status=PENDING_REVIEW
+  category             = pants                          conf=0.97 status=PENDING_REVIEW
+  fit                  = relaxed                        conf=0.98 status=PENDING_REVIEW
+  color_family         = blue                           conf=0.92 status=PENDING_REVIEW
+  occasion             = casual                         conf=0.82 status=PENDING_REVIEW
+  occasion             = formal                         conf=0.78 status=PENDING_REVIEW
+  style_type           = classic                        conf=0.82 status=PENDING_REVIEW
+  statement_piece      = not_a_statement_piece          conf=0.75 status=PENDING_REVIEW
+  material             = linen                          conf=0.99 status=PENDING_REVIEW
+  size_range           = m                              conf=0.6 status=PENDING_REVIEW
+  price_tier           = mid_range                      conf=0.75 status=PENDING_REVIEW
+  sustainability       = eco_friendly                   conf=0.93 status=PENDING_REVIEW
+  season               = all_season                     conf=0.85 status=PENDING_REVIEW
+  fabric_purity        = 100_percent_pure               conf=0.97 status=PENDING_REVIEW
+  waistband            = elastic_back                   conf=0.97 status=PENDING_REVIEW
+  origin               = made_in_india                  conf=0.95 status=PENDING_REVIEW
+--------------------------------------------------------------------------------
+
+Product:       gid://shopify/Product/9132168249601
+Title:         Dusky Violet Pure Linen Deconstructed Jacket & Trouser Set
+ProductType:   Jacket Trouser Set
+Vendor:        Linen Trail
+Desc length:   337 chars
+Desc preview:  This Dusky Violet Pure Linen Deconstructed Jacket &amp; Trouser Set is a must-have for any wardrobe. Made from pure linen, the deconstructed jacket and trousers offer a timeless style that is both ver…
+Tags written:  14
+  gender               = unisex                         conf=0.6 status=PENDING_REVIEW
+  category             = jacket                         conf=0.8 status=PENDING_REVIEW
+  fit                  = relaxed                        conf=0.75 status=PENDING_REVIEW
+  color_family         = purple                         conf=0.85 status=PENDING_REVIEW
+  occasion             = casual                         conf=0.7 status=PENDING_REVIEW
+  occasion             = work                           conf=0.65 status=PENDING_REVIEW
+  style_type           = minimal                        conf=0.72 status=PENDING_REVIEW
+  statement_piece      = statement_piece                conf=0.8 status=PENDING_REVIEW
+  material             = linen                          conf=0.99 status=PENDING_REVIEW
+  size_range           = s                              conf=0.5 status=PENDING_REVIEW
+  price_tier           = premium                        conf=0.75 status=PENDING_REVIEW
+  sustainability       = eco_friendly                   conf=0.7 status=PENDING_REVIEW
+  season               = summer                         conf=0.85 status=PENDING_REVIEW
+  product_type         = co_ord_set                     conf=0.95 status=PENDING_REVIEW
+--------------------------------------------------------------------------------
+
+Product:       gid://shopify/Product/9132167299329
+Title:         Enso - Pure Linen Half Sleeve Shirt - Coffee Brown
+ProductType:   Short Sleeve Shirt
+Vendor:        Linen Trail
+Desc length:   1532 chars
+Desc preview:  Crafted from pure linen, this half-sleeve shirt showcases deliberate design through structured shoulder detailing and a practical pocket. Black piping traces the silhouette, introducing understated co…
+Tags written:  18
+  gender               = male                           conf=0.99 status=PENDING_REVIEW
+  category             = shirt                          conf=0.99 status=PENDING_REVIEW
+  fit                  = regular                        conf=0.85 status=PENDING_REVIEW
+  color_family         = brown                          conf=0.97 status=PENDING_REVIEW
+  occasion             = casual                         conf=0.88 status=PENDING_REVIEW
+  style_type           = classic                        conf=0.9 status=PENDING_REVIEW
+  statement_piece      = not_a_statement_piece          conf=0.8 status=PENDING_REVIEW
+  material             = linen                          conf=0.99 status=PENDING_REVIEW
+  size_range           = s                              conf=0.85 status=PENDING_REVIEW
+  size_range           = m                              conf=0.85 status=PENDING_REVIEW
+  size_range           = l                              conf=0.85 status=PENDING_REVIEW
+  size_range           = xl                             conf=0.85 status=PENDING_REVIEW
+  size_range           = xxl                            conf=0.85 status=PENDING_REVIEW
+  price_tier           = mid_range                      conf=0.78 status=PENDING_REVIEW
+  sustainability       = eco_friendly                   conf=0.92 status=PENDING_REVIEW
+  season               = summer                         conf=0.9 status=PENDING_REVIEW
+  sleeve_length        = half_sleeve                    conf=0.99 status=PENDING_REVIEW
+  pattern              = solid                          conf=0.97 status=PENDING_REVIEW
+--------------------------------------------------------------------------------
+
+Product:       gid://shopify/Product/9132165923073
+Title:         Executive Grey Linen Set - Trevor Half Sleeve Shirt Blue Grey and Ian Trousers B
+ProductType:   Shirt Trouser Set
+Vendor:        Linen Trail
+Desc length:   471 chars
+Desc preview:  Elevate your formal wardrobe with this sophisticated monochrome ensemble. The Trevor gunmetal grey shirt delivers a refined, contemporary edge when paired with the sleek black Ian trousers. Together, …
+Tags written:  20
+  gender               = male                           conf=0.98 status=PENDING_REVIEW
+  category             = shirt                          conf=0.75 status=PENDING_REVIEW
+  fit                  = tailored                       conf=0.8 status=PENDING_REVIEW
+  color_family         = grey                           conf=0.7 status=PENDING_REVIEW
+  occasion             = formal                         conf=0.95 status=PENDING_REVIEW
+  occasion             = work                           conf=0.9 status=PENDING_REVIEW
+  style_type           = classic                        conf=0.85 status=PENDING_REVIEW
+  statement_piece      = not_a_statement_piece          conf=0.75 status=PENDING_REVIEW
+  material             = linen                          conf=0.98 status=PENDING_REVIEW
+  size_range           = s                              conf=0.5 status=PENDING_REVIEW
+  size_range           = m                              conf=0.5 status=PENDING_REVIEW
+  size_range           = l                              conf=0.5 status=PENDING_REVIEW
+  size_range           = xl                             conf=0.5 status=PENDING_REVIEW
+  price_tier           = premium                        conf=0.8 status=PENDING_REVIEW
+  sustainability       = conventional                   conf=0.6 status=PENDING_REVIEW
+  season               = summer                         conf=0.85 status=PENDING_REVIEW
+  season               = transitional                   conf=0.7 status=PENDING_REVIEW
+  product_type         = set                            conf=0.99 status=PENDING_REVIEW
+  sleeve_length        = half_sleeve                    conf=0.97 status=PENDING_REVIEW
+  pattern              = solid                          conf=0.9 status=PENDING_REVIEW
+--------------------------------------------------------------------------------
+
+Product:       gid://shopify/Product/9132165988609
+Title:         Blue Stone Formal Office Set - Ron Full Sleeve Shirt Blue Grey and Ian Ecru Trou
+ProductType:   Shirt Trouser Set
+Vendor:        Linen Trail
+Desc length:   478 chars
+Desc preview:  Elevate your professional wardrobe with this sophisticated formal office set. The blue-grey Ron shirt pairs seamlessly with the soft ecru Ian trousers, creating a refined look that transitions effortl…
+Tags written:  14
+  gender               = male                           conf=0.97 status=PENDING_REVIEW
+  category             = shirt                          conf=0.75 status=PENDING_REVIEW
+  fit                  = tailored                       conf=0.85 status=PENDING_REVIEW
+  color_family         = blue                           conf=0.8 status=PENDING_REVIEW
+  occasion             = work                           conf=0.98 status=PENDING_REVIEW
+  occasion             = formal                         conf=0.92 status=PENDING_REVIEW
+  style_type           = classic                        conf=0.9 status=PENDING_REVIEW
+  statement_piece      = not_a_statement_piece          conf=0.8 status=PENDING_REVIEW
+  material             = linen                          conf=0.95 status=PENDING_REVIEW
+  size_range           = s                              conf=0.5 status=PENDING_REVIEW
+  price_tier           = mid_range                      conf=0.75 status=PENDING_REVIEW
+  sustainability       = conventional                   conf=0.6 status=PENDING_REVIEW
+  season               = all_season                     conf=0.7 status=PENDING_REVIEW
+  product_type         = set                            conf=0.99 status=PENDING_REVIEW
+--------------------------------------------------------------------------------
+
+Product:       gid://shopify/Product/9132167495937
+Title:         Martin - Pure Linen Full Sleeve Shirt - White & Black Pinstripe
+ProductType:   Long Sleeve Shirt
+Vendor:        Linen Trail
+Desc length:   2152 chars
+Desc preview:  Martin is a sophisticated full-sleeve linen shirt that combines timeless elegance with refined tailoring. Crafted from pure linen, this piece features a crisp white base complemented by an inner yoke …
+Tags written:  15
+  gender               = male                           conf=0.99 status=PENDING_REVIEW
+  category             = shirt                          conf=0.99 status=PENDING_REVIEW
+  fit                  = regular                        conf=0.85 status=PENDING_REVIEW
+  color_family         = white                          conf=0.82 status=PENDING_REVIEW
+  occasion             = work                           conf=0.92 status=PENDING_REVIEW
+  occasion             = casual                         conf=0.82 status=PENDING_REVIEW
+  style_type           = classic                        conf=0.93 status=PENDING_REVIEW
+  statement_piece      = not_a_statement_piece          conf=0.8 status=PENDING_REVIEW
+  material             = linen                          conf=0.99 status=PENDING_REVIEW
+  price_tier           = mid_range                      conf=0.78 status=PENDING_REVIEW
+  sustainability       = eco_friendly                   conf=0.92 status=PENDING_REVIEW
+  season               = summer                         conf=0.9 status=PENDING_REVIEW
+  pattern              = pinstripe                      conf=0.98 status=PENDING_REVIEW
+  sleeve_length        = full_sleeve                    conf=0.99 status=PENDING_REVIEW
+  collar_type          = regular_collar                 conf=0.97 status=PENDING_REVIEW
+--------------------------------------------------------------------------------
+
+Product:       gid://shopify/Product/9132167659777
+Title:         Camden - Pure Linen Full Sleeve Shirt with Asymmetrical Yoke - Brown Pinstripe
+ProductType:   Long Sleeve Shirt
+Vendor:        Linen Trail
+Desc length:   2163 chars
+Desc preview:  The Camden Pure Linen Full Sleeve Shirt exemplifies contemporary tailoring with its distinctive asymmetrical back yoke, a design detail that elevates the silhouette with architectural precision. Rende…
+Tags written:  17
+  gender               = male                           conf=0.99 status=PENDING_REVIEW
+  category             = shirt                          conf=0.99 status=PENDING_REVIEW
+  fit                  = regular                        conf=0.82 status=PENDING_REVIEW
+  color_family         = brown                          conf=0.95 status=PENDING_REVIEW
+  occasion             = work                           conf=0.88 status=PENDING_REVIEW
+  occasion             = formal                         conf=0.85 status=PENDING_REVIEW
+  style_type           = classic                        conf=0.88 status=PENDING_REVIEW
+  statement_piece      = not_a_statement_piece          conf=0.72 status=PENDING_REVIEW
+  material             = linen                          conf=0.99 status=PENDING_REVIEW
+  price_tier           = premium                        conf=0.78 status=PENDING_REVIEW
+  sustainability       = eco_friendly                   conf=0.92 status=PENDING_REVIEW
+  season               = summer                         conf=0.88 status=PENDING_REVIEW
+  season               = transitional                   conf=0.75 status=PENDING_REVIEW
+  pattern              = pinstripe                      conf=0.97 status=PENDING_REVIEW
+  sleeve_length        = full_sleeve                    conf=0.99 status=PENDING_REVIEW
+  collar_type          = regular_collar                 conf=0.97 status=PENDING_REVIEW
+  design_detail        = asymmetrical_yoke              conf=0.96 status=PENDING_REVIEW
+--------------------------------------------------------------------------------
+
+Product:       gid://shopify/Product/9132166250753
+Title:         Harvey - Pure Linen Half Sleeve Shirt - Brown Chambray (Factory Rescue)
+ProductType:   Short Sleeve Shirt
+Vendor:        LT Factory Outlet
+Desc length:   2078 chars
+Desc preview:  This is a Brown Chambray short-sleeve pure linen shirt with a regular collar. A versatile piece that can be styled with any trousers or chinos. A linen staple from our classic collection of timeless l…
+Tags written:  15
+  gender               = male                           conf=0.95 status=PENDING_REVIEW
+  category             = shirt                          conf=0.99 status=PENDING_REVIEW
+  fit                  = regular                        conf=0.85 status=PENDING_REVIEW
+  color_family         = brown                          conf=0.92 status=PENDING_REVIEW
+  occasion             = casual                         conf=0.85 status=PENDING_REVIEW
+  occasion             = work                           conf=0.7 status=PENDING_REVIEW
+  style_type           = classic                        conf=0.9 status=PENDING_REVIEW
+  statement_piece      = not_a_statement_piece          conf=0.8 status=PENDING_REVIEW
+  material             = linen                          conf=0.99 status=PENDING_REVIEW
+  size_range           = s                              conf=0.6 status=PENDING_REVIEW
+  price_tier           = mid_range                      conf=0.75 status=PENDING_REVIEW
+  sustainability       = eco_friendly                   conf=0.9 status=PENDING_REVIEW
+  season               = summer                         conf=0.9 status=PENDING_REVIEW
+  sleeve_length        = half_sleeve                    conf=0.99 status=PENDING_REVIEW
+  fabric_weave         = chambray                       conf=0.97 status=PENDING_REVIEW
+--------------------------------------------------------------------------------
+
+Product:       gid://shopify/Product/9132167594241
+Title:         Alfred - Pure Linen Full Sleeve Shirt - Black Pinstripe & Red Wine
+ProductType:   Long Sleeve Shirt
+Vendor:        Linen Trail
+Desc length:   2191 chars
+Desc preview:  This distinguished pure linen shirt combines timeless tailoring with contemporary styling. The black pinstripe base provides classic sophistication, while wine-hued accents on the inner collar band an…
+Tags written:  12
+  gender               = male                           conf=0.98 status=PENDING_REVIEW
+  category             = shirt                          conf=0.99 status=PENDING_REVIEW
+  fit                  = regular                        conf=0.82 status=PENDING_REVIEW
+  color_family         = black                          conf=0.85 status=PENDING_REVIEW
+  occasion             = formal                         conf=0.88 status=PENDING_REVIEW
+  occasion             = work                           conf=0.82 status=PENDING_REVIEW
+  style_type           = classic                        conf=0.92 status=PENDING_REVIEW
+  statement_piece      = not_a_statement_piece          conf=0.72 status=PENDING_REVIEW
+  material             = linen                          conf=0.99 status=PENDING_REVIEW
+  price_tier           = premium                        conf=0.8 status=PENDING_REVIEW
+  sustainability       = eco_friendly                   conf=0.9 status=PENDING_REVIEW
+  season               = all_season                     conf=0.75 status=PENDING_REVIEW
+--------------------------------------------------------------------------------
+
+Product:       gid://shopify/Product/9132168675585
+Title:         Ron - Pure Linen Full Sleeve Shirt - Cobalt Green
+ProductType:   Long Sleeve Shirt
+Vendor:        Linen Trail
+Desc length:   2170 chars
+Desc preview:  Step into effortless elegance with our Ron Pure Linen Full Sleeve Shirt in Cobalt Green. Part of our classic collection of timeless linen wear, this shirt exemplifies understated sophistication. Desig…
+Tags written:  16
+  gender               = male                           conf=0.98 status=PENDING_REVIEW
+  category             = shirt                          conf=0.99 status=PENDING_REVIEW
+  fit                  = regular                        conf=0.85 status=PENDING_REVIEW
+  color_family         = green                          conf=0.92 status=PENDING_REVIEW
+  occasion             = casual                         conf=0.88 status=PENDING_REVIEW
+  occasion             = formal                         conf=0.8 status=PENDING_REVIEW
+  style_type           = classic                        conf=0.9 status=PENDING_REVIEW
+  statement_piece      = not_a_statement_piece          conf=0.82 status=PENDING_REVIEW
+  material             = linen                          conf=0.99 status=PENDING_REVIEW
+  size_range           = s                              conf=0.6 status=PENDING_REVIEW
+  price_tier           = mid_range                      conf=0.78 status=PENDING_REVIEW
+  sustainability       = eco_friendly                   conf=0.92 status=PENDING_REVIEW
+  season               = summer                         conf=0.88 status=PENDING_REVIEW
+  sleeve_length        = full_sleeve                    conf=0.99 status=PENDING_REVIEW
+  collar_type          = regular_collar                 conf=0.99 status=PENDING_REVIEW
+  pattern              = solid                          conf=0.98 status=PENDING_REVIEW
+--------------------------------------------------------------------------------
+
+Product:       gid://shopify/Product/9132166709505
+Title:         Monarc - Pure Linen Spread Collar Half Sleeve Shirt - Lime Green (Factory Rescue
+ProductType:   Short Sleeve Shirt
+Vendor:        LT Factory Outlet
+Desc length:   2304 chars
+Desc preview:  The Monarc Shirt is a timeless addition to your wardrobe, designed with simplicity and sophistication in mind. Perfect for casual outings or smart-casual settings, this short-sleeve shirt offers a cle…
+Tags written:  13
+  gender               = male                           conf=0.95 status=PENDING_REVIEW
+  category             = shirt                          conf=0.99 status=PENDING_REVIEW
+  fit                  = regular                        conf=0.75 status=PENDING_REVIEW
+  color_family         = green                          conf=0.92 status=PENDING_REVIEW
+  occasion             = casual                         conf=0.9 status=PENDING_REVIEW
+  style_type           = minimal                        conf=0.88 status=PENDING_REVIEW
+  statement_piece      = not_a_statement_piece          conf=0.8 status=PENDING_REVIEW
+  material             = linen                          conf=0.99 status=PENDING_REVIEW
+  price_tier           = mid_range                      conf=0.72 status=PENDING_REVIEW
+  sustainability       = eco_friendly                   conf=0.88 status=PENDING_REVIEW
+  season               = summer                         conf=0.95 status=PENDING_REVIEW
+  collar_style         = spread_collar                  conf=0.97 status=PENDING_REVIEW
+  sleeve_length        = half_sleeve                    conf=0.99 status=PENDING_REVIEW
+--------------------------------------------------------------------------------
+
+Product:       gid://shopify/Product/9132168839425
+Title:         Art Pants - Pure Linen Elastic Casual Pants with Drawstrings - Muted Brown
+ProductType:   Men's Trousers
+Vendor:        Linen Trail
+Desc length:   2490 chars
+Desc preview:  Crafted from 100% pure linen, these art pants offer a relaxed, loose fit that ensures comfort and breathability. Featuring front and back knife pleats, they provide a refined silhouette while maintain…
+Tags written:  13
+  gender               = male                           conf=0.98 status=PENDING_REVIEW
+  category             = pants                          conf=0.99 status=PENDING_REVIEW
+  fit                  = relaxed                        conf=0.95 status=PENDING_REVIEW
+  color_family         = brown                          conf=0.97 status=PENDING_REVIEW
+  occasion             = casual                         conf=0.92 status=PENDING_REVIEW
+  style_type           = relaxed                        conf=0.85 status=PENDING_REVIEW
+  statement_piece      = not_a_statement_piece          conf=0.78 status=PENDING_REVIEW
+  material             = linen                          conf=0.99 status=PENDING_REVIEW
+  price_tier           = mid_range                      conf=0.75 status=PENDING_REVIEW
+  sustainability       = eco_friendly                   conf=0.93 status=PENDING_REVIEW
+  season               = summer                         conf=0.88 status=PENDING_REVIEW
+  waist_type           = elastic_drawstring             conf=0.95 status=PENDING_REVIEW
+  pleat_style          = knife_pleat                    conf=0.92 status=PENDING_REVIEW
+--------------------------------------------------------------------------------
+
+Product:       gid://shopify/Product/9132166545665
+Title:         Becket - Linen Short Jacket - Cappuccino Beige (Factory Rescue)
+ProductType:   Jacket
+Vendor:        LT Factory Outlet
+Desc length:   3280 chars
+Desc preview:  Fabric : Premium Linen (25 LEA Pre-Shrunk) Color : Cappuccino Beige Collar : Regular collar Pockets: 4 Sleeves : Full Choose our linen wear, because it’s: Antibacterial Hypoallergenic Breathable Adapt…
+Tags written:  16
+  gender               = male                           conf=0.97 status=PENDING_REVIEW
+  category             = jacket                         conf=0.99 status=PENDING_REVIEW
+  fit                  = regular                        conf=0.92 status=PENDING_REVIEW
+  color_family         = beige                          conf=0.95 status=PENDING_REVIEW
+  occasion             = casual                         conf=0.85 status=PENDING_REVIEW
+  occasion             = travel                         conf=0.8 status=PENDING_REVIEW
+  style_type           = classic                        conf=0.78 status=PENDING_REVIEW
+  statement_piece      = not_a_statement_piece          conf=0.72 status=PENDING_REVIEW
+  material             = linen                          conf=0.99 status=PENDING_REVIEW
+  size_range           = s                              conf=0.55 status=PENDING_REVIEW
+  price_tier           = mid_range                      conf=0.75 status=PENDING_REVIEW
+  sustainability       = eco_friendly                   conf=0.92 status=PENDING_REVIEW
+  season               = summer                         conf=0.88 status=PENDING_REVIEW
+  sleeve_length        = full_sleeve                    conf=0.97 status=PENDING_REVIEW
+  pocket_count         = 4                              conf=0.99 status=PENDING_REVIEW
+  fabric_treatment     = pre_shrunk                     conf=0.95 status=PENDING_REVIEW
+--------------------------------------------------------------------------------
+
+Product:       gid://shopify/Product/9132165628161
+Title:         Bob Boxer - Slate Grey
+ProductType:   Boxer
+Vendor:        Linen Trail
+Desc length:   4000 chars
+Desc preview:  Bob – Pure Linen 60 Lea Boxers – Breathable Comfort for Everyday Wear Crafted from 100% pure linen (60 lea) , the Bob Boxers redefine everyday comfort with their lightweight, breathable, and moisture-…
+Tags written:  14
+  gender               = male                           conf=0.99 status=PENDING_REVIEW
+  category             = innerwear                      conf=0.97 status=PENDING_REVIEW
+  fit                  = relaxed                        conf=0.92 status=PENDING_REVIEW
+  color_family         = grey                           conf=0.95 status=PENDING_REVIEW
+  occasion             = casual                         conf=0.9 status=PENDING_REVIEW
+  style_type           = classic                        conf=0.8 status=PENDING_REVIEW
+  statement_piece      = not_a_statement_piece          conf=0.9 status=PENDING_REVIEW
+  material             = linen                          conf=0.99 status=PENDING_REVIEW
+  size_range           = m                              conf=0.5 status=PENDING_REVIEW
+  price_tier           = premium                        conf=0.8 status=PENDING_REVIEW
+  sustainability       = eco_friendly                   conf=0.97 status=PENDING_REVIEW
+  sustainability       = biodegradable                  conf=0.92 status=PENDING_REVIEW
+  season               = all_season                     conf=0.85 status=PENDING_REVIEW
+  size_range           = s                              conf=0.5 status=PENDING_REVIEW
+--------------------------------------------------------------------------------
+
+Product:       gid://shopify/Product/9132168413441
+Title:         Becket - Linen Short Jacket - Dusky Violet
+ProductType:   Jacket
+Vendor:        Linen Trail
+Desc length:   3112 chars
+Desc preview:  Fabric : Premium Linen (25 LEA Pre-Shrunk) Colour : Dusky Violet Collar : Regular collar Pockets: 4 Sleeves : Full Choose our linen wear, because it’s: Antibacterial Hypoallergenic Breathable Adaptabl…
+Tags written:  12
+  gender               = male                           conf=0.97 status=PENDING_REVIEW
+  category             = jacket                         conf=0.99 status=PENDING_REVIEW
+  fit                  = relaxed                        conf=0.75 status=PENDING_REVIEW
+  color_family         = purple                         conf=0.85 status=PENDING_REVIEW
+  occasion             = casual                         conf=0.88 status=PENDING_REVIEW
+  style_type           = classic                        conf=0.78 status=PENDING_REVIEW
+  statement_piece      = statement_piece                conf=0.82 status=PENDING_REVIEW
+  material             = linen                          conf=0.99 status=PENDING_REVIEW
+  size_range           = s                              conf=0.55 status=PENDING_REVIEW
+  price_tier           = mid_range                      conf=0.72 status=PENDING_REVIEW
+  sustainability       = eco_friendly                   conf=0.93 status=PENDING_REVIEW
+  season               = all_season                     conf=0.8 status=PENDING_REVIEW
+--------------------------------------------------------------------------------

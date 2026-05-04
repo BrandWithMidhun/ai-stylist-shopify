@@ -1,0 +1,28 @@
+Vocabulary gap distribution
+Generated: 2026-05-04T11:14:27.489Z
+Mode:      FASHION
+
+Total (axis, value) pairs proposed:        760
+In-vocabulary axes:                        648  (85.3%)
+Out-of-vocabulary axes:                    112  (14.7%)
+In-vocabulary values (axis-allowed):       648  (85.3%)
+Free-form values (axis is free-form):      0  (0.0%)
+Out-of-vocabulary values (axis enum miss): 0  (0.0%)
+
+Top 10 out-of-vocabulary axes (AI proposed; not in mode vocabulary):
+  axis                         count   products  %catalog  candidate?
+  sleeve_length                   30       30    60.0%   POTENTIAL VOCABULARY EXTENSION CANDIDATE
+  pattern                         16       16    32.0%   POTENTIAL VOCABULARY EXTENSION CANDIDATE
+  collar_type                     16       16    32.0%   POTENTIAL VOCABULARY EXTENSION CANDIDATE
+  collar_style                     7        7    14.0%   POTENTIAL VOCABULARY EXTENSION CANDIDATE
+  product_type                     5        5    10.0%   minor — review
+  skin_friendliness                4        4     8.0%   minor — review
+  fabric_weight                    4        4     8.0%   minor — review
+  fabric_treatment                 4        4     8.0%   minor — review
+  pleat_style                      3        3     6.0%   minor — review
+  fabric_weave                     2        2     4.0%   minor — review
+
+Surface trigger: any axis flagged 'POTENTIAL VOCABULARY EXTENSION CANDIDATE'
+appears in >10% of products and warrants either adding to the mode's
+STARTER_AXES or treating its presence as expected gap (per PR-2.2 plan
+item 1's reasoning for the FASHION smoke vocabulary gaps).
