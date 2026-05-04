@@ -119,9 +119,39 @@ export async function applyRules(
   // ancestor) or have node scope=null. Walking ancestors needs the node row.
   const scopedRules = await filterRulesByNodeScope(rules, params.product);
 
-  // Index existing tags by axis: any value present on an axis blocks rule
-  // writes to that axis (purely-additive semantic).
+  // PR-2.2-mech.2: TWO derived sets with DIFFERENT semantics. Don't
+  // collapse them — they serve different filters.
+  //
+  // axesWithExistingValue (status-agnostic): any tag on an axis blocks
+  // RULE writes to that axis. Used at the rule-write filter inside the
+  // per-effect loop below. Preserves the "purely additive" semantic
+  // documented in the file header — rules NEVER overwrite an existing
+  // tag value, regardless of who created it or what review state it's
+  // in. Conservative by design: rules are deterministic and shouldn't
+  // race with merchant or AI decisions.
   const axesWithExistingValue = new Set(params.product.tags.map((t) => t.axis));
+
+  // axesWithStickyValue (APPROVED + REJECTED only): tags the merchant
+  // has acted on. Used at the axesStillNeeded computation at the end
+  // of this function — controls which axes the AI sees as starter-
+  // axes in its prompt. PENDING_REVIEW tags are NOT sticky here:
+  // they're replaceable AI suggestions awaiting merchant review, so
+  // a re-tag run should let the AI re-evaluate those axes.
+  //
+  // NOTE: REJECTED tags currently block the entire axis (not just
+  // the rejected (axis, value) pair). The ai-tagger has its own
+  // value-level exclusion via rejectedValuesByAxis in the prompt
+  // payload, but the axis-level block here makes that value-level
+  // guard dead code in practice. Captured as PR-2.2 operational
+  // debt; revisit when the merchant review UI lands and we have
+  // evidence about whether merchants want axis-level vs.
+  // value-level rejection semantics.
+  const axesWithStickyValue = new Set(
+    params.product.tags
+      .filter((t) => t.status === "APPROVED" || t.status === "REJECTED")
+      .map((t) => t.axis),
+  );
+
   const lockedAxes = new Set(
     params.product.tags.filter((t) => t.locked).map((t) => t.axis),
   );
@@ -205,8 +235,13 @@ export async function applyRules(
     });
   }
 
+  // PR-2.2-mech.2: AI re-evaluation gating uses axesWithStickyValue
+  // (APPROVED+REJECTED), NOT axesWithExistingValue. Letting PENDING_REVIEW
+  // axes through means the AI re-tag path produces fresh suggestions
+  // for axes where the merchant hasn't decided yet — matching the
+  // PR-2.1 design intent that PENDING_REVIEW is replaceable.
   const stillNeeded = params.axesNeeded.filter(
-    (a) => !writtenByAxis.has(a) && !axesWithExistingValue.has(a) && !lockedAxes.has(a),
+    (a) => !writtenByAxis.has(a) && !axesWithStickyValue.has(a) && !lockedAxes.has(a),
   );
 
   return { tagsWritten, axesStillNeeded: stillNeeded, matchedRuleIds };

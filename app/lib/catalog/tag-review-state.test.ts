@@ -202,7 +202,18 @@ describe("retag invariants", () => {
     expect(result[0].locked).toBe(true);
   });
 
-  it("PENDING_REVIEW tags from prior runs stay PENDING_REVIEW on regen", () => {
+  it("PENDING_REVIEW status is preserved when upsert re-suggests the same (axis, value)", () => {
+    // Scope: this asserts the in-memory upsert model preserves
+    // PENDING_REVIEW status when the AI re-suggests the SAME
+    // (axis, value) pair. It does NOT assert anything about
+    // prompt-construction filtering — that lives in rule-engine.test.ts
+    // (the axesStillNeeded filter tests for PR-2.2-mech.2). The
+    // separation matters: the rule-engine filter decides whether the
+    // AI is asked about an axis at all; this upsert model decides what
+    // happens to the row when the AI does propose. Both can be true:
+    // PENDING_REVIEW is non-sticky for prompt construction (AI gets
+    // re-asked) AND PENDING_REVIEW preserves on upsert when the
+    // existing row matches the new suggestion exactly.
     const existing: TagRow[] = [
       { axis: "color_family", value: "blue", source: "AI", status: "PENDING_REVIEW", locked: false },
     ];
