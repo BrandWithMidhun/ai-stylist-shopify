@@ -71,12 +71,32 @@ export type CandidateProduct = {
   // runs. When tags is undefined, Stage 3 re-rankers gracefully return 0
   // for that candidate (no boost, no crash).
   tags?: Array<{ axis: string; value: string; status: string }>;
+  // mech.5 addition: per-candidate sales velocity over a rolling 30-day
+  // window. The Product.salesVelocity30d column does NOT exist in 3.1;
+  // 3.2 adds it + a Stage 1 SQL update to load it. Stage 4 reads
+  // candidate.salesVelocity30d ?? 0 — graceful no-data fallback.
+  salesVelocity30d?: number;
   // Stage-specific augmentations attach here as the pipeline progresses.
   similarityDistance?: number; // mech.3
   rerankBoosts?: Record<string, number>; // mech.4
   merchantSignals?: { promoted?: number; velocity?: number }; // mech.5
   finalScore?: number;
   diversityPenalty?: number;
+  // mech.5 additions:
+  // - flaggedOos: structurally present in 3.1 but always undefined.
+  //   Stage 1's EXISTS pre-filter handles steady-state OOS; the
+  //   mid-pipeline-flip case (variant availability changes between
+  //   Stage 1 and Stage 5) is unaddressed in 3.1 and recorded as
+  //   operational debt at 3.1 close. mech.6 orchestrator may add a
+  //   fresh availableForSale check on the surviving top-N candidates
+  //   before Stage 5 runs; if implemented there, Stage 5 stays as-is.
+  flaggedOos?: boolean;
+  // - whyTrace: deterministic 1-2 sentence string Stage 6 generates from
+  //   candidate.rerankBoosts + merchantSignals + similarityDistance.
+  //   NOT an LLM call — fast and predictable. The agent's chat response
+  //   paraphrases this in natural language; the structured trace lives
+  //   on RecommendationEvent for audit.
+  whyTrace?: string;
 };
 
 // PR-3.1-mech.4: customer profile snapshot for Stage 3 re-rankers.
@@ -127,8 +147,43 @@ export type Trace = {
   totalMs: number;
 };
 
+// mech.5 addition: ProductCard mirrors the legacy formatProductCard
+// shape from app/lib/chat/tools/recommend-products.server.ts (the field
+// set the agent and storefront widget already render against). v2's
+// flip commit (post-eval-pass) swaps the agent's recommend_products
+// tool registration; the wire format on the agent side does not change.
+//
+// traceContributions is a v2-specific addition that the agent doesn't
+// read but RecommendationEvent.candidates persists for audit. Each
+// entry records one stage's contribution magnitude for this candidate.
+// `ms` is optional because mech.5 builds traceContributions from
+// per-candidate fields without per-stage timing context — the
+// orchestrator (mech.6) can populate ms from StageOutput.contribution
+// when it stitches the full trace.
+export type ProductCard = {
+  id: string;
+  handle: string;
+  title: string;
+  imageUrl: string | null;
+  price: number;
+  compareAtPrice: number | null;
+  currency: string;
+  variantId: string | null;
+  available: boolean;
+  tags: string[]; // formatted as "axis:value" — same shape as legacy
+  productUrl: string;
+  // v2-only telemetry. Out of band from the agent's render path.
+  traceContributions?: Array<{
+    stage: string;
+    contribution: number;
+    ms?: number;
+  }>;
+  whyTrace?: string;
+  finalScore?: number;
+};
+
 export type PipelineOutput = {
-  products: CandidateProduct[];
+  products: ProductCard[];
   trace: Trace;
   topDistance: number | null;
   totalMs: number;
