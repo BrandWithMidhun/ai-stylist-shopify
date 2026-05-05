@@ -163,3 +163,55 @@ export async function findSimilarProducts(args: {
     };
   });
 }
+
+// PR-3.1-mech.3: sibling helper for the v2 pipeline's Stage 2 semantic
+// retrieval. Same pgvector cosine pattern as findSimilarProducts but
+// scoped to a pre-narrowed candidate ID set (Stage 1 already enforced
+// shopDomain / status / deletedAt / recommendationExcluded / embedding-
+// not-null / available-variant-EXISTS, so this helper does not).
+//
+// Returns slim {id, distance}[] only — Stage 2's module joins distances
+// back to the CandidateProduct[] from Stage 1. Keeps this helper
+// general-purpose and not coupled to v2's specific candidate shape.
+//
+// Empty candidateIds short-circuits to [] without a DB roundtrip —
+// `id = ANY('{}')` would match nothing but still costs a query.
+//
+// Distance metric: cosine via the `<=>` operator (matches the
+// Product_embedding_cosine_idx IVFFlat index built with
+// vector_cosine_ops). Smaller distance = more similar.
+//
+// Why $queryRawUnsafe instead of Prisma.sql tagged-template here: the
+// SQL has no conditional clauses (no Prisma.empty / Prisma.join glue
+// needed) and the positional-parameter shape matches the v2 stage
+// modules' established convention (mech.2 stage-1-hard-filters.server.ts
+// uses the same approach). Query is fully positional with typed inputs;
+// no untrusted data lands in the SQL string.
+export async function findSimilarProductsAmongCandidates(
+  queryVector: number[],
+  candidateIds: string[],
+  limit: number,
+): Promise<Array<{ id: string; distance: number }>> {
+  if (candidateIds.length === 0) return [];
+
+  // Same `[v1,v2,...]` literal shape embed-products.server.ts writes
+  // on the index path. Postgres parses it into a `vector` value via
+  // the ::vector cast.
+  const vectorLiteral = `[${queryVector.join(",")}]`;
+
+  const sql = `SELECT p.id, p."embedding" <=> $1::vector AS distance
+FROM "Product" p
+WHERE p.id = ANY($2::text[])
+ORDER BY p."embedding" <=> $1::vector
+LIMIT $3`;
+
+  type Row = { id: string; distance: number };
+  const rows = await prisma.$queryRawUnsafe<Row[]>(
+    sql,
+    vectorLiteral,
+    candidateIds,
+    limit,
+  );
+
+  return rows.map((r) => ({ id: r.id, distance: Number(r.distance) }));
+}
