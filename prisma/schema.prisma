@@ -167,6 +167,13 @@ model Product {
   syncedAt               DateTime                     @default(now())
   deletedAt              DateTime?
   recommendationExcluded Boolean                      @default(false)
+  // Phase 3 (3.1) Stage 4 input: merchant-flagged "boost in recommendations".
+  // Sibling to recommendationExcluded. Stage 4 reads it on the candidate set
+  // already narrowed by Stages 1+2 (~30-100 products) — no shop-wide scan,
+  // so no index needed in 3.1. Phase 4 portal AI Agents config UI surfaces
+  // this for merchant edit; an index can land if/when a "list my promoted
+  // products" admin query needs it.
+  recommendationPromoted Boolean                      @default(false)
   taxonomyNodeId         String?
   embedding              Unsupported("vector(1024)")?
   embeddingUpdatedAt     DateTime?
@@ -623,9 +630,10 @@ model CustomerProfile {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
 
-  attributes CustomerProfileAttribute[]
-  sessions   CustomerSession[]
-  events     CustomerEvent[]
+  attributes           CustomerProfileAttribute[]
+  sessions             CustomerSession[]
+  events               CustomerEvent[]
+  recommendationEvents RecommendationEvent[]
 
   // shopifyCustomerId is nullable for anonymous-originated profiles per
   // brief §5 (e.g. lookbook download or substantive quiz before any
@@ -684,8 +692,9 @@ model CustomerSession {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  profile CustomerProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
-  events  CustomerEvent[]
+  profile              CustomerProfile?      @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  events               CustomerEvent[]
+  recommendationEvents RecommendationEvent[]
 
   @@unique([shopDomain, cookieSessionId])
   @@index([profileId])
@@ -771,10 +780,23 @@ model CustomerEvent {
 //     MANUAL_RETAG rows at the DB layer.
 //   - (shopDomain) WHERE kind='INITIAL_BACKFILL' AND status IN
 //     ('QUEUED','RUNNING') — at most one backfill per shop in flight.
+// PR-3.1-mech.1: RE_EMBED added so the existing TaggingJob queue (cost
+// ledger, heartbeat, dedup, error class taxonomy, partial unique
+// indexes) doubles as the embedding queue. The `Tagging` name is now a
+// misnomer — the queue is in fact the LLM/AI cost ledger covering both
+// Anthropic tagging calls and Voyage embedding calls. Renaming is
+// future cleanup, NOT 3.1 scope; HANDOFF records the naming debt.
+//
+// RE_EMBED rows: productId always set; cost ledger holds Voyage cost
+// (priced from voyage-cost.server.ts in mech.6). Skip predicate
+// (knowledgeContentHash matches embeddingContentHash) is checked at
+// enqueue site AND at claim time (defense in depth) — never re-embeds
+// a product whose content hasn't changed.
 enum TaggingJobKind {
   SINGLE_PRODUCT
   INITIAL_BACKFILL
   MANUAL_RETAG
+  RE_EMBED
 }
 
 enum TaggingJobStatus {
@@ -828,4 +850,149 @@ model TaggingJob {
   @@index([shopDomain, kind, status])
   @@index([heartbeatAt])
   @@index([shopDomain, productId])
+}
+
+// PR-3.1-mech.1: RecommendationEvent — every recommend_products v2 tool
+// call writes a row. Schema lands now; writes happen in mech.6 when the
+// orchestrator runs end-to-end. 3.2 reads these rows to match orders
+// against recent recommendations for AI revenue attribution (brief §7).
+//
+// `intent` carries the rich query string the agent passed in (matches
+// PipelineInput.intent — one name for the concept everywhere).
+//
+// `traceVersion` is a real column (not just a key inside trace JSON) so
+// future schema-evolution audits can slice by version cheaply. Initial
+// value "3.1.0"; 3.2 / 3.3 increment as needed.
+//
+// `topDistance` mirrors the value the legacy tool already logs at
+// app/lib/chat/tools/recommend-products.server.ts so production-vs-v2
+// comparisons during the flip-commit eval stay apples-to-apples.
+//
+// FKs use SetNull so analytics rows survive profile/session deletion
+// (GDPR redact path).
+model RecommendationEvent {
+  id             String   @id @default(cuid())
+  shopDomain     String
+  profileId      String?
+  sessionId      String?
+  conversationId String?
+  messageId      String?
+  candidates     Json
+  trace          Json
+  traceVersion   String
+  intent         String   @db.Text
+  topDistance    Float?
+  latencyMs      Int
+  createdAt      DateTime @default(now())
+
+  profile CustomerProfile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+  session CustomerSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([shopDomain, profileId, createdAt])
+  @@index([shopDomain, sessionId, createdAt])
+  @@index([shopDomain, traceVersion, createdAt])
+  @@index([shopDomain, createdAt])
+}
+
+// PR-3.1-mech.1: eval harness schema. Distinct from any future
+// EvalFixture (tag-quality eval, deferred until Phase 4 portal review
+// UI calls for it) — `EvalQuery` evaluates the *pipeline* (does
+// "show me daily wear shirts" return shirts with style=daily?), not
+// tag generation quality (Phase 2's job).
+//
+// `kind` on EvalRun is "PIPELINE" today; future "TAG_QUALITY" can
+// coexist via the same EvalRun + EvalResult tables — additive only.
+enum EvalQueryMode {
+  FASHION
+  ELECTRONICS
+  FURNITURE
+  BEAUTY
+  JEWELLERY
+  GENERAL
+}
+
+model EvalQuery {
+  id                 String        @id @default(cuid())
+  shopDomain         String
+  // Stable identity across runs. Fixture JSON file's `fixtureKey`
+  // matches this column; sync script upserts on (shopDomain, fixtureKey).
+  fixtureKey         String
+  mode               EvalQueryMode
+  intent             String        @db.Text
+  // Mode-aware. Optional: empty array means relaxed-match-only scoring
+  // against expectedTagFilters (the default state for stub fixtures
+  // shipped in mech.1; Midhun fills handles in via Prisma Studio
+  // inspection before mech.6 baseline run).
+  expectedHandles    String[]
+  // {axis: [allowed values...]} — relaxed match: a top-K product
+  // satisfies the filter if its APPROVED tags include at least one
+  // value from the allowed list for every axis present.
+  expectedTagFilters Json
+  k                  Int           @default(6)
+  notes              String?       @db.Text
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  results EvalResult[]
+
+  @@unique([shopDomain, fixtureKey])
+  @@index([shopDomain, mode])
+}
+
+model EvalRun {
+  id              String   @id @default(cuid())
+  shopDomain      String
+  // "PIPELINE" in 3.1; "TAG_QUALITY" reserved for future use.
+  kind            String
+  // Matches RecommendationEvent.traceVersion semantics. Empty-baseline
+  // run uses "3.1.0-empty" (NoOpPipelineRunner; no stages exist yet).
+  // Real pipeline runs use "3.1.0" once mech.6 wires the orchestrator.
+  pipelineVersion String
+  totalQueries    Int
+  passCount       Int
+  partialCount    Int
+  failCount       Int
+  aggregateScore  Float
+  durationMs      Int
+  // "CLI" | "INTEGRATION_TEST" | future "CRON".
+  triggeredBy     String
+  // Captured from process.env.RAILWAY_GIT_COMMIT_SHA when present.
+  gitSha          String?
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+
+  results EvalResult[]
+
+  @@index([shopDomain, kind, createdAt])
+  @@index([shopDomain, pipelineVersion, createdAt])
+}
+
+model EvalResult {
+  id                    String   @id @default(cuid())
+  runId                 String
+  queryId               String
+  // "PASS" | "PARTIAL" | "FAIL". Computed from `score` via
+  // classifyStatus in app/lib/recommendations/v2/eval/scoring.ts.
+  status                String
+  score                 Float
+  precisionAtK          Float
+  relaxedMatchAtK       Float
+  // What the pipeline actually returned, ordered. Empty for empty-
+  // baseline runs (NoOpPipelineRunner returns no products).
+  topKHandles           String[]
+  // Tags of the top-K, for diff inspection. Shape:
+  //   [{ handle, tags: [{ axis, value }, ...] }, ...]
+  topKTagsJson          Json
+  pipelineLatencyMs     Int
+  // Optional FK lookup back to RecommendationEvent for full trace
+  // inspection. Not enforced as a DB-level FK so eval can run before
+  // mech.6 lands the RecommendationEvent write path.
+  recommendationEventId String?
+  createdAt             DateTime @default(now())
+
+  run   EvalRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  query EvalQuery @relation(fields: [queryId], references: [id], onDelete: Cascade)
+
+  @@index([runId])
+  @@index([queryId, createdAt])
 }

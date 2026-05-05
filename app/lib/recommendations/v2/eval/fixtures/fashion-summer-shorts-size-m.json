@@ -1,0 +1,13 @@
+{
+  "fixtureKey": "fashion-summer-shorts-size-m",
+  "mode": "FASHION",
+  "intent": "summer shorts in size M",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["shorts"],
+    "season": ["summer", "all_season"],
+    "size_range": ["m"]
+  },
+  "k": 6,
+  "notes": "Specific-attribute query stressing season + size_range axes (added in PR-2.2-mech.1 and pre-existing respectively). all_season accepted alongside summer because India-context summer-versus-all-season is fluid."
+}

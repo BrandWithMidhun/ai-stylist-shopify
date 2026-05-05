@@ -1,0 +1,13 @@
+{
+  "fixtureKey": "fashion-casual-office-shirts",
+  "mode": "FASHION",
+  "intent": "casual office shirts",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["shirt"],
+    "occasion": ["work", "casual"],
+    "style_type": ["minimal", "classic", "relaxed"]
+  },
+  "k": 6,
+  "notes": "Vibe-meets-specific query. The 'casual office' intent is two-axis: occasion in {work, casual} (intersection lets either match) and a relaxed-but-not-festive style. Pinstripe shirts and embroidered ethnic shirts should both rank below plain minimal/classic shirts."
+}

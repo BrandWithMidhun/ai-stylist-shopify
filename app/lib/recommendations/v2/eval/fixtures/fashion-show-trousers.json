@@ -1,0 +1,11 @@
+{
+  "fixtureKey": "fashion-show-trousers",
+  "mode": "FASHION",
+  "intent": "what trousers do you have",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["pants"]
+  },
+  "k": 6,
+  "notes": "Explicit category query with synonym mapping. The FASHION category vocabulary uses 'pants', not 'trousers' — Stage 3 query extraction must normalise the synonym so Stage 1 hard-filters on category=pants. If trousers reaches Stage 1 raw, this fixture fails."
+}

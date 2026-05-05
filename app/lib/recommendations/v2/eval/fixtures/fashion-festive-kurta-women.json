@@ -1,0 +1,13 @@
+{
+  "fixtureKey": "fashion-festive-kurta-women",
+  "mode": "FASHION",
+  "intent": "festive kurta for women",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["kurta"],
+    "occasion": ["festive"],
+    "gender": ["female"]
+  },
+  "k": 6,
+  "notes": "Specific-attribute query covering all three FASHION hard-filter axes (gender + category) plus occasion. Hard-filter discipline gates whether top-K can include male/unisex kurtas at all."
+}

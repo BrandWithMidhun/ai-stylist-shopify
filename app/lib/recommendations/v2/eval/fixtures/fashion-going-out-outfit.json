@@ -1,0 +1,12 @@
+{
+  "fixtureKey": "fashion-going-out-outfit",
+  "mode": "FASHION",
+  "intent": "going out outfit for evening",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "occasion": ["event", "festive", "casual"],
+    "style_type": ["bold", "preppy", "streetwear", "classic"]
+  },
+  "k": 6,
+  "notes": "Vibe query — evening-out is broad. Accept any of bold/preppy/streetwear/classic (not minimal/relaxed/athleisure) because 'evening' implies a step up from everyday-casual. This fixture is the dual of fashion-minimalist-daily-wear."
+}

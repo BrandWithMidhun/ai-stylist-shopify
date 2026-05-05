@@ -1,0 +1,13 @@
+{
+  "fixtureKey": "fashion-linen-shirts-white",
+  "mode": "FASHION",
+  "intent": "show me white linen shirts",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["shirt"],
+    "color_family": ["white", "beige"],
+    "material": ["linen"]
+  },
+  "k": 6,
+  "notes": "Specific-attribute query covering category + color + material axes simultaneously. expectedHandles intentionally empty in mech.1; Midhun fills in via Prisma Studio inspection of the dev catalog before mech.6 baseline run. Until then, scoring falls back to relaxed-match-only against expectedTagFilters."
+}

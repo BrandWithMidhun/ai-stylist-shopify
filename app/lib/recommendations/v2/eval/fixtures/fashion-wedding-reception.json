@@ -1,0 +1,11 @@
+{
+  "fixtureKey": "fashion-wedding-reception",
+  "mode": "FASHION",
+  "intent": "something for a wedding reception",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "occasion": ["festive", "event", "formal"]
+  },
+  "k": 6,
+  "notes": "Vibe query with no category constraint — wedding-reception outfits span kurtas, sarees, lehengas, suits, dresses. The eval scores on occasion satisfaction alone; category diversity is checked indirectly via Stage 5 diversity rules."
+}

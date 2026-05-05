@@ -1,0 +1,12 @@
+{
+  "fixtureKey": "fashion-oos-stress-2",
+  "mode": "FASHION",
+  "intent": "festive saree for an evening event",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["saree"],
+    "occasion": ["festive", "event"]
+  },
+  "k": 6,
+  "notes": "OOS-stress fixture variant. Same mechanic as fashion-oos-stress-1 but on the saree category. The fashion vocabulary's saree value comes from PR-2.2's FASHION axis baseline. Pairs with fashion-festive-kurta-women so we test OOS handling on both ethnic and Western categories."
+}

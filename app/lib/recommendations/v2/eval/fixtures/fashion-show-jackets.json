@@ -1,0 +1,11 @@
+{
+  "fixtureKey": "fashion-show-jackets",
+  "mode": "FASHION",
+  "intent": "show me jackets",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["jacket"]
+  },
+  "k": 6,
+  "notes": "Explicit category query. The simplest possible Stage 1 hard-filter test: every top-K product must have category=jacket. If even one shirt or kurta sneaks in, the hard-filter dispatch is broken."
+}

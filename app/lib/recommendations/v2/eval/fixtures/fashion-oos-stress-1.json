@@ -1,0 +1,13 @@
+{
+  "fixtureKey": "fashion-oos-stress-1",
+  "mode": "FASHION",
+  "intent": "white linen shirt for daily wear",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["shirt"],
+    "color_family": ["white", "beige"],
+    "material": ["linen"]
+  },
+  "k": 6,
+  "notes": "OOS-stress fixture. HANDOFF Phase 3 acceptance line 334 — Stage 5 must substitute an available alternative when the top-1 candidate has zero available variants. Setup for the test: Midhun marks one specific white-linen-shirt product as availableForSale=false on its only variant before running mech.6 baseline. The fixture passes when an alternative shirt fills the slot AND no OOS product appears in the top-K."
+}

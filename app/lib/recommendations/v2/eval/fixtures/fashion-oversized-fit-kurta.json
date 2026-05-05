@@ -1,0 +1,12 @@
+{
+  "fixtureKey": "fashion-oversized-fit-kurta",
+  "mode": "FASHION",
+  "intent": "oversized fit kurta",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["kurta"],
+    "fit": ["oversized", "relaxed"]
+  },
+  "k": 6,
+  "notes": "Specific-attribute query stressing the fit axis. relaxed accepted as a near-match for oversized — both should make the top-K when the user asks for an oversized vibe."
+}

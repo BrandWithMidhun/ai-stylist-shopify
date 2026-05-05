@@ -1,0 +1,12 @@
+{
+  "fixtureKey": "fashion-minimalist-daily-wear",
+  "mode": "FASHION",
+  "intent": "minimalist daily wear",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "style_type": ["minimal", "classic", "relaxed"],
+    "occasion": ["casual", "work"]
+  },
+  "k": 6,
+  "notes": "Vibe query, semantic-heavy. HANDOFF Phase 3 acceptance line 333 — top-K must skew minimal/classic/relaxed and casual/work; should NOT be dominated by festive/bold/ethnic kurtas (the v0.2 misfire example for 'show me daily wear shirts'). Stage 3 FASHION re-rankers (mech.4) are the work that lifts this fixture from FAIL to PASS."
+}

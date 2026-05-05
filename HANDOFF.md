@@ -1,6 +1,6 @@
 # HANDOFF — AI Stylist Shopify App
 
-**Last updated:** 2026-05-04, after PR-2.3 closure (Phase 2 sub-PR 3 of 3 shipped as re-scoping commit). **Phase 1 CLOSED. Phase 2 CLOSED.**
+**Last updated:** 2026-05-05, after PR-3.1-mech.1 (schema migration + eval harness scaffolding + 12 fixture stubs). **Phase 1 CLOSED. Phase 2 CLOSED. Phase 3 IN PROGRESS — sub-bundle 3.1 mech.1 of 6 mech commits shipped; mech.2 (HARD_FILTER_AXES + Stage 1) is next.**
 **Supersedes:** Previous HANDOFF.
 **North star:** `docs/recommendation-engine-brief.md` v0.3 (commit `22e849c`).
 **Scope:** `docs/scope-decisions.md` (commit `616fe70`).
@@ -306,7 +306,9 @@ Below cut #5 the plan is unrealistic without cutting features themselves.
 
 ---
 
-## Phase 3 — Pipeline rewrite + reviews + order ingest + AI attribution
+## Phase 3 — Pipeline rewrite + reviews + order ingest + AI attribution ▶ IN PROGRESS
+
+**State:** Sub-bundle 3.1 (Pipeline core + eval harness + conditional re-embed) opened 2026-05-05. mech.1 (schema migration + eval harness scaffolding + 12 fixture stubs) shipped this commit. Five more mech commits follow (HARD_FILTER_AXES + Stage 1 → Stage 2 → Stage 3 → Stages 4/5/6 → v2 tool wired but unregistered + integration test + eval baseline) before 3.1 closes. The flip commit that swaps the agent's `recommend_products` registration to the v2 pipeline is post-eval-pass and is NOT part of 3.1.
 
 **Goal:** Six-stage pipeline live (brief §4). Reviews ingested into knowledge record. Orders ingested for sales velocity + attribution. AI revenue attribution rows write on every recommendation event and reconcile on every order. FASHION mode end-to-end verified.
 
@@ -324,7 +326,7 @@ Below cut #5 the plan is unrealistic without cutting features themselves.
 **Inputs needed:** Re-embed cadence decision. Review provider choice. Attribution window default.
 
 **Bundling:** Three internal sub-bundles.
-- 3.1: Pipeline stages 1-6 + re-embed
+- 3.1: Pipeline stages 1-6 + eval harness + conditional re-embed
 - 3.2: Review provider + order ingest + sales velocity
 - 3.3: Attribution writes + reconciliation + audit trail
 
@@ -334,6 +336,72 @@ Below cut #5 the plan is unrealistic without cutting features themselves.
 - OOS handling: high-relevance OOS product flagged, near-substitute shown — not "may have sold out" hand-wavy reply
 - Reviews-derived signal verifiable: a product with mostly-positive reviews + good fit feedback ranks above an equivalent product with bad reviews
 - Attribution: place a test order in dev store after a chat session that recommended a product → verify `AttributionEvent` row exists with full trace → click trace → see exactly which `recommend_products` call led to it
+
+### Sub-bundle 3.1 — Pipeline core + eval harness + conditional re-embed ▶ IN PROGRESS
+
+**Locked decisions (planning round, 2026-05-05):**
+- Re-embed cadence: conditional re-embed in 3.1 via new `TaggingJobKind=RE_EMBED` (skip predicate `embeddingContentHash IS NOT NULL AND embeddingContentHash = knowledgeContentHash`); one-time bulk pass for the dev shop's NULL-hash rows in 3.1.5 (separate execution prompt).
+- NO blog scraping / brand voice ingestion in Phase 3 (deferred to Phase 8).
+- Latency budget: 8s p95 / 5s p50 end-to-end on dev shop. Enforced at flip-commit gate.
+- Hard-filter axes hardcoded in `app/lib/catalog/store-axes.ts` as `HARD_FILTER_AXES` (mech.2). Default FASHION = ["gender", "category"]; other modes = []. Phase 4 portal AI Agents config UI surfaces editable values.
+- Feature-flag pattern: structural, not env-var. v2 pipeline built but the agent's tool registry continues to call the OLD `recommend_products` for the entirety of 3.1. A separate post-eval-pass commit performs the one-line registry flip.
+- Eval harness ships FIRST (mech.1). Without measurable quality, every Phase 5+ pipeline change ships against vibes.
+- Stage numbering: v0.3 brief numbering. Stage 0 (query extraction, the pre-step) is named explicitly in trace.stages so audits stay honest; Stages 1-6 match the brief.
+- Stage 5 quotas are SOFT with fallback. First pass applies quotas; if output count < N, second pass fills remaining slots from rejected candidates preserving relevance order; trace records `diversityQuotaFallback: true` when fallback fires.
+- Eval threshold IS the mech.6 baseline. Lowering post-baseline requires a HANDOFF amendment with rationale; raising is fine without ceremony.
+
+**Surface conditions (locked at planning round close):**
+- C1. Chat tools live at `app/lib/chat/tools/` (registry: `registry.server.ts:11-15`; flip commit changes that import only). NOT `app/lib/agent/`.
+- C2. Stage 2 reuses `app/lib/embeddings/similarity-search.server.ts` via a new sibling function `findSimilarProductsAmongCandidates` (added in mech.3, not mech.1).
+- C3. `TaggingJob` is also the embedding queue. Naming debt recorded; do NOT rename in 3.1.
+- C4. Dev catalog is **2,632 products** (not 1,169 — that was the production-live filtered count pre-PR-B). PR-B shipped 2,632 fully-ingested products. Subtlety: `recommend_products` operates on the buyable subset (status=ACTIVE, recommendationExcluded=false, at least one variant availableForSale=true), but Drafts can flip to Active mid-session, so embeddings cover all 2,632 rows. 3.1.5's bulk re-embed pass projects against 2,632, not 1,169.
+- C5. Pre-existing typecheck error at `app/routes/app.config.tsx:280` stays as documented baseline (1 pre / 1 post). Tracked separately at "Key operational debt".
+
+#### PR-3.1-mech.1 — Schema migration + eval harness scaffolding ✓ SHIPPED
+
+**Shipped:** This commit. First internal commit of sub-bundle 3.1.
+
+**Schema additions (single migration `20260505100000_phase_3_1_pipeline_schema/migration.sql`, hand-authored, IVFFlat-stripped per HANDOFF:719):**
+- `ALTER TYPE "TaggingJobKind" ADD VALUE 'RE_EMBED'`. The TaggingJob queue now doubles as the embedding queue (cost ledger, heartbeat, dedup, error class taxonomy all match Voyage work shape exactly). Worker handler that processes RE_EMBED rows lands in mech.6.
+- `Product.recommendationPromoted` Boolean, default false. Sibling to `recommendationExcluded`. Stage 4 of v2 pipeline reads it. No index in 3.1 — Stage 4 reads on Stages 1+2 narrowed candidate set (~30-100 products).
+- `EvalQueryMode` enum (mirrors StoreMode values; kept separate so EvalQuery's mode can diverge from merchant `storeMode` without coupling).
+- `RecommendationEvent` table (write-only in 3.1; reads in 3.2 for AI revenue attribution per brief §7). `traceVersion` is a real top-level column for cheap slice queries; `intent` matches `PipelineInput.intent` field name (one name for the concept everywhere).
+- `EvalQuery` + `EvalRun` + `EvalResult` tables. `EvalRun.kind` discriminates "PIPELINE" today; future "TAG_QUALITY" eval (deferred until Phase 4 portal review UI calls for it) lands additively. `EvalFixture` table NOT shipped in 3.1 — pipeline-quality eval is the 3.1 work.
+- Reverse relations on `CustomerProfile` + `CustomerSession` to `RecommendationEvent[]`.
+
+**Eval harness scaffolding shipped:**
+- `app/lib/recommendations/v2/eval/scoring.ts` — pure scoring primitives: `precisionAtK`, `relaxedMatchAtK`, `combinedScore` (0.7 × relaxed + 0.3 × precision when expectedHandles populated; relaxed-only otherwise), `classifyStatus` (PASS ≥ 0.75 / PARTIAL ≥ 0.50 / FAIL otherwise). 5 unit tests in `scoring.test.ts` cover the metric edges per plan §10.
+- `app/lib/recommendations/v2/eval/runner.server.ts` — `PipelineRunner` interface + `NoOpPipelineRunner` (returns empty top-K — the empty-baseline driver). `runFixtureAgainstPipeline(fixture, runner)` wraps a single run with try/catch; errors surface as FAIL with `errorMessage` rather than aborting an aggregate run.
+- `app/lib/recommendations/v2/eval/cli.ts` — `runEval` library function that loads EvalQuery rows, runs the PipelineRunner against each, and persists exactly one EvalRun + N EvalResult rows in a single `$transaction`.
+- `scripts/run-eval.ts` — CLI dispatcher (`--all` / `--fixture=<key>` / `--shop=<domain>`). Default shop `ai-fashion-store.myshopify.com`. Exit 0 on harness completion (mech.1 does NOT enforce a quality gate; mech.6 will).
+- `scripts/eval-fixtures-sync.ts` — idempotent upsert of `app/lib/recommendations/v2/eval/fixtures/*.json` into `EvalQuery` keyed by `(shopDomain, fixtureKey)`. Removed-from-disk fixtures are NOT auto-deleted.
+- `scripts/report-pipeline-3-1.ts` — stub one-section reporter for the most recent EvalRun. Fully-fleshed in mech.6.
+
+**12 fixture stubs in `app/lib/recommendations/v2/eval/fixtures/`:**
+- 4 specific-attribute: linen-shirts-white, oversized-fit-kurta, festive-kurta-women, summer-shorts-size-m
+- 4 vibe: minimalist-daily-wear (HANDOFF acceptance line 333), wedding-reception, casual-office-shirts, going-out-outfit
+- 2 explicit category: show-jackets, show-trousers (synonym test: "trousers" → category=pants)
+- 2 OOS-stress: oos-stress-1 (HANDOFF acceptance line 334), oos-stress-2
+
+All 12 fixtures land with `expectedTagFilters` populated (derived from FASHION axis vocabulary in `axis-options.ts`) and `expectedHandles` empty. Midhun fills handles in via Prisma Studio inspection of the dev catalog before mech.6's baseline run; until then scoring falls back to relaxed-match-only.
+
+**Verification:**
+- `npm run lint`: clean.
+- `npm run typecheck`: 1 error (pre-existing baseline at `app/routes/app.config.tsx:280` — same as PR-2.1 / PR-2.2 baseline).
+- `npm run build`: clean. 146 SSR modules transformed; client bundles built; 0 errors.
+- `npm test`: 200/200 pass (195 pre-mech.1 + 5 new scoring tests = 200). All 17 test files green.
+- `npx prisma validate`: schema valid.
+- `npx prisma migrate diff --from-empty --to-schema-datamodel`: 790 lines of generated SQL include all four new tables (`RecommendationEvent`, `EvalQuery`, `EvalRun`, `EvalResult`), the `RE_EMBED` enum addition, the `recommendationPromoted` column, and the `EvalQueryMode` enum. IVFFlat `Product_embedding_cosine_idx` is absent from the generated SQL (Prisma DSL doesn't model it) — confirms the documented known-exception will surface on any future from-DB diff and must be stripped from migration SQL hand-author passes.
+
+**What's deferred to mech.2-6 inside this sub-bundle:**
+- mech.2: HARD_FILTER_AXES constant in `store-axes.ts` (alongside `STARTER_AXES`) + Stage 1 hard-filters module.
+- mech.3: Stage 2 (semantic retrieval against Stage 1 narrowed candidate set) + `findSimilarProductsAmongCandidates` sibling in `similarity-search.server.ts`.
+- mech.4: Stage 3 query extraction (heuristic, not LLM call — latency budget) + FASHION re-rankers (occasion / fit / color / body-type).
+- mech.5: Stage 4 (NULL-safe sales velocity handling — 3.2 lands real data) + Stage 5 (greedy MMR diversity + soft-quota fallback + OOS substitution) + Stage 6 (output shape + whyTrace template).
+- mech.6: v2 tool (`recommendProductsV2Tool`, NOT registered in agent path) + pipeline orchestrator + RE_EMBED worker handler + `voyage-cost.server.ts` + integration test + eval baseline run.
+- 3.1 close: closure-evidence artifacts (`.pr-3-1-artifacts/`).
+
+**Empty-baseline run gating (post-deploy):** `npx tsx scripts/eval-fixtures-sync.ts` then `npx tsx scripts/run-eval.ts --all` against the Railway-deployed schema is the verification that the harness plumbing works end-to-end. Expected output: 1 EvalRun row (kind="PIPELINE", pipelineVersion="3.1.0-empty", aggregateScore=0.0, passCount=0, partialCount=0, failCount=12) + 12 EvalResult rows all status=FAIL score=0 topKHandles=[]. This run requires Railway deploy to apply the migration first; runs after push.
 
 ---
 
@@ -725,6 +793,9 @@ The system is multi-mode by design (FASHION/ELECTRONICS/FURNITURE/BEAUTY/GENERAL
 - **Surface architecture drift in PR-2.2 close planning.** The original close prompt placed the tagging review UI in the embed app instead of the portal. Caught before the wrong scope shipped to canonical HANDOFF. Re-anchored before commit. HANDOFF now carries an explicit Surface Architecture subsection at the top of "State of the codebase" to prevent recurrence in future planning rounds: embed app for onboarding only, portal for substantive merchant-facing UI (stood up in Phase 4), storefront for buyer-facing.
 - **Multi-mode vocabulary asymmetry.** FASHION has 16 axes calibrated against n=50 real-catalog evidence (PR-2.2-mech.1 and PR-2.2-mech.4 grounded in dev-shop tagging output). ELECTRONICS, FURNITURE, BEAUTY, and GENERAL have seed vocabulary only — never calibrated against real merchant data because no test catalog exists for those modes. The architecture supports multi-mode (`STARTER_AXES`, `AXIS_OPTIONS`, prompt construction, and reporter classifier are all mode-aware), but the AI's prompt for non-FASHION modes will have lighter axis coverage and may propose more out-of-vocabulary axes during initial tagging. **Resolution:** calibrate non-FASHION vocabularies in Phase 5 (per-mode re-ranker work) using the same evidence-driven loop PR-2.2 used for FASHION, OR earlier if a non-FASHION merchant onboards before Phase 5. Phase 3 (pipeline rewrite) operates on FASHION-only because that's the dev catalog; the pipeline architecture itself is mode-agnostic and ports to other modes when calibration data arrives.
 - ~~**Boot-event observability gap in `worker-tagging.ts:startTaggingLoop`.**~~ **RESOLVED at `ca4d4cd` (2026-05-03).** On a clean post-deploy state with zero TaggingJob rows, the tagging loop emitted no log line during boot because the existing `tagging boot sweep complete` event was conditional on `swept.resumedJobIds.length > 0`. Identified during PR-2.1 smoke pre-flight (CHECK 2). Fix added a single unconditional `log.info("tagging loop starting", { event: "tagging_loop_started", pollIntervalMs: ... })` call at the entry of `startTaggingLoop`. Verified post-deploy at 2026-05-03T09:49:14.090Z.
+- **TaggingJob is also the embedding queue (PR-3.1-mech.1, naming debt).** PR-3.1-mech.1 added `RE_EMBED` to `TaggingJobKind` so the existing TaggingJob queue (cost ledger via `costUsdMicros: BigInt`, heartbeat, dedup partial unique indexes, error class taxonomy, `triggerSource` free-string) doubles as the embedding queue. The model name is now a misnomer relative to its data shape — it covers both Anthropic tagging calls and Voyage embedding calls. Renaming to e.g. `LLMJob` / `AIJob` is a future cleanup (Phase 5+ when other-mode re-rankers ship), NOT 3.1 scope. The structural reuse is correct: the cost-priced LLM-style API queue shape fits both Voyage and Anthropic exactly. Documenting here so future contributors don't add a parallel `EmbeddingJob` model — extend `TaggingJob`'s kind enum instead.
+- **Dev catalog count clarification (PR-3.1-mech.1).** Pre-PR-B references in older HANDOFF notes ("1,169 dev-store products") were the production-live filtered count, not the total. PR-B's INITIAL backfill processed **2,632 products / 2,632 / 0 failures / 1m 46s** (HANDOFF:120), and that's the authoritative count. Subtlety: `recommend_products` operates on a buyable subset (status=ACTIVE + recommendationExcluded=false + variants.availableForSale=true), but Drafts can flip to Active mid-session and embeddings cover all 2,632 rows. PR-3.1.5's bulk re-embed pass projects against 2,632 (~$0.08 Voyage cost at voyage-3 list price), not 1,169. The 3.1.5 execution prompt should reference 2,632.
+- **Voyage pricing date discipline (PR-3.1-mech.1).** When `app/lib/embeddings/voyage-cost.server.ts` lands in mech.6, the per-Mtok price constant must carry a comment in the form `// sourced from voyageai.com on <YYYY-MM-DD>` so future price changes are observable to anyone reading the file. Same discipline as the Anthropic tagging cost ledger comment in `app/lib/catalog/tagging-cost.server.ts:1` (model rates header). The cost ledger column is shared (`TaggingJob.costUsdMicros`) so price-change auditability is the only mechanism we have for catching silent model-pricing drift.
 - **Stale dev-shop offline session token.** Length-38 stored value (atypical — Shopify offline tokens normally land as `shpat_` + 32 hex; the stored token lacks the prefix indicating raw token storage), expired `2026-05-03T01:37:21Z`, rejected by Shopify Admin API with `[API] Invalid API key or access token (unrecognized login or wrong password)`. Surfaced during PR-2.1 smoke S2 when the runner attempted a programmatic `productUpdate` mutation to trigger the tagging chain. Blocks programmatic Shopify Admin API access from local scripts. **Webhook delivery to deployed worker is unaffected** — smoke S3+ confirmed end-to-end via manual user-edit trigger. Refresh requires re-OAuth via the embed app surface — NOT Phase 2 scope, NOT PR-2.1's responsibility, but tracked here for whoever owns operations to address before any future PR needs programmatic Shopify mutations from a script.
 
 **Risks closed during PR-C / PR-C.5:**
@@ -783,4 +854,4 @@ Plus three perennials:
 
 ---
 
-*Next planning artifact: Phase 3 (Pipeline rewrite + reviews + order ingest + AI attribution) planning round — entry sub-bundle 3.1 (Pipeline core + eval harness + conditional re-embed).*
+*Next planning artifact: PR-3.1-mech.2 execution prompt (HARD_FILTER_AXES constant + Stage 1 hard-filters module). Plan locked at PR-3.1 planning round 2026-05-05; sub-bundle 3.1 mech chain runs mech.1 → mech.6 → 3.1 close.*
