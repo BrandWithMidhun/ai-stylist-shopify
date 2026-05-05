@@ -64,12 +64,45 @@ export type CandidateProduct = {
   currency: string | null;
   recommendationPromoted: boolean;
   recommendationExcluded: boolean;
+  // ProductTag relation (mech.4 addition). Stage 1 does NOT load tags
+  // (D4 from mech.2: "no relation loads in Stage 1") — the orchestrator
+  // (mech.6) is responsible for loading APPROVED ProductTag rows for the
+  // candidates that survive Stage 2 and attaching them before Stage 3
+  // runs. When tags is undefined, Stage 3 re-rankers gracefully return 0
+  // for that candidate (no boost, no crash).
+  tags?: Array<{ axis: string; value: string; status: string }>;
   // Stage-specific augmentations attach here as the pipeline progresses.
   similarityDistance?: number; // mech.3
   rerankBoosts?: Record<string, number>; // mech.4
   merchantSignals?: { promoted?: number; velocity?: number }; // mech.5
   finalScore?: number;
   diversityPenalty?: number;
+};
+
+// PR-3.1-mech.4: customer profile snapshot for Stage 3 re-rankers.
+//
+// The orchestrator (mech.6) fetches CustomerProfileAttribute rows once
+// per pipeline run and projects them into this shape; Stage 3 reads
+// from the snapshot, never queries directly. Snapshot != schema —
+// adding new profile fields here is a pure code change.
+//
+// All fields optional; an unset field signals "no profile preference
+// for this axis", and the corresponding re-ranker treats it as a
+// no-op rather than a hard filter.
+//
+// bodyType vocabulary: "apple" | "pear" | "hourglass" | "rectangle" |
+// "inverted_triangle" — sourced from Phase 6's quiz output (not yet
+// wired in 3.1; PR-D D.3 verifier confirmed the dev shop has zero
+// CustomerProfileAttribute rows, so body-type re-ranker is a no-op
+// in the current eval baseline).
+//
+// fitPreference / preferredColors / preferredOccasions: axis values
+// from AXIS_OPTIONS.FASHION (fit / color_family / occasion).
+export type CustomerProfileSnapshot = {
+  bodyType?: string;
+  fitPreference?: string;
+  preferredColors?: string[];
+  preferredOccasions?: string[];
 };
 
 export type StageContribution = {
