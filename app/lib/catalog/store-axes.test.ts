@@ -12,7 +12,7 @@
 
 import { describe, it, expect } from "vitest";
 import { AXIS_OPTIONS } from "./axis-options";
-import { STARTER_AXES } from "./store-axes";
+import { HARD_FILTER_AXES, STARTER_AXES, hardFilterAxesFor } from "./store-axes";
 
 describe("FASHION axis vocabulary", () => {
   it("includes the core garment axes", () => {
@@ -147,5 +147,45 @@ describe("FASHION axis vocabulary", () => {
     for (const mode of ["FASHION", "ELECTRONICS", "FURNITURE", "BEAUTY", "JEWELLERY", "GENERAL"] as const) {
       expect(STARTER_AXES[mode].length).toBeGreaterThan(0);
     }
+  });
+});
+
+// PR-3.1-mech.2: HARD_FILTER_AXES drives Stage 1 of the v2 recommendation
+// pipeline. The constant is code-locked in 3.1; Phase 4 portal AI Agents
+// config UI surfaces it for merchant editing. These tests pin the
+// FASHION value (the 3.1 default) and the consistency contract with
+// AXIS_OPTIONS (every hard-filter axis must be a real, AI-tagged axis).
+describe("HARD_FILTER_AXES", () => {
+  it("HARD_FILTER_AXES.FASHION includes both gender and category", () => {
+    expect(HARD_FILTER_AXES.FASHION).toContain("gender");
+    expect(HARD_FILTER_AXES.FASHION).toContain("category");
+  });
+
+  it("every axis in HARD_FILTER_AXES.FASHION exists as a key in AXIS_OPTIONS.FASHION", () => {
+    // Consistency: a hard-filter axis must be a real, vocabulary-backed
+    // axis the AI tagger emits. If the constant references an axis the
+    // tagger never produces, Stage 1's ProductTag predicate would never
+    // match anything — silent zero-results bug.
+    const declared = new Set(Object.keys(AXIS_OPTIONS.FASHION));
+    for (const axis of HARD_FILTER_AXES.FASHION) {
+      expect(declared.has(axis)).toBe(true);
+    }
+  });
+
+  it("every non-FASHION mode returns an empty array (regression)", () => {
+    // Adding hard-filter values to other modes must be deliberate
+    // (Phase 5 per-mode calibration), not an accidental edit.
+    for (const mode of ["ELECTRONICS", "FURNITURE", "BEAUTY", "JEWELLERY", "GENERAL"] as const) {
+      expect(HARD_FILTER_AXES[mode]).toEqual([]);
+    }
+  });
+
+  it("hardFilterAxesFor(null) returns the GENERAL value (defensive default)", () => {
+    expect(hardFilterAxesFor(null)).toBe(HARD_FILTER_AXES.GENERAL);
+    expect(hardFilterAxesFor(undefined)).toBe(HARD_FILTER_AXES.GENERAL);
+  });
+
+  it("hardFilterAxesFor('FASHION') returns the FASHION value (referential)", () => {
+    expect(hardFilterAxesFor("FASHION")).toBe(HARD_FILTER_AXES.FASHION);
   });
 });
