@@ -27,17 +27,23 @@ import { getHeartbeatTimeoutMs } from "./sync-jobs.server";
 // --- claimNextTaggingJob -------------------------------------------------
 //
 // FOR UPDATE SKIP LOCKED claim. Same pattern as sync-jobs.claimNextJob.
-// Restricts to status='QUEUED' and the three kinds the tagging worker
-// owns (SINGLE_PRODUCT, INITIAL_BACKFILL, MANUAL_RETAG). BUDGET_PAUSED
-// rows are NOT claimable — the daily reset path resurrects them by
-// flipping back to QUEUED.
+// Restricts to status='QUEUED' and the four kinds the tagging worker
+// owns (SINGLE_PRODUCT, INITIAL_BACKFILL, MANUAL_RETAG, RE_EMBED).
+// BUDGET_PAUSED rows are NOT claimable — the daily reset path
+// resurrects them by flipping back to QUEUED.
+//
+// PR-3.1-mech.6: RE_EMBED added so the worker drains Voyage re-embed
+// jobs alongside Anthropic tagging jobs. Cost ledger, heartbeat, dedup,
+// and the partial unique index on (shopDomain, productId) WHERE
+// status='QUEUED' are all already in place — the queue type extension
+// only changes which kinds the claim looks at.
 export async function claimNextTaggingJob(): Promise<TaggingJob | null> {
   const rows = await prisma.$queryRaw<TaggingJob[]>`
     WITH cte AS (
       SELECT tj.id
       FROM "TaggingJob" tj
       WHERE tj.status = 'QUEUED'
-        AND tj.kind IN ('SINGLE_PRODUCT', 'INITIAL_BACKFILL', 'MANUAL_RETAG')
+        AND tj.kind IN ('SINGLE_PRODUCT', 'INITIAL_BACKFILL', 'MANUAL_RETAG', 'RE_EMBED')
       ORDER BY tj."enqueuedAt"
       FOR UPDATE OF tj SKIP LOCKED
       LIMIT 1

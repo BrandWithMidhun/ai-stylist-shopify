@@ -65,10 +65,43 @@ export async function embedQuery(text: string): Promise<number[]> {
   return vector;
 }
 
+// PR-3.1-mech.6: single-document embed with token usage exposed.
+//
+// Used by the RE_EMBED worker handler to record per-call cost on the
+// TaggingJob row. Distinct from embedTexts (which throws away the
+// usage payload because the catalog backfill aggregates cost via
+// total batch size, not per-call) so the existing 12b backfill path
+// stays untouched.
+//
+// Returns tokens=0 if Voyage omits usage from the response — the cost
+// helper rounds to 0 micros in that case, which is what the operator
+// would expect ("we couldn't measure it, don't bill it").
+export async function embedDocumentWithUsage(
+  text: string,
+): Promise<{ embedding: number[]; tokens: number }> {
+  const trimmed = text?.trim();
+  if (!trimmed) {
+    throw new Error("embedDocumentWithUsage requires a non-empty string.");
+  }
+  const { embeddings, totalTokens } = await postEmbeddingsWithUsage(
+    [trimmed],
+    "document",
+  );
+  return { embedding: embeddings[0], tokens: totalTokens };
+}
+
 async function postEmbeddings(
   texts: string[],
   inputType: InputType,
 ): Promise<number[][]> {
+  const { embeddings } = await postEmbeddingsWithUsage(texts, inputType);
+  return embeddings;
+}
+
+async function postEmbeddingsWithUsage(
+  texts: string[],
+  inputType: InputType,
+): Promise<{ embeddings: number[][]; totalTokens: number }> {
   const key = getApiKey();
   const body = JSON.stringify({
     input: texts,
@@ -108,9 +141,11 @@ async function postEmbeddings(
 
   // Voyage echoes each item's `index` — sort defensively so the caller can
   // rely on output[i] corresponding to input[i] regardless of server order.
-  return [...payload.data]
+  const embeddings = [...payload.data]
     .sort((a, b) => a.index - b.index)
     .map((d) => d.embedding);
+  const totalTokens = payload.usage?.total_tokens ?? 0;
+  return { embeddings, totalTokens };
 }
 
 function sleep(ms: number): Promise<void> {

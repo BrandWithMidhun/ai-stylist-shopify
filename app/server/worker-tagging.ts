@@ -45,6 +45,7 @@ import {
 } from "../lib/catalog/tagging-cost.server";
 import { sleep } from "../lib/catalog/shopify-throttle.server";
 import { processInitialBackfill } from "./worker-tagging-backfill";
+import { processReEmbedJob } from "./worker-reembed";
 import { log } from "./worker-logger";
 
 const TAGGING_POLL_MIN_MS = 2000;
@@ -187,6 +188,18 @@ async function processTaggingJob(
   // the row RUNNING-with-stale-heartbeat for the next boot's sweep.
   if (job.kind === "INITIAL_BACKFILL") {
     await processInitialBackfill({ job, shouldStop });
+    return;
+  }
+
+  // PR-3.1-mech.6: RE_EMBED handler delegated to the re-embed module.
+  // The handler enforces Decision A's hash-match skip predicate and
+  // writes its own terminal status. Voyage cost is recorded on the row
+  // via the voyage-cost helper; no Anthropic budget interaction (Voyage
+  // cost is currently outside the daily Anthropic-tagging cap and rolls
+  // up under a separate ledger row in the future when the merchant
+  // dashboard surfaces embed spend).
+  if (job.kind === "RE_EMBED") {
+    await processReEmbedJob({ job });
     return;
   }
 

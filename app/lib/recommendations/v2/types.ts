@@ -192,3 +192,26 @@ export type PipelineOutput = {
 // Re-export StoreMode so callers can import it from this types module
 // without dipping into the catalog layer for a type alone.
 export type { StoreMode };
+
+// PR-3.1-mech.6: dependency-injection seam for the orchestrator.
+//
+// Allows the integration test to substitute a mocked PrismaClient + a
+// vi.fn() embedQuery; production callers in app/lib/chat/tools/recommend-
+// products-v2.server.ts pass the real db.server prisma + embedQuery from
+// app/lib/embeddings/voyage.server.ts (input_type="query"). The shape is
+// intentionally narrow — only the surfaces the orchestrator itself
+// touches. Stages 1+2 still hit prisma directly via their module-level
+// imports; the test mocks db.server alongside this injection, so both
+// paths land on the same hoisted mock.
+//
+// PrismaClient is the runtime client type from @prisma/client. Importing
+// it as a type-only re-export keeps this file free of runtime imports
+// from @prisma/client.
+import type { PrismaClient } from "@prisma/client";
+
+export type EmbedQueryFn = (text: string) => Promise<number[]>;
+
+export type PipelineDeps = {
+  prisma: PrismaClient;
+  embedQuery: EmbedQueryFn;
+};

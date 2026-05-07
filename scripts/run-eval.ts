@@ -19,23 +19,27 @@
 //   2 — argument error (printed alongside --help text)
 
 import { runEval } from "../app/lib/recommendations/v2/eval/cli";
+import { NoOpPipelineRunner } from "../app/lib/recommendations/v2/eval/runner.server";
 import prisma from "../app/db.server";
 
 type Args = {
   shopDomain?: string;
   fixtureKey?: string;
   all: boolean;
+  runner: "real" | "noop";
 };
 
 function printHelp(): void {
   // eslint-disable-next-line no-console
   console.log(
     [
-      "Usage: tsx scripts/run-eval.ts (--all | --fixture=<key>) [--shop=<domain>]",
+      "Usage: tsx scripts/run-eval.ts (--all | --fixture=<key>) [--shop=<domain>] [--runner=<real|noop>]",
       "",
       "  --all              Run every fixture for the shop.",
       "  --fixture=<key>    Run a single fixture by its fixtureKey.",
       "  --shop=<domain>    Default: ai-fashion-store.myshopify.com",
+      "  --runner=real      Run the v2 pipeline orchestrator (default; mech.6+).",
+      "  --runner=noop      Empty-baseline plumbing run (mech.1 parity).",
       "",
       "Run scripts/eval-fixtures-sync.ts first to populate EvalQuery rows.",
     ].join("\n"),
@@ -47,6 +51,7 @@ function parseArgs(): Args {
   let shopDomain: string | undefined;
   let fixtureKey: string | undefined;
   let all = false;
+  let runner: "real" | "noop" = "real";
   for (const arg of argv) {
     if (arg.startsWith("--shop=")) {
       shopDomain = arg.slice("--shop=".length).trim();
@@ -54,6 +59,15 @@ function parseArgs(): Args {
       fixtureKey = arg.slice("--fixture=".length).trim();
     } else if (arg === "--all") {
       all = true;
+    } else if (arg.startsWith("--runner=")) {
+      const v = arg.slice("--runner=".length).trim();
+      if (v !== "real" && v !== "noop") {
+        // eslint-disable-next-line no-console
+        console.error(`Unknown --runner value: ${v} (expected real|noop)`);
+        printHelp();
+        process.exit(2);
+      }
+      runner = v;
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       process.exit(0);
@@ -70,13 +84,18 @@ function parseArgs(): Args {
     printHelp();
     process.exit(2);
   }
-  return { shopDomain, fixtureKey, all };
+  return { shopDomain, fixtureKey, all, runner };
 }
 
 async function main(): Promise<void> {
-  const { shopDomain, fixtureKey, all } = parseArgs();
+  const { shopDomain, fixtureKey, all, runner } = parseArgs();
   try {
-    const summary = await runEval({ shopDomain, fixtureKey, all });
+    const summary = await runEval({
+      shopDomain,
+      fixtureKey,
+      all,
+      runner: runner === "noop" ? new NoOpPipelineRunner() : undefined,
+    });
     // eslint-disable-next-line no-console
     console.log("");
     // eslint-disable-next-line no-console

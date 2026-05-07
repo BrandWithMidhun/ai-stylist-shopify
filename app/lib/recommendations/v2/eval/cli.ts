@@ -16,6 +16,7 @@
 // scripts/run-eval.ts.
 
 import prisma from "../../../../db.server";
+import { RealPipelineRunner } from "./pipeline-runner.server";
 import {
   NoOpPipelineRunner,
   runFixtureAgainstPipeline,
@@ -25,6 +26,7 @@ import {
 
 const DEFAULT_SHOP = "ai-fashion-store.myshopify.com";
 const PIPELINE_VERSION_EMPTY = "3.1.0-empty";
+const PIPELINE_VERSION_REAL = "3.1.0";
 
 export type RunEvalArgs = {
   shopDomain?: string;
@@ -62,8 +64,16 @@ export type RunEvalSummary = {
 
 export async function runEval(args: RunEvalArgs): Promise<RunEvalSummary> {
   const shopDomain = args.shopDomain ?? DEFAULT_SHOP;
-  const runner = args.runner ?? new NoOpPipelineRunner();
-  const pipelineVersion = args.pipelineVersion ?? PIPELINE_VERSION_EMPTY;
+  // PR-3.1-mech.6: default flips from NoOpPipelineRunner to
+  // RealPipelineRunner. Tests + the --runner=noop CLI flag (added in
+  // scripts/run-eval.ts) keep the empty-baseline path available for
+  // plumbing reproductions. pipelineVersion default tracks the runner:
+  // real → "3.1.0", noop → "3.1.0-empty".
+  const runner = args.runner ?? new RealPipelineRunner();
+  const isNoOpRunner = runner instanceof NoOpPipelineRunner;
+  const pipelineVersion =
+    args.pipelineVersion ??
+    (isNoOpRunner ? PIPELINE_VERSION_EMPTY : PIPELINE_VERSION_REAL);
   const triggeredBy = args.triggeredBy ?? "CLI";
 
   if (!args.all && !args.fixtureKey) {
