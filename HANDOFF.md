@@ -409,6 +409,54 @@ All 12 fixtures land with `expectedTagFilters` populated (derived from FASHION a
 - Between mech.1 ship and mech.1 close, the local toolchain recovery (full `node_modules` reinstall, see operational debt item "Local Prisma client must NOT be generated with --no-engine on Windows") surfaced a latent dependency hole in `scripts/report-backfill.ts` (`TS2307: Cannot find module 'pg'`). `pg` + `@types/pg` added to devDependencies in commit `c269db3`. Typecheck baseline restored to 1 error before close. Hole was masked since PR-2.2-mech.3 (`.mjs` → `.ts` conversion of the reporter); never created in mech.1, only exposed by it.
 - Mech.1 acceptance closed.
 
+#### Sub-bundle 3.1 close (2026-05-08)
+
+Mech.6 shipped `717fcdf` (orchestrator + v2 tool + RE_EMBED handler + voyage-cost helper). Mech.6 closure (this commit) records the baseline run + RE_EMBED handler verification + 16 operational debt items.
+
+**Acceptance closed:**
+- First real eval baseline produced `aggregateScore 0.0833` (1 PASS / 0 PARTIAL / 11 FAIL). EvalRun `cmovsu0m80000q7543acmq51d`, `pipelineVersion="3.1.0"`, `durationMs=11221`. The single PASS (`fashion-show-trousers`) scored 1.0000 via relaxed-match-only because `expectedHandles` is empty across all 12 fixtures (per mech.1 plan, fixture curation was deferred to pre-mech.6 baseline; that step did not happen). Captured at `.pr-3-1-mech-6-artifacts/baseline.txt`.
+- RE_EMBED handler verified end-to-end. One MANUAL-triggered job (`cmovt5j7v0000q7u87s78uiwg`) processed in 290ms (Voyage call + knowledge rebuild + atomic embedding+hash write). 257 tokens, 15 micros, hashes matched post-write (`acb31be9...`). Captured at `.pr-3-1-mech-6-artifacts/re-embed-handler-verify.txt`.
+- The 11 FAILs are all upstream-of-scoring: the dev shop's PR-2.2 calibration sample (50 products) intersects only one of the 12 fixtures' target categories (trousers/pants). Other fixtures' target categories (saree, kurta, jacket, shorts, shirt-with-other-axes) hit Stage 1 with empty candidate sets and short-circuit. This is data-coverage, not pipeline correctness.
+
+**Bridge mechanism shipped:** `scripts/bulk-approve-tags.ts` (commit `389acae`). PR-2.2 AI-tagged ProductTags ship in PENDING_REVIEW state. Phase 4 portal will let merchants approve via UI; until then, this script bridges. Used in mech.6 prep against `ai-fashion-store.myshopify.com` to flip 98 (gender, category) PENDING_REVIEW → APPROVED rows. ProductTagAudit rows record the bulk-approve with `actorId="system://3.1/mech.6/baseline-prep"`. 50 products are now Stage 1-eligible on the dev shop.
+
+**Eval threshold for post-eval-pass flip commit (R3 lock):** `aggregateScore 0.0833` is the mech.6 baseline. Lowering this threshold for sub-bundle 3.2+ requires a HANDOFF amendment with rationale. Raising it is preferred — sub-bundle 3.2 (order ingest + sales velocity) and any expectedHandles curation should both pull this number up.
+
+**Operational debt (16 items, mech.6 closure record):**
+
+*Process / discipline:*
+1. PowerShell reserved variables. `$pid`, `$home`, `$host`, `$true`, `$false`, `$null`, `$pwd`, `$args`, `$input` are read-only; operational scripts must use `$productId`, `$targetId`, etc. Surfaced when `$pid` silently held the shell PID instead of accepting the assignment.
+2. PowerShell `.env` loader needs surrounding-quote stripping. Three formats to support: `KEY=value`, `KEY="value"`, `KEY='value'`. Reusable PowerShell function pattern: use the quote-stripping snippet from mech.6 closure transcript.
+3. Inline `npx tsx -e "..."` in PowerShell is a footgun — every `$` in JS is a PowerShell variable lookup unless wrapped right. Use real script files in `scripts/_*.ts` instead; `scripts/_dedup-test.ts` (PR-C) is the precedent.
+4. Multi-line commit messages on PowerShell 5 must use `[System.IO.File]::WriteAllText` with `UTF8Encoding($false)` to avoid BOM. `Out-File -Encoding utf8` writes a BOM on PS5; PS7's `utf8NoBOM` isn't universally available. Pattern: write to `_commit-msg.txt`, `git commit -F _commit-msg.txt`, `Remove-Item _commit-msg.txt`.
+
+*Schema / convention:*
+5. `TaggingJob.triggerSource` is required (no default). Documented enum values: `WEBHOOK_CREATE | DELTA_HASH_CHANGE | MANUAL | INITIAL_BACKFILL | CRON`. Hand-enqueued operational test jobs use `MANUAL`.
+6. `TaggingJob` terminal-success status is `SUCCEEDED`, not `COMPLETED`. Mech.6 prompts and several commit messages used "COMPLETED" as the success enum; the actual enum is `TaggingJobStatus.SUCCEEDED`. Verify before writing future test scripts.
+7. `TaggingJob.costUsdMicros` is BigInt (not Int). `JSON.stringify` needs a replacer to serialize. The `voyage-cost` helper computes Int micros and Prisma transparently casts to BigInt on write; consumer side (telemetry, dashboards) must handle BigInt.
+
+*Architectural / scope:*
+8. Phase 2 → Phase 3 APPROVED-tag gap. PR-2.2 ships PENDING_REVIEW; Phase 4 portal will provide merchant approval; mech.6 baseline contract requires APPROVED. Bridge mechanism = `scripts/bulk-approve-tags.ts`. Document in CLAUDE.md or elsewhere as the canonical interim mechanism for Phase 5 multi-shop onboarding until Phase 4 portal lands.
+9. `expectedHandles` uncurated across all 12 fixtures. Scoring falls back to relaxed-match-only. Consequence: `fashion-show-trousers` scored 1.0000 with precision=0 and relaxed=1.0, which overstates how good the match was. Curation (Prisma Studio inspection per fixture) is a Midhun task pre-Sub-bundle-3.2 baseline (or earlier if any sub-bundle wants tighter scoring).
+10. PR-2.2 calibration sample category distribution skews toward innerwear (visible in the `bulk-approve-dry-run.txt` sample). 12 fixtures don't query innerwear; only `fashion-show-trousers` matched well enough to PASS. Phase 5 full-catalog tagging will resolve this naturally; no fix needed at 3.1 close.
+11. Stage 5 OOS-stress fixtures untested at mech.6 baseline. Mech.5 prediction ("PASS via Stage 1 EXISTS pre-filter") was wrong — both fixtures FAILed because their target categories (shirt for stress-1, saree for stress-2) didn't have enough APPROVED-tagged products to make it past Stage 1. The OOS-substitute architectural concern that mech.5 deferred has not been exercised at all. Will get exercised when Phase 5 ships full-catalog tagging.
+12. Mech.6 prompt's RecommendationEvent shape claim was wrong. Prompt called for `topKHandles` array column. Schema has `candidates: Json` holding the full ProductCard array. Implementation matches schema; just the prompt's R5 phrasing was wrong. Future analytics queries should use `jsonb_path_query` on `candidates`, not a `topKHandles` column.
+13. Voyage `embedTexts` discards token usage. Mech.6 added `embedDocumentWithUsage` for the RE_EMBED handler. Phase 12b backfill orchestrator (`scripts/embed-products.ts`) still uses the usage-discarding path. Sub-bundle 3.1.5's bulk re-embed uses the worker handler (which uses WithUsage), so this is correct for 3.1.5; recorded for future cleanup if Phase 12b-style bulk re-embed is re-run outside the worker.
+14. Stage 5 `trace.diversityPenalty` quota-vs-MMR honesty (mech.5 carryover). `diversityPenalty` records MMR jaccard at skip time regardless of whether quota or MMR was the true rejector. If trace audit clarity becomes a debugging need, add `diversityRejectionReason` to Stage 5's per-candidate output via mech.6 orchestrator stitching. Not addressed in 3.1.
+15. v2 ProductCard ships with `variantId=null` and `available=true`. No re-check of `ProductVariant.availableForSale` in v2. Post-eval-pass flip commit must add variant-loading to v2 tool stub before agent registration, otherwise add-to-cart has no variantId. Either v2 tool stub loads variants for top-N after orchestrator returns (cleaner, mirrors legacy tool), or Stage 6 itself loads variants. Decide at flip-commit prompt time.
+16. Untracked `scripts/_*.ts` files are still typechecked. Stale temp diagnostic scripts produce typecheck noise during multi-commit operations. Default response: leave as-is; the noise resolves when the temp scripts are deleted in their tracking commit. If this becomes burdensome, gitignore `scripts/_*.ts` or exclude from `tsconfig.json`.
+
+**Six diagnostic + operational artifacts captured (seven counting the post-rename idempotency check shipped in `389acae`):**
+- `.pr-3-1-mech-6-artifacts/baseline.txt` — first real eval run
+- `.pr-3-1-mech-6-artifacts/baseline-inspection.txt` — EvalRun forensic trail (no traceJson on EvalResult schema)
+- `.pr-3-1-mech-6-artifacts/bulk-approve-dry-run.txt` — pre-write census
+- `.pr-3-1-mech-6-artifacts/bulk-approve-real-run.txt` — write completion + before/after counts
+- `.pr-3-1-mech-6-artifacts/fixture-inspection.txt` — EvalQuery rows confirming `expectedTagFilters` populated
+- `.pr-3-1-mech-6-artifacts/product-tag-inspection.txt` — ProductTag census surfacing the APPROVED-tag gap
+- `.pr-3-1-mech-6-artifacts/re-embed-handler-verify.txt` — RE_EMBED job + product hash match
+
+Sub-bundle 3.1 closes here. Next: 3.1.5 bulk re-embed (~$0.08 Voyage cost projected, enqueues ~1,169 RE_EMBED jobs against the dev shop's NULL-hash products, runs asynchronously through the worker). After 3.1.5: post-eval-pass flip commit (one-line `registry.server.ts` change to point the agent's `recommend_products` tool at v2). After flip: Sub-bundle 3.2 planning round (order ingest + sales velocity + AttributionEvent).
+
 ---
 
 ## Phase 4 — SaaS portal foundation + Customer Profile + Dashboard Overview
