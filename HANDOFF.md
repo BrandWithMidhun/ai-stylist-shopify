@@ -1,6 +1,6 @@
 # HANDOFF — AI Stylist Shopify App
 
-**Last updated:** 2026-05-05, after PR-3.1-mech.1 (schema migration + eval harness scaffolding + 12 fixture stubs). **Phase 1 CLOSED. Phase 2 CLOSED. Phase 3 IN PROGRESS — sub-bundle 3.1 mech.1 of 6 mech commits shipped; mech.2 (HARD_FILTER_AXES + Stage 1) is next.**
+**Last updated:** 2026-05-08, after Sub-bundle 3.1 close (mech.1 → mech.6 shipped). **Phase 1 CLOSED. Phase 2 CLOSED. Phase 3 IN PROGRESS — sub-bundle 3.1 closed; sub-bundle 3.1.5 (bulk re-embed) is next.**
 **Supersedes:** Previous HANDOFF.
 **North star:** `docs/recommendation-engine-brief.md` v0.3 (commit `22e849c`).
 **Scope:** `docs/scope-decisions.md` (commit `616fe70`).
@@ -337,7 +337,7 @@ Below cut #5 the plan is unrealistic without cutting features themselves.
 - Reviews-derived signal verifiable: a product with mostly-positive reviews + good fit feedback ranks above an equivalent product with bad reviews
 - Attribution: place a test order in dev store after a chat session that recommended a product → verify `AttributionEvent` row exists with full trace → click trace → see exactly which `recommend_products` call led to it
 
-### Sub-bundle 3.1 — Pipeline core + eval harness + conditional re-embed ▶ IN PROGRESS
+### Sub-bundle 3.1 — Pipeline core + eval harness + conditional re-embed ✓ SHIPPED 2026-05-08
 
 **Locked decisions (planning round, 2026-05-05):**
 - Re-embed cadence: conditional re-embed in 3.1 via new `TaggingJobKind=RE_EMBED` (skip predicate `embeddingContentHash IS NOT NULL AND embeddingContentHash = knowledgeContentHash`); one-time bulk pass for the dev shop's NULL-hash rows in 3.1.5 (separate execution prompt).
