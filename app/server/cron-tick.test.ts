@@ -36,6 +36,20 @@ vi.mock("../lib/cron/timezone-refresh.server", () => ({
   })),
 }));
 
+// PR-3.1.6-mech.2: scanner backstop is invoked from the per-shop loop.
+// Mocked so cron-tick tests don't need a fully-fleshed prisma.product
+// fake. The scanner itself is unit-tested separately in
+// worker-null-hash-sweep.test.ts.
+vi.mock("./worker-null-hash-sweep.server", () => ({
+  runNullHashSweep: vi.fn(async (_prisma: unknown, shopDomain: string) => ({
+    shopDomain,
+    eligibleCount: 0,
+    enqueuedCount: 0,
+    alreadyQueuedCount: 0,
+    durationMs: 0,
+  })),
+}));
+
 // Avoid emitting structured logs during tests.
 vi.mock("./worker-logger", () => ({
   log: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
@@ -43,6 +57,7 @@ vi.mock("./worker-logger", () => ({
 
 import { enqueueDeltaForShop } from "../lib/webhooks/enqueue-delta.server";
 import { refreshShopTimezone } from "../lib/cron/timezone-refresh.server";
+import { runNullHashSweep } from "./worker-null-hash-sweep.server";
 
 type FakeMerchantConfig = {
   shop: string;
@@ -119,6 +134,7 @@ describe("runCronTick", () => {
   beforeEach(() => {
     vi.mocked(enqueueDeltaForShop).mockClear();
     vi.mocked(refreshShopTimezone).mockClear();
+    vi.mocked(runNullHashSweep).mockClear();
     __resetForceNextTickForTesting(false);
     delete process.env.CRON_HOUR;
   });
@@ -290,6 +306,89 @@ describe("runCronTick", () => {
     expect(refreshShopTimezone).toHaveBeenCalledWith(
       "stale.myshopify.com",
       expect.anything(),
+    );
+  });
+
+  // PR-3.1.6-mech.2: NULL-hash scanner backstop wiring.
+  it("invokes runNullHashSweep for each in-window shop after DELTA enqueue", async () => {
+    const { prisma } = makePrisma([
+      {
+        shop: "in-window.myshopify.com",
+        timezone: "UTC",
+        timezoneSyncedAt: new Date(),
+        lastCronEnqueueDate: null,
+      },
+      {
+        shop: "out-of-window.myshopify.com",
+        timezone: "America/New_York", // 22:00 ET at this UTC, out of cronHour=3
+        timezoneSyncedAt: new Date(),
+        lastCronEnqueueDate: null,
+      },
+    ]);
+    await runCronTick(prisma, new Date("2026-05-01T03:00:00.000Z"));
+
+    // Scanner runs only for the in-window shop, not the out-of-window one.
+    expect(runNullHashSweep).toHaveBeenCalledTimes(1);
+    expect(runNullHashSweep).toHaveBeenCalledWith(
+      expect.anything(),
+      "in-window.myshopify.com",
+    );
+  });
+
+  it("scanner failure does NOT prevent DELTA enqueue side effects (lastCronEnqueueDate stamped)", async () => {
+    vi.mocked(runNullHashSweep).mockRejectedValueOnce(
+      new Error("synthetic sweep failure"),
+    );
+    const { prisma, updates } = makePrisma([
+      {
+        shop: "test.myshopify.com",
+        timezone: "UTC",
+        timezoneSyncedAt: new Date(),
+        lastCronEnqueueDate: null,
+      },
+    ]);
+    const result = await runCronTick(
+      prisma,
+      new Date("2026-05-01T03:00:00.000Z"),
+    );
+
+    // DELTA fired and lastCronEnqueueDate was stamped despite scanner throw.
+    expect(result.enqueuedShops).toBe(1);
+    expect(updates).toHaveLength(1);
+    expect(updates[0].data.lastCronEnqueueDate).toBeInstanceOf(Date);
+
+    // Scanner failure is logged but does not increment per-shop errors
+    // counter (different concern — DELTA succeeded).
+    expect(result.errors).toBe(0);
+  });
+
+  it("scanner runs even if DELTA enqueue throws (Decision 8: independent concerns)", async () => {
+    // First call throws, but scanner mock is independent and resolves cleanly.
+    vi.mocked(enqueueDeltaForShop).mockRejectedValueOnce(
+      new Error("synthetic DELTA failure"),
+    );
+    const { prisma } = makePrisma([
+      {
+        shop: "test.myshopify.com",
+        timezone: "UTC",
+        timezoneSyncedAt: new Date(),
+        lastCronEnqueueDate: null,
+      },
+    ]);
+    const result = await runCronTick(
+      prisma,
+      new Date("2026-05-01T03:00:00.000Z"),
+    );
+
+    // DELTA failure counted in errors.
+    expect(result.errors).toBe(1);
+    expect(result.enqueuedShops).toBe(0);
+
+    // Scanner still ran — Decision 8 mandate.
+    expect(runNullHashSweep).toHaveBeenCalledTimes(1);
+    expect(runNullHashSweep).toHaveBeenCalledWith(
+      expect.anything(),
+      "test.myshopify.com",
     );
   });
 });

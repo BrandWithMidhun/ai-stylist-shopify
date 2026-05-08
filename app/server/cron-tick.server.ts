@@ -26,6 +26,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { enqueueDeltaForShop } from "../lib/webhooks/enqueue-delta.server";
 import { refreshShopTimezone } from "../lib/cron/timezone-refresh.server";
+import { runNullHashSweep } from "./worker-null-hash-sweep.server";
 import { log } from "./worker-logger";
 
 const TICK_INTERVAL_MS = 60_000;
@@ -146,34 +147,63 @@ export async function runCronTick(
         continue;
       }
 
-      const enqueue = await enqueueDeltaForShop(config.shop, {
-        topic: "cron",
-        webhookId: `cron-${localDate}-${cronHour}`,
-        resourceGid: null,
-        triggerSource: "CRON",
-      });
+      // Stage 4: DELTA enqueue + lastCronEnqueueDate stamp + log.
+      // Wrapped in its own try/catch so a DELTA failure does NOT prevent
+      // the NULL-hash scanner (Stage 5) from running for the same shop —
+      // they are independent concerns (PR-3.1.6-mech.2 Decision 8).
+      try {
+        const enqueue = await enqueueDeltaForShop(config.shop, {
+          topic: "cron",
+          webhookId: `cron-${localDate}-${cronHour}`,
+          resourceGid: null,
+          triggerSource: "CRON",
+        });
 
-      // Stamp lastCronEnqueueDate to the local date so subsequent ticks
-      // within the same day are idempotent. Stored as a DATE column —
-      // pass a Date constructed from localDate (midnight UTC suffices
-      // since DATE has no time component).
-      await prisma.merchantConfig.update({
-        where: { shop: config.shop },
-        data: { lastCronEnqueueDate: new Date(`${localDate}T00:00:00.000Z`) },
-      });
+        // Stamp lastCronEnqueueDate to the local date so subsequent ticks
+        // within the same day are idempotent. Stored as a DATE column —
+        // pass a Date constructed from localDate (midnight UTC suffices
+        // since DATE has no time component).
+        await prisma.merchantConfig.update({
+          where: { shop: config.shop },
+          data: { lastCronEnqueueDate: new Date(`${localDate}T00:00:00.000Z`) },
+        });
 
-      log.info("cron tick enqueued delta", {
-        shop: config.shop,
-        timezone,
-        localHour,
-        localDate,
-        cronHour,
-        force,
-        jobId: enqueue.jobId,
-        deduped: enqueue.deduped,
-      });
+        log.info("cron tick enqueued delta", {
+          shop: config.shop,
+          timezone,
+          localHour,
+          localDate,
+          cronHour,
+          force,
+          jobId: enqueue.jobId,
+          deduped: enqueue.deduped,
+        });
 
-      result.enqueuedShops += 1;
+        result.enqueuedShops += 1;
+      } catch (deltaErr) {
+        result.errors += 1;
+        log.error("cron tick DELTA enqueue error", {
+          event: "cron_tick_delta_error",
+          shop: config.shop,
+          message: deltaErr instanceof Error ? deltaErr.message : String(deltaErr),
+        });
+        // fall through to scanner — different concern
+      }
+
+      // Stage 5 (PR-3.1.6-mech.2): NULL-hash scanner backstop. Runs after
+      // the DELTA enqueue (against post-DELTA state) but in its own
+      // try/catch so a sweep failure does not unwind the DELTA's side
+      // effects (lastCronEnqueueDate stamp). Decision 8 mandates the
+      // scanner runs even if DELTA enqueue fails — different concerns.
+      try {
+        await runNullHashSweep(prisma, config.shop);
+      } catch (sweepErr) {
+        log.error("null hash sweep failed for shop", {
+          event: "null_hash_sweep_error",
+          shop: config.shop,
+          message: sweepErr instanceof Error ? sweepErr.message : String(sweepErr),
+        });
+      }
     } catch (err) {
       result.errors += 1;
       log.error("cron tick per-shop error", {
