@@ -1,6 +1,6 @@
 # HANDOFF — AI Stylist Shopify App
 
-**Last updated:** 2026-05-08, after Sub-bundle 3.1.6 planning round close (4-thread investigation; option C-modified locked; 3 mechs + close). **Phase 1 CLOSED. Phase 2 CLOSED. Phase 3 IN PROGRESS — sub-bundles 3.1 and 3.1.5 closed; 3.1.6 planning closed; next: 3.1.6 mech.1.**
+**Last updated:** 2026-05-08, after Sub-bundle 3.1.6 close (recurring-sync wire shipped, α backfill executed, 3 trigger paths verified end-to-end). **Phase 1 CLOSED. Phase 2 CLOSED. Phase 3 IN PROGRESS — sub-bundles 3.1, 3.1.5, and 3.1.6 closed; next: post-eval-pass flip planning round.**
 **Supersedes:** Previous HANDOFF.
 **North star:** `docs/recommendation-engine-brief.md` v0.3 (commit `22e849c`).
 **Scope:** `docs/scope-decisions.md` (commit `616fe70`).
@@ -606,7 +606,96 @@ Four read-only investigation threads ran on top of `3cdf212` (no commits, no cod
 - `.pr-3-1-6-planning-artifacts/12-relevant-code-surfaces.txt` — Thread 3 step A
 - `.pr-3-1-6-planning-artifacts/13-architectural-analysis.md` — option evaluation + recommendation
 
-Sub-bundle 3.1.6 planning round closes here. Next: 3.1.6 mech.1 prompt authoring (load-bearing wire). After 3.1.6 ships: post-eval-pass flip commit (one-line `registry.server.ts` + variant-loading on v2 ProductCard per op debt #15). Then Sub-bundle 3.2 planning round (order ingest + sales velocity + AttributionEvent).
+Sub-bundle 3.1.6 planning round closes here. Mech chain shipped 2026-05-08 — see Sub-bundle 3.1.6 close subsection below for actuals. After 3.1.6: post-eval-pass flip planning round (informed by α backfill eval data — see close subsection's interpretation note).
+
+#### Sub-bundle 3.1.6 close (2026-05-08)
+
+Sub-bundle 3.1.6 closes here. Mech chain: planning round (`cc89ed2`) → mech.1 (`a3c6aa2`) → mech.1.5 (`3ab1b41`) → mech.2 (`c103309`) → mech.2.5 (`f32bda0`) → mech.3 (`39389e7`) → mech.3.5 (`4684199`) → this close.
+
+**The recurring-sync gap as ultimately understood:**
+
+*Pre-3.1.6:* when `ProductTag` rows changed (every successful AI-tagging job completion), the corresponding product embedding became stale silently because the skip predicate (`embeddingContentHash === knowledgeContentHash`) is incomplete-by-design — `knowledgeContentHash` deliberately excludes `ProductTag` rows (`knowledge-hash.server.ts:13-17`), but embedding text includes them (`product-embedding.server.ts:57-62`). There was no automatic RE_EMBED enqueue path. Bulk re-embed was the only mechanism that had ever populated embeddings since the column was added.
+
+*Post-3.1.6:* three trigger sources fire RE_EMBED automatically.
+- `TAGGING_COMPLETION` (mech.1): inline enqueue at AI-tagging completion via `triggerPostTaggingReembed`
+- `NULL_HASH_SWEEP` (mech.2): daily scanner backstop for NULL-embedding ACTIVE products
+- `UNEXCLUDE` (mech.3): `api.products.$id.exclude` route on `recommendationExcluded` true→false transition via `triggerReembedOnUnexclude`
+
+All three paths verified end-to-end against the dev shop. Five deliberate verification commits (mech.1.5, mech.2.5, mech.3.5) plus this close's α backfill confirm production behaviour.
+
+**Pre-close census (filtered to ACTIVE not-deleted not-excluded):**
+- 1,169 hash-matched (steady state from 3.1.5)
+- 0 embedding-null (target for α backfill — created via NULL-bump below)
+- 0 hash-mismatched
+- TaggingJob aggregate confirmed all 8 distinct (kind, triggerSource) combinations from the mech chain are visible: `RE_EMBED`/`INITIAL_BACKFILL` (1,168 from 3.1.5), `MANUAL` (5), `NULL_HASH_SWEEP` (3 from mech.2.5), `UNEXCLUDE` (2 from mech.3.5), `TAGGING_COMPLETION` (2 — natural production fire + mech.1.5 follow-up); plus historical `SINGLE_PRODUCT`/`DELTA_HASH_CHANGE` (2), `MANUAL_RETAG`/`MANUAL` (2), `INITIAL_BACKFILL`/`INITIAL_BACKFILL` (4 from Phase 2).
+
+**α backfill (op debt #26 resolution):**
+
+Pre-pass NULL-bump on **1,169 ACTIVE products**, then re-ran `scripts/bulk-reembed-products.ts` to refresh embeddings against APPROVED-only text (mech.1's `worker-reembed.ts` filter correction).
+
+- 1,169 RE_EMBED jobs enqueued via `INITIAL_BACKFILL` triggerSource (single `createMany` INSERT, idempotent via `skipDuplicates`, defended by partial unique index `(shopDomain, productId) WHERE status='QUEUED'`)
+- Worker drained serially in **3m 22.18s** wall-clock from earliest `enqueuedAt` (2026-05-08T11:00:20.683Z) to latest `finishedAt`
+- Per-job latency: **p50=139ms, p95=208ms, p99=759ms, max=1,776ms**
+- 1,169 SUCCEEDED / 0 SKIPPED / 0 FAILED (all NULL-hash → no Decision-A skip path triggered, as expected)
+- **448,423 input tokens, 26,928 micros = $0.026928 USD** (vs 3.1.5's $0.027139 — slightly less because APPROVED-only filter excludes PENDING_REVIEW + REJECTED tags, producing shorter embedding text on products with unapproved tags)
+- Post-drain: **0 NULL, 1,169 hash-matched, 0 mismatched** ✓
+
+**Post-α eval rerun:**
+- EvalRun `cmowtdm120000q7io6bzxu1sa`, `pipelineVersion=3.1.0`, `durationMs=11697`
+- `aggregateScore 0.0833` — **identical to mech.6 baseline 0.0833 AND 3.1.5 post-bulk eval 0.0833**, 1 PASS / 0 PARTIAL / 11 FAIL (same fixtures pass/fail as both prior baselines)
+- **Eval is invariant across embedding-coverage changes.** Pre-3.1.5 (no ACTIVE embeddings), post-3.1.5 (1,168 ACTIVE embedded with all-tags semantics), and post-3.1.6 α (1,169 ACTIVE embedded with APPROVED-only semantics) all produce 0.0833. Confirms Stage 1 hard-filter tag coverage IS the bottleneck (Thread 3 finding from 3.1.6 planning round). The 11 FAILs short-circuit at Stage 1 because their target categories lack APPROVED tags from the PR-2.2 calibration sample. Embedding semantics don't move the needle until Stage 1 has data to filter against.
+- Diagnostic only — does NOT modify the locked R3 threshold (0.0833).
+
+**Trigger path evidence:**
+- **`TAGGING_COMPLETION`**: 2 jobs total since mech.1 push. First natural production fire was `harvey-black-ss-shirt-men-...` at 2026-05-08T07:25:42 UTC — **real Voyage call** (516 tokens, 31 micros, 211ms), triggered by a webhook-driven DELTA at 07:25:32 with `driftCount=1`. The recurring-sync wire is operational in production. Second TAGGING_COMPLETION was mech.1.5 TC4's chained follow-up (skipped via hash-match because the embedding was already current from the 07:25 fire).
+- **`NULL_HASH_SWEEP`**: 3 jobs total — all from mech.2.5 TC2 verification (2026-05-08T09:10 UTC). No natural cron-driven sweeps caught products organically because steady state has zero NULL-hash ACTIVE products. Scanner is a backstop, not primary path — correct shape.
+- **`UNEXCLUDE`**: 2 jobs total — exactly TC1 + TC4 from mech.3.5 verification. Dev shop has had no merchant-driven exclusions, so production firing depends on a future merchant action.
+
+**Observability confirmation:** post-mech.2 cron tick has been emitting `null_hash_sweep_evaluated` log events on every daily firing (visible in 5/8 07:00 UTC tick artifact). Op debt #24 fold-in on the scanner side is operational. Cron-tick out-of-window heartbeat remains deferred.
+
+**Operational debt items #22 – #37 added** (16 items, this close's record). Items 22-26 carryover from planning round + mechs; 27-37 surfaced during mech execution and verification:
+
+22. Skip predicate (`embeddingContentHash === knowledgeContentHash`) is incomplete by design — embedding text includes ProductTag rows but knowledgeContentHash deliberately excludes them. Predicate is a safety net for unnecessary work, not a sufficient trigger for re-embeds. Recurring sync (3.1.6 mech.1) provides the actual trigger via SINGLE_PRODUCT-completion enqueue.
+23. Methodology: anchor wall-clock time from external data (timestamp probe, `Date.now()` script) before reasoning about scheduled-job firing. Inferring current UTC from session vibes leads to false-positive regression claims (Thread 2.5 retrospective).
+24. Worker observability gap: cron tick is silent on out-of-window evaluations. "Alive and idle" looks identical to "stopped" in logs. Mech.2 ships scanner-side heartbeat (`null_hash_sweep_evaluated` event). Cron-tick-side heartbeat for out-of-window evaluations remains deferred.
+25. Live Shopify Admin API queries from local-dev are gated on a recent embedded-admin visit (offline tokens expire ~24h after issue). Document in CLAUDE.md or operational runbook.
+26. Post-mech.1 bulk re-embed of all ACTIVE products against APPROVED-only embedding text — RESOLVED at 3.1.6 close via α backfill (pre-pass NULL-bump + `scripts/bulk-reembed-products.ts`).
+27. CatalogSyncJob.summary forensics for embedding counters was the wrong architectural shape — the completion-driven enqueue is decoupled from CatalogSyncJob, so per-DELTA counters can't be cleanly written there. D4 from planning round was deferred. Observability via per-event log only (`reembed_enqueued_from_completion`).
+28. Convention: extract-and-export when test mocking adds value (mech.1 `triggerPostTaggingReembed`, mech.3 `triggerReembedOnUnexclude` pattern), inline when it doesn't (`maybeLogBackfillBlockingEvent` precedent). No retroactive refactor of inlined precedents.
+29. Monitoring/alerting must distinguish `status=FAILED` (genuine failure) from `status=SUCCEEDED+summary.skipped=true` (correctly-observed mid-queue state change or hash-match safety net). Don't aggregate.
+30. `findQueuedJobForProduct` in `enqueue-tagging.server.ts` is kind-agnostic; partial unique index is kind-agnostic. Cross-kind enqueues to the same product produce ambiguous dedup results. Lower-priority because cross-kind concurrent enqueue is rare in practice; record but don't chase.
+31. Claude Code's background-task polling layer treats `Tee-Object` pipe redirects as long-running tasks even after the script process exits. Use `> file 2>&1` standard redirect for verification scripts going forward.
+32. Mech.2's NULL-hash scanner does NOT consume the `bumpHashForMetaobjectReferents` fan-out signal (function NULLs `knowledgeContentHash`, scanner filters on `embeddingContentHash IS NULL` — different columns). Production shops with active metaobject definitions need a dedicated consumer; defer to a separate sub-bundle when first such shop onboards.
+33. Planning rounds for non-trivial multi-component sub-bundles should include a "premise verification" step — for each architectural claim (X consumes Y signal, A reads B's output), trace the actual data path in code, not just the documented intent. Mech.2 + mech.3 both surfaced premise errors at implementation time.
+34. Verification prompts asserting "exactly N jobs/rows exist" should anchor to a delta (how many were created during this test) rather than total population (which depends on shop history). Use pre/post counts and assert the diff.
+35. Local-dev verification scripts that import server modules with their own prisma usage should not also instantiate `new PrismaClient()`. Use the shared client from `app/db.server.ts` to avoid libuv handle-close races on Windows.
+36. The planning round's op debt #20 framing was structurally wrong: `recommendationExcluded` is an AI Stylist column not a Shopify field, so the webhook-handler wire site doesn't exist for this signal. Mech.3 wire site corrected to `api.products.$id.exclude`. Pattern: planning rounds inherit framing errors from earlier rounds; verify field provenance (Shopify vs ours) at premise-checking time.
+37. The "logic in lib, thin route shells" pattern is now load-bearing across mech.1 (`triggerPostTaggingReembed`) and mech.3 (`triggerReembedOnUnexclude`). Both extracted as testable lib functions. Convention is implicit but consistent enough to make explicit; document in CLAUDE.md or project-conventions doc.
+
+**Ten artifacts captured:**
+- `.pr-3-1-6-close-artifacts/00-pre-close-census.txt` — product distribution + TaggingJob aggregate + recent CatalogSyncJob
+- `.pr-3-1-6-close-artifacts/01-tagging-completion-evidence.txt` — first natural production fire (5/8 07:25:42 UTC)
+- `.pr-3-1-6-close-artifacts/02-alpha-dry-run-pre-bump.txt` — confirms 0 eligible pre-bump
+- `.pr-3-1-6-close-artifacts/03-alpha-null-bump.txt` — 1,169 NULLed
+- `.pr-3-1-6-close-artifacts/04-alpha-dry-run-post-bump.txt` — 1,169 wouldEnqueue
+- `.pr-3-1-6-close-artifacts/05-alpha-real-enqueue.txt` — 1,169 inserted
+- `.pr-3-1-6-close-artifacts/06-alpha-drain-wait.txt` — initial + DRAINED snapshots
+- `.pr-3-1-6-close-artifacts/07-alpha-post-drain-summary.txt` — by-status counts, tokens, cost, p50/p95/p99/max latency, post-drain census
+- `.pr-3-1-6-close-artifacts/08-sweep-evidence.txt` — 3 NULL_HASH_SWEEP jobs (mech.2.5 TC2)
+- `.pr-3-1-6-close-artifacts/09-post-alpha-eval-baseline.txt` — eval rerun proving threshold-locked behaviour (0.0833 invariant)
+
+**Sub-bundle 3.1.6 closes here.** Next: post-eval-pass flip planning round. The planning round is now informed by:
+- Eval invariance from 3.1.5 (`aggregateScore` stayed 0.0833 across embedding-coverage changes)
+- Eval result from this close's α backfill (`aggregateScore` still 0.0833 across embedding-text-semantics changes)
+- Recurring sync wire is operational (mech.1 + mech.2 + mech.3 all verified end-to-end)
+
+Likely planning-round scope:
+- Whether the flip threshold (R3 = 0.0833) needs revision given the new eval data
+- Whether Stage 1 fallback behaviour should soften when APPROVED tag coverage is sparse (Thread 3 finding from 3.1.6 planning, now confirmed by α backfill eval invariance)
+- Whether Phase 5 catalog tagging should be reordered earlier in the roadmap to fix the data-coverage bottleneck before the flip ships
+- Variant-loading on v2 ProductCard per op debt #15 (pre-existing flip prerequisite)
+
+After the flip-planning round + flip commit: Sub-bundle 3.2 planning round (order ingest + sales velocity + `AttributionEvent`).
 
 ---
 
