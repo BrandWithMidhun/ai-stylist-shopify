@@ -1,0 +1,340 @@
+﻿=== A1. worker-phase-products.ts:140-180 (DELTA enqueue site, SINGLE_PRODUCT only — no RE_EMBED today) ===
+        await saveCursor(
+          job.id,
+          { productsCursor: page.pageInfo.endCursor },
+          tx,
+        );
+        cursorWrittenAt = new Date();
+      },
+      { timeout: 30000, maxWait: 5000 },
+    );
+
+    // PR-2.1: enqueue tagging for each hashChanged product. Errors
+    // here are logged and swallowed â€” a tagging-enqueue failure must
+    // never fail the catalog sync.
+    for (const productId of hashChangedProductIds) {
+      try {
+        const enqueueResult = await enqueueTaggingForProduct({
+          shopDomain: job.shopDomain,
+          productId,
+          triggerSource: "DELTA_HASH_CHANGE",
+        });
+        log.info("tagging job enqueued from DELTA hash change", {
+          event: "tagging_job_enqueued",
+          jobId: enqueueResult.jobId,
+          shopDomain: job.shopDomain,
+          productId,
+          deduped: enqueueResult.deduped,
+          triggerSource: "DELTA_HASH_CHANGE",
+          syncJobId: job.id,
+        });
+      } catch (err) {
+        log.warn("tagging enqueue failed; continuing sync", {
+          event: "tagging_enqueue_error",
+          jobId: job.id,
+          shopDomain: job.shopDomain,
+          productId,
+          message: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+
+    await updateProgress(job.id, {
+
+=== A2. enqueueTaggingForProduct full body (kind constrained to SINGLE_PRODUCT|MANUAL_RETAG) ===
+// PR-2.1: enqueue helper for the TaggingJob queue.
+//
+// QUEUED-only dedup: if a row already exists for (shopDomain,
+// productId) with status='QUEUED', return that row's id without
+// inserting. The DB partial unique index is the safety net; this
+// function is the application-level fast path that avoids the
+// constraint raise on the common burst case.
+//
+// Mirrors enqueue-delta.server.ts (PR-C) for the catalog DELTA queue.
+//
+// Trigger sources are free strings:
+//   WEBHOOK_CREATE        â€” products/create webhook handler
+//   DELTA_HASH_CHANGE     â€” worker-phase-products after upsertProductKnowledge
+//   MANUAL                â€” admin-triggered retag from /api/intelligence/retag
+//   INITIAL_BACKFILL      â€” 2.2's first-pass tagging script (not enqueue-tagging)
+//   CRON                  â€” reserved for future cron-driven retag (e.g.
+//                           daily resurrection of incomplete tagging)
+
+import type { TaggingJob, TaggingJobKind } from "@prisma/client";
+import prisma from "../../db.server";
+import { findQueuedJobForProduct } from "./tagging-jobs.server";
+
+export type EnqueueTaggingResult = {
+  jobId: string;
+  deduped: boolean;
+};
+
+export async function enqueueTaggingForProduct(params: {
+  shopDomain: string;
+  productId: string;
+  triggerSource: string;
+  kind?: Extract<TaggingJobKind, "SINGLE_PRODUCT" | "MANUAL_RETAG">;
+}): Promise<EnqueueTaggingResult> {
+  const kind = params.kind ?? "SINGLE_PRODUCT";
+
+  // Fast-path dedup. The DB partial unique index would raise on a
+  // race-loser; we'd rather return the winner cleanly than
+  // try/catch the constraint. The window between the SELECT and the
+  // INSERT is short, but we still wrap in a tx with a retry so the
+  // race-loser gets the existing row rather than crashing.
+  const existing = await findQueuedJobForProduct(params.shopDomain, params.productId);
+  if (existing) {
+    return { jobId: existing.id, deduped: true };
+  }
+
+  try {
+    const created = await prisma.taggingJob.create({
+      data: {
+        shopDomain: params.shopDomain,
+        productId: params.productId,
+        kind,
+        status: "QUEUED",
+        triggerSource: params.triggerSource,
+      },
+    });
+    return { jobId: created.id, deduped: false };
+  } catch (err) {
+    // Race: another caller created the row between our SELECT and
+    // INSERT. The partial unique index raised. Re-read and return
+    // the winner.
+    if (isUniqueViolation(err)) {
+      const winner = await findQueuedJobForProduct(params.shopDomain, params.productId);
+      if (winner) {
+        return { jobId: winner.id, deduped: true };
+      }
+    }
+    throw err;
+  }
+}
+
+// enqueueInitialBackfill â€” fired by the future 2.2 backfill script. Not
+// used by webhooks, not used by the cron. Kept here for symmetry with
+// the SINGLE_PRODUCT path. Returns deduped=true if a backfill is
+// already in flight for the shop (the DB partial unique enforces this
+// at the constraint level too).
+export async function enqueueInitialBackfill(params: {
+  shopDomain: string;
+  triggerSource?: string;
+}): Promise<EnqueueTaggingResult> {
+  const existing = await prisma.taggingJob.findFirst({
+    where: {
+      shopDomain: params.shopDomain,
+      kind: "INITIAL_BACKFILL",
+      status: { in: ["QUEUED", "RUNNING"] },
+    },
+    orderBy: { enqueuedAt: "desc" },
+  });
+  if (existing) {
+    return { jobId: existing.id, deduped: true };
+  }
+  try {
+    const created = await prisma.taggingJob.create({
+      data: {
+        shopDomain: params.shopDomain,
+        productId: null,
+        kind: "INITIAL_BACKFILL",
+        status: "QUEUED",
+        triggerSource: params.triggerSource ?? "INITIAL_BACKFILL",
+      },
+    });
+    return { jobId: created.id, deduped: false };
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      const winner = await prisma.taggingJob.findFirst({
+        where: {
+          shopDomain: params.shopDomain,
+          kind: "INITIAL_BACKFILL",
+          status: { in: ["QUEUED", "RUNNING"] },
+        },
+      });
+      if (winner) {
+        return { jobId: winner.id, deduped: true };
+      }
+    }
+    throw err;
+  }
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const code = (err as { code?: unknown }).code;
+  return code === "P2002";
+}
+
+export type { TaggingJob };
+
+=== A3. knowledge-hash.server.ts header — what is/isn't in the hash ===
+// Phase 1 (PR-A): canonical hash of a Product's textual knowledge record.
+//
+// Phase 3 will compare Product.knowledgeContentHash to embeddingContentHash
+// and skip re-embedding when unchanged. Phase 1's job is just to compute
+// and persist the hash on every ingestion path (worker, webhooks, cron).
+//
+// What's IN the hash: the textual fields the embedder consumes â€” title,
+// productType, vendor, descriptionText, shopifyTags, collection handles,
+// textual metafields, metaobject refs. Plus storeMode because the
+// embedder prefixes that into the input string (changing storeMode on a
+// shop is rare but should invalidate every product's embedding cache).
+//
+// What's OUT of the hash, deliberately:
+//   - inventory / variants / prices â€” change for non-knowledge reasons
+//   - imageUrls / featuredImageUrl â€” image churn â‰  semantic churn
+//   - ProductTag rows (AI tags) â€” Phase 2 generates those *from* the
+//     knowledge record; circular dependency
+//   - shopifyUpdatedAt / our updatedAt â€” timestamps drift independently
+//   - non-textual metafield types (file_reference without resolution,
+//     dimension without unit context, etc.) â€” too noisy for the hash
+//
+// The function is pure: same input, same output, no I/O. Sort discipline
+// inside the function guarantees that incidental ordering changes from
+// Shopify (e.g. metafield list order from a different page) don't
+// produce a different hash.
+
+import { createHash } from "node:crypto";
+import type { StoreMode } from "@prisma/client";
+
+export type KnowledgeMetafieldInput = {
+
+=== A4. product-embedding.server.ts buildEmbeddingText — embedding text composition ===
+// Pure helpers that turn a Product (plus its tag relation) into a single
+// string we ship to Voyage. No DB access, no API calls â€” keeping this
+// layer pure makes it trivial to unit-test and lets the orchestration
+// layer batch many products in memory before any IO happens.
+//
+// The text format mixes natural-language fields (title, description) with
+// a compact `axis:value` rendering of structured tags. voyage-3 handles
+// this hybrid well; the storeMode preamble nudges the model toward the
+// right semantic neighbourhood when categories overlap (e.g. a "ring" in
+// JEWELLERY vs. ELECTRONICS).
+
+import type { StoreMode } from "@prisma/client";
+
+export type ProductForEmbedding = {
+  title: string;
+  descriptionHtml: string | null;
+  productType: string | null;
+  vendor: string | null;
+  shopifyTags: string[];
+  tags: Array<{ axis: string; value: string }>;
+};
+
+const MAX_DESCRIPTION_CHARS = 1500;
+const MAX_TOTAL_CHARS = 8000;
+
+const STORE_MODE_PREAMBLE: Record<StoreMode, string> = {
+  FASHION: "Fashion product.",
+  JEWELLERY: "Jewellery product.",
+  ELECTRONICS: "Electronics product.",
+  FURNITURE: "Furniture product.",
+  BEAUTY: "Beauty product.",
+  GENERAL: "Product.",
+};
+
+export function buildEmbeddingText(
+  product: ProductForEmbedding,
+  storeMode: StoreMode,
+): string {
+  const lines: string[] = [];
+  lines.push(STORE_MODE_PREAMBLE[storeMode] ?? STORE_MODE_PREAMBLE.GENERAL);
+  lines.push(`Title: ${product.title}`);
+  if (product.productType) lines.push(`Type: ${product.productType}`);
+  if (product.vendor) lines.push(`Brand: ${product.vendor}`);
+
+  if (product.descriptionHtml) {
+    const stripped = stripHtml(product.descriptionHtml).slice(
+      0,
+      MAX_DESCRIPTION_CHARS,
+    );
+    if (stripped.length > 0) lines.push(`Description: ${stripped}`);
+  }
+
+  if (product.shopifyTags.length > 0) {
+    lines.push(`Tags: ${product.shopifyTags.join(", ")}`);
+  }
+
+  if (product.tags.length > 0) {
+    const formatted = product.tags
+      .map((t) => `${t.axis}:${t.value}`)
+      .join(", ");
+    lines.push(`Attributes: ${formatted}`);
+  }
+
+  const joined = lines.join("\n");
+  return joined.length > MAX_TOTAL_CHARS
+    ? joined.slice(0, MAX_TOTAL_CHARS)
+    : joined;
+}
+
+// v1 HTML stripper: regex-only. Sufficient for Shopify descriptionHtml
+// which is well-formed; if we ever start ingesting wild user-pasted HTML
+// we can swap in a proper parser without touching the public surface.
+function stripHtml(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+=== A5. worker-reembed.ts:90-145 — handler reads + skip predicate ===
+  const product = await prisma.product.findFirst({
+    where: {
+      id: job.productId,
+      shopDomain: job.shopDomain,
+      deletedAt: null,
+    },
+    select: {
+      id: true,
+      title: true,
+      descriptionHtml: true,
+      productType: true,
+      vendor: true,
+      shopifyTags: true,
+      knowledgeContentHash: true,
+      embeddingContentHash: true,
+      tags: { select: { axis: true, value: true } },
+    },
+  });
+
+  if (!product) {
+    const message = `Product ${job.productId} not found for RE_EMBED on ${job.shopDomain}`;
+    log.error("re-embed product not found", {
+      event: "reembed_product_not_found",
+      jobId: job.id,
+      shopDomain: job.shopDomain,
+      productId: job.productId,
+    });
+    await logTaggingFailure({
+      jobId: job.id,
+      errorClass: "OTHER",
+      message,
+    });
+    await finishTaggingJob(job.id, {
+      status: "FAILED",
+      errorClass: "OTHER",
+      errorMessage: message,
+      summary: {
+        kind: "RE_EMBED",
+        outcome: "failed",
+        skipped: false,
+        reason: "product_not_found",
+      } satisfies ReEmbedSummary as Prisma.InputJsonValue,
+    });
+    return { outcome: "failed", tokens: 0, costMicros: 0, message };
+  }
+
+  // Decision A predicate exactly: skip if embeddingContentHash IS NOT
+  // NULL AND === knowledgeContentHash. NULL hash â†’ treat as "needs
+  // embed". Hash mismatch â†’ re-embed.
+  const skip =
+    product.embeddingContentHash !== null &&
+    product.embeddingContentHash === product.knowledgeContentHash;
+
+  if (skip) {
+    const durationMs = Date.now() - startMs;
+    log.info("re-embed skipped (hash match)", {
+

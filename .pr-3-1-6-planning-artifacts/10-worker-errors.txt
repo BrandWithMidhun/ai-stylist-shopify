@@ -1,0 +1,2 @@
+﻿=== ai-stylist-shopify: last 6h filtered for errors/exceptions ===
+(no error/exception/cron_tick lines in last 6h)

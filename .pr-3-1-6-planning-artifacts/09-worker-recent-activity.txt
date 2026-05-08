@@ -1,0 +1,5 @@
+﻿=== ai-stylist-shopify (worker): last 4h, filter on activity ===
+2026-05-08T04:43:59.577420136Z [INFO] worker boot ts="2026-05-08T04:43:58.954Z" pid=24 service="worker" nodeVersion="v20.20.2" nodeEnv="production"
+2026-05-08T04:43:59.577426689Z [INFO] boot sweep complete ts="2026-05-08T04:43:59.073Z" resumedJobIds=[] service="worker" sweptCount=0
+2026-05-08T04:43:59.577430427Z [INFO] cron tick scheduler starting ts="2026-05-08T04:43:59.073Z" forceFirstTick=false service="worker" intervalMs=60000 cronHour=3
+2026-05-08T04:43:59.577433800Z [INFO] tagging loop starting ts="2026-05-08T04:43:59.074Z" pollIntervalMs="2000-5000" service="worker" event="tagging_loop_started"

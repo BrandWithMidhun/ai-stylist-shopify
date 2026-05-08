@@ -1,6 +1,6 @@
 # HANDOFF — AI Stylist Shopify App
 
-**Last updated:** 2026-05-08, after Sub-bundle 3.1.5 close (bulk re-embed of 1,168 NULL-hash ACTIVE dev-shop products). **Phase 1 CLOSED. Phase 2 CLOSED. Phase 3 IN PROGRESS — sub-bundles 3.1 and 3.1.5 closed; recurring-sync sub-bundle (working name 3.1.6) is next.**
+**Last updated:** 2026-05-08, after Sub-bundle 3.1.6 planning round close (4-thread investigation; option C-modified locked; 3 mechs + close). **Phase 1 CLOSED. Phase 2 CLOSED. Phase 3 IN PROGRESS — sub-bundles 3.1 and 3.1.5 closed; 3.1.6 planning closed; next: 3.1.6 mech.1.**
 **Supersedes:** Previous HANDOFF.
 **North star:** `docs/recommendation-engine-brief.md` v0.3 (commit `22e849c`).
 **Scope:** `docs/scope-decisions.md` (commit `616fe70`).
@@ -509,7 +509,104 @@ One-shot bulk pass to populate `embeddingContentHash` for ACTIVE dev-shop produc
 - `.pr-3-1-5-artifacts/04-post-drain-summary.txt` — by-status counts, tokens, cost, p50/p95/p99/max latency, post-drain census
 - `.pr-3-1-5-artifacts/05-post-pass-eval-baseline.txt` — eval rerun proving threshold-locked behaviour
 
-Sub-bundle 3.1.5 closes here. Next: recurring-sync sub-bundle (working name 3.1.6) — fork-density warrants a planning round (op debt #18 + #20 + #21 all interact). Then post-eval-pass flip commit (one-line `registry.server.ts` + variant-loading on v2 ProductCard per op debt #15). Then Sub-bundle 3.2 planning round (order ingest + sales velocity + AttributionEvent).
+Sub-bundle 3.1.5 closes here. Next was the 3.1.6 planning round — closed 2026-05-08 (this commit). See Sub-bundle 3.1.6 planning round close subsection below for the locked architecture and mech split. After 3.1.6 ships: post-eval-pass flip commit (one-line `registry.server.ts` + variant-loading on v2 ProductCard per op debt #15). Then Sub-bundle 3.2 planning round (order ingest + sales velocity + AttributionEvent).
+
+#### Sub-bundle 3.1.6 planning round close (2026-05-08)
+
+Four read-only investigation threads ran on top of `3cdf212` (no commits, no code changes, no DB writes — investigation-only). Threads 1, 2, 2.5, and 3 produced 13 artifacts in `.pr-3-1-6-planning-artifacts/`. Architecture locked; mech split locked; mech prompts not yet authored. The full planning artifact lives at `docs/planning/3-1-6-recurring-sync.md` — that document is the source of truth for mech.1's prompt.
+
+**Investigation summary:**
+- **Thread 1** (webhook subscription state): toml declares 18 subscriptions at api_version 2026-07; `app/shopify.server.ts` programmatically registers nothing (Shopify-managed install). Zero webhook deliveries to web service in 24h preceding this round (dev shop had no merchant activity). Live subscription query blocked by expired offline session token. Surfaced: API version mismatch (toml 2026-07 vs SDK October25), and the deeper finding that `enqueueTaggingForProduct` constrains kind to SINGLE_PRODUCT|MANUAL_RETAG and never enqueues RE_EMBED.
+- **Thread 2** (DELTA path end-to-end verification): cron tick fires reliably 1×/day at 03:00 ET = 07:00 UTC for the past week (8 CRON DELTA rows). DELTA chain works end-to-end: webhook → CatalogSyncJob → upsert → hashChanged → SINGLE_PRODUCT enqueue. Empirical proof point: `elite-linen-styling-service` was edited 5/3 09:34 UTC, AI re-tagged in 3.4s, embedding stayed NULL until 3.1.5 bulk pass on 5/8.
+- **Thread 2.5** (today's cron-tick failure investigation): false alarm. Thread 2 declared a missed firing based on inferred current UTC; Thread 2.5 corrected via HTTP probe to Railway edge. Current UTC at investigation time was ~05:58, not ~10:30 — the 07:00 UTC window was still ~1h in the future. No regression. Methodology lesson recorded as op debt #23.
+- **Thread 3** (architectural option-pick): three options evaluated against eight criteria. Headline finding: the embedding text includes ProductTag rows (`product-embedding.server.ts:57-62`); `knowledgeContentHash` deliberately excludes them (`knowledge-hash.server.ts:13-17`: "Phase 2 generates those *from* the knowledge record; circular dependency"). The skip predicate is therefore a safety net against unnecessary re-embeds, not a sufficient trigger for them. Recurring sync requires an explicit enqueue path.
+
+**Architectural decision: Option C-modified locked.**
+- Inline trigger: `worker-tagging.ts` SINGLE_PRODUCT handler enqueues a follow-up RE_EMBED on the SUCCEEDED transition (chained, ordering-safe). This places the enqueue chronologically AFTER the AI-tag write, so embedding text always sees fresh tags.
+- Backstop scanner: a NULL-knowledgeContentHash sweep runs on cron tick, fanning out RE_EMBED for products that landed in stale state via paths other than AI-tagging completion (notably `bumpHashForMetaobjectReferents` which writes NULL hashes today with no consumer).
+- Rejected: Option A (misses the metaobject NULL fan-out path), Option B alone (loses the tight per-event coupling — merchant edit would wait up to 24h).
+
+**Mech-commit split: 3 mechs + close.**
+- mech.1 (~250 LOC, 4-5 tests): core wire — `enqueueReembedForProduct` helper + worker-tagging SUCCEEDED enqueue + worker-reembed `where: { status: 'APPROVED' }` filter (Finding 2 fix) + handler defensive status check (op debt #21 closes here) + CatalogSyncJob.summary additive forensics shape (D4).
+- mech.2 (~150 LOC, 3 tests): NULL-hash scanner module + cron-tick integration. New triggerSource `NULL_HASH_SWEEP`. Open at mech.2 prompt time: scanner cadence (every-60s vs 1×/day; recommend daily).
+- mech.3 (~30 LOC, 1 test): products/update webhook compares prior/current `recommendationExcluded`, enqueues RE_EMBED on `true → false` transition. Closes op debt #20.
+- 3.1.6 close: dev-shop end-to-end verification + post-mech.1 bulk re-embed (one-shot SQL UPDATE NULLing `embeddingContentHash` on all currently-ACTIVE rows pre-bulk-pass, since Decision A would otherwise skip them all under the new APPROVED-only tag semantics — see op debt #26).
+
+**Decisions explicitly deferred to mech-prompt time:**
+- enqueueReembedForProduct internals (fast-path-dedup mirror vs index-only)
+- log event names + JSON shapes
+- Test coverage approach for chained handler-completion enqueue
+- NULL-hash scanner cron cadence
+- Bulk re-embed strategy at close (recommended: pre-pass NULL-bump, alternatives β/γ in planning doc §5)
+
+**Out-of-scope deferred:** D5 triggerSource literal-union typing (separate housekeeping commit), worker idle-tick heartbeat (op debt #24), Stage 1 retrieval audit for APPROVED-only consistency (op debts #9, #10), webhook subscription state verification (Thread 1 step B; blocked on token expiry), API version mismatch.
+
+**Operational debt added (5 items, #22 – #26 appended verbatim to the existing flat list of 21 — no renumbering):**
+
+22. Decision-A skip predicate is a SAFETY NET, not a sufficient TRIGGER.
+    The predicate `embeddingContentHash IS NOT NULL AND === knowledgeContentHash`
+    cannot detect tag-only drift because embedding text includes ProductTag
+    rows but knowledgeContentHash deliberately excludes them
+    (knowledge-hash.server.ts:13-17 — circular dependency with Phase 2 AI
+    tagging). Recurring sync requires an explicit enqueue path. Mech prompts
+    and code comments must consistently frame the predicate as a safety net
+    against unnecessary re-embeds, not as the primary correctness mechanism
+    that closes the recurring-sync gap.
+23. Time-anchor methodology for scheduled-job investigations. Thread 2
+    declared "today's cron tick has failed" based on inferred current UTC;
+    Thread 2.5 corrected the inference (current UTC was ~05:58, not ~10:30,
+    so the 07:00 UTC cron window was still ~1h in the future). Before
+    declaring a missed scheduled-job firing in any future investigation,
+    anchor wall-clock time from a reliable external source — HTTP probe
+    response timestamp, NTP, `Date.now()` printed by a script run on the
+    same machine — not from session-relative inference.
+24. Worker idle observability gap. The worker only emits log lines on
+    enqueue events, error paths, or job claim/finish. Idle ticks are silent.
+    This creates an "is it alive?" ambiguity for any human reviewer:
+    silence is consistent with both healthy-and-idle and dead-but-marked-
+    online. Cheap fix: emit `log.info("cron tick evaluated", {
+    evaluatedShops, skippedOutOfWindow, skippedAlreadyEnqueued })` once per
+    hour at INFO. Deferred until observability appetite returns. Not 3.1.6
+    work.
+25. Local-dev offline session token expiry runbook. With
+    `expiringOfflineAccessTokens: true` set in app/shopify.server.ts, the
+    dev shop's offline token expires every ~24h. Any local-dev script that
+    hits Shopify Admin API will get HTTP 401 if no one has opened the
+    embedded admin recently (Thread 1 step B blocked here). Resolution
+    paths: (a) open the embedded app at
+    https://web-production-3b1d7.up.railway.app once to trigger
+    token-exchange refresh, OR (b) add SHOPIFY_API_KEY +
+    SHOPIFY_API_SECRET to local .env so `unauthenticated.admin(shop)`
+    works without the per-shop accessToken path, OR (c) run the script
+    on Railway. Worth documenting in CLAUDE.md or a runbook before the
+    next investigation that needs live Shopify state.
+26. Post-mech.1 bulk re-embed required, with a Decision-A invalidation
+    step. Mech.1's APPROVED-only tag filter changes embedding text inputs.
+    All 1,169 ACTIVE embeddings have `embeddingContentHash ===
+    knowledgeContentHash` (post-3.1.5 alignment), so a naive bulk re-pass
+    will see Decision-A skip every row even though the embedding text
+    under new semantics differs. Resolution at 3.1.6 close: a one-shot
+    SQL UPDATE NULLing `embeddingContentHash` on every currently-ACTIVE
+    not-deleted not-excluded row before invoking the existing
+    `scripts/bulk-reembed-products.ts`. Cost projection: ~$0.027 USD,
+    ~3-5min drain (mirrors 3.1.5 cost/duration actuals).
+
+**13 artifacts captured:**
+- `.pr-3-1-6-planning-artifacts/01-webhook-source-declarations.txt` — toml + handler topology
+- `.pr-3-1-6-planning-artifacts/02-webhook-live-subscriptions.txt` — token-expiry blocked
+- `.pr-3-1-6-planning-artifacts/03-webhook-railway-logs.txt` — 24h log retrospective
+- `.pr-3-1-6-planning-artifacts/04-delta-chain-source.txt` — cron + enqueueDelta source
+- `.pr-3-1-6-planning-artifacts/05-worker-phase-products-source.txt` — DELTA detection logic
+- `.pr-3-1-6-planning-artifacts/06-catalog-sync-history.txt` — 7-day CatalogSyncJob breakdown
+- `.pr-3-1-6-planning-artifacts/07-delta-tagging-jobs.txt` — elite-linen-styling-service incident
+- `.pr-3-1-6-planning-artifacts/08-worker-status.txt` — Railway service snapshot
+- `.pr-3-1-6-planning-artifacts/09-worker-recent-activity.txt` — silent-but-alive confirmation
+- `.pr-3-1-6-planning-artifacts/10-worker-errors.txt` — zero-error 6h confirmation
+- `.pr-3-1-6-planning-artifacts/11-cron-tick-state.txt` — corrected current UTC; no failure
+- `.pr-3-1-6-planning-artifacts/12-relevant-code-surfaces.txt` — Thread 3 step A
+- `.pr-3-1-6-planning-artifacts/13-architectural-analysis.md` — option evaluation + recommendation
+
+Sub-bundle 3.1.6 planning round closes here. Next: 3.1.6 mech.1 prompt authoring (load-bearing wire). After 3.1.6 ships: post-eval-pass flip commit (one-line `registry.server.ts` + variant-loading on v2 ProductCard per op debt #15). Then Sub-bundle 3.2 planning round (order ingest + sales velocity + AttributionEvent).
 
 ---
 

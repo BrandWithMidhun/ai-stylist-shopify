@@ -1,0 +1,76 @@
+﻿=== web service: deploy logs last 24h, filter 'webhook' ===
+
+=== web service: deploy logs last 24h, filter 'products/' ===
+
+=== ai-stylist-shopify (worker?) service: deploy logs last 24h, filter 'webhook' ===
+
+=== ai-stylist-shopify: deploy logs last 24h, filter 'products/' ===
+
+=== web service: HTTP logs last 24h, path /webhooks/ ===
+
+=== ai-stylist-shopify: filter 'reembed' (3.1.5 drain evidence) ===
+
+=== ai-stylist-shopify: filter 'tagging' last 24h, lines 30 ===
+2026-05-08T04:43:59.577433800Z [INFO] tagging loop starting ts="2026-05-08T04:43:59.074Z" pollIntervalMs="2000-5000" service="worker" event="tagging_loop_started"
+
+=== ai-stylist-shopify: filter 'cron' last 24h, lines 20 ===
+2026-05-08T04:43:59.577430427Z [INFO] cron tick scheduler starting ts="2026-05-08T04:43:59.073Z" forceFirstTick=false service="worker" intervalMs=60000 cronHour=3
+
+=== HISTORICAL: deployment fc6e5be7 (commit 2a12146, 2026-05-07 18:51 → 2026-05-08 04:44) ===
+
+--- worker: filter 'webhook' ---
+(no matching lines)
+--- worker: filter 'reembed' ---
+(no matching lines)
+--- worker: filter 'cron' ---
+2026-05-07T18:52:41.555504410Z [INFO] cron tick scheduler starting ts="2026-05-07T18:52:40.724Z" forceFirstTick=false service="worker" intervalMs=60000 cronHour=3
+
+
+=== HISTORICAL: web deployment a2509096 (commit 2a12146, 2026-05-07 18:51 → 2026-05-08 04:44) ===
+
+--- web (deploy logs): filter 'webhook' ---
+(no matching lines)
+--- web (deploy logs): filter 'products_webhook_enqueued' ---
+(no matching lines)
+--- web (HTTP logs): path /webhooks/ ---
+(no matching lines)
+
+=== Step C summary ===
+Window covered: 2026-05-07T17:32 UTC (deployment 0e6904d7 boot, commit 717fcdf)
+                through current (2026-05-08T~10:30 UTC).
+Active deployments straddling 24h: web a2509096 + worker fc6e5be7 (commit 2a12146,
+  18:51 5/7 → 04:44 5/8) and current web f697b2d6 + worker 87ef6e5b (commit
+  3cdf212, 04:41 5/8 → now).
+
+Findings (all queries returned ZERO matching log lines except where noted):
+  - web service:
+      deploy log filter 'webhook'                    → 0 lines
+      deploy log filter 'products_webhook_enqueued'  → 0 lines (the JSON event the
+        webhooks.products.{create,update} handler logs on every successful delivery)
+      HTTP log @path:/webhooks/                      → 0 requests in last 24h
+  - worker service:
+      deploy log filter 'webhook'                    → 0 lines
+      deploy log filter 'reembed' / 'reembed_completed' on prior deployment
+        fc6e5be7 → 0 lines (the 3.1.5 drain logs are emitted under different
+        deployments — see note below)
+      deploy log filter 'cron' / 'tick' / 'inWindow' / 'enqueued delta' → only the
+        boot line ('cron tick scheduler starting'). No tick-time activity logged.
+
+Note on 3.1.5 drain visibility:
+  The 3.1.5 RE_EMBED drain (1,168 jobs, 04:25-04:29 UTC on 5/8) ran inside
+  deployment fc6e5be7. One reembed_completed log line is captured at 04:29:08
+  before SIGTERM at 04:44 — confirming the drain happened. The bulk of per-job
+  log lines do not surface in any of the filters tried; this is a Railway log
+  retention/filtering quirk, not a behavioural finding (DB rows in the post-drain
+  summary already prove drain success).
+
+Bottom line for the recurring-sync gap question:
+  No webhook deliveries hit the web service in the last 24h. No DELTA enqueues
+  happened on either deployment. The dev shop appears to have had zero relevant
+  Shopify activity (product CRUD, customer events, order events) in that window,
+  AND its embedded admin has not been opened (offline session token expired
+  04:10 UTC and was never refreshed).
+
+  Without a confirmed-fresh subscription list (blocked by step B's 401), we
+  cannot distinguish 'subscriptions registered, just no activity' from
+  'subscriptions never registered or got dropped'.

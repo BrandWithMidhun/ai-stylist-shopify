@@ -1,0 +1,219 @@
+﻿=== shopify.app.toml [webhooks] section (full content) ===
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "6b6a2a30543f747e0120cd9e0f36f17f"
+name = "ai-stylist"
+application_url = "https://web-production-3b1d7.up.railway.app"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2026-07"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/webhooks/app/uninstalled"
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/scopes_update" ]
+  uri = "/webhooks/app/scopes_update"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/customers/data-request"
+  compliance_topics = [ "customers/data_request" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/customers/redact"
+  compliance_topics = [ "customers/redact" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/shop/redact"
+  compliance_topics = [ "shop/redact" ]
+
+  [[webhooks.subscriptions]]
+  topics = [ "products/create" ]
+  uri = "/webhooks/products/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "products/update" ]
+  uri = "/webhooks/products/update"
+
+  [[webhooks.subscriptions]]
+  topics = [ "products/delete" ]
+  uri = "/webhooks/products/delete"
+
+  [[webhooks.subscriptions]]
+  topics = [ "inventory_levels/update" ]
+  uri = "/webhooks/inventory_levels/update"
+
+  # Phase 1 PR-C: catalog DELTA enqueueing on collection changes.
+  [[webhooks.subscriptions]]
+  topics = [ "collections/create" ]
+  uri = "/webhooks/collections/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "collections/update" ]
+  uri = "/webhooks/collections/update"
+
+  [[webhooks.subscriptions]]
+  topics = [ "collections/delete" ]
+  uri = "/webhooks/collections/delete"
+
+  # Phase 1 PR-C: customer lifecycle. Log-only stubs in PR-C; PR-D wires
+  # the real CustomerProfile schema + write path. Subscribing now so we
+  # don't lose deliveries between PR-C deploy and PR-D ship. Originally
+  # deferred when the dev app lacked Shopify protected customer data
+  # access; restored after dev-mode access was activated 2026-04-30.
+  [[webhooks.subscriptions]]
+  topics = [ "customers/create" ]
+  uri = "/webhooks/customers/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "customers/update" ]
+  uri = "/webhooks/customers/update"
+
+  [[webhooks.subscriptions]]
+  topics = [ "customers/delete" ]
+  uri = "/webhooks/customers/delete"
+
+  # Phase 1 PR-C: order lifecycle. Log-only stubs in PR-C; Phase 3 builds
+  # the order ingest pipeline + AI revenue attribution against these.
+  # Originally deferred with customers/*; restored after protected
+  # customer data dev-mode access activated 2026-04-30.
+  [[webhooks.subscriptions]]
+  topics = [ "orders/create" ]
+  uri = "/webhooks/orders/create"
+
+  [[webhooks.subscriptions]]
+  topics = [ "orders/updated" ]
+  uri = "/webhooks/orders/updated"
+
+  [[webhooks.subscriptions]]
+  topics = [ "orders/cancelled" ]
+  uri = "/webhooks/orders/cancelled"
+
+  # metaobjects subscriptions deferred â€” Shopify requires metaobject_type
+  # filter and dev shop has zero metaobject definitions. Revisit when
+  # onboarding a merchant with metaobject definitions. Skeleton handlers
+  # remain in app/routes/webhooks.metaobjects.{create,update,delete}.tsx
+  # so wiring real subscriptions later is a toml-only change.
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+#
+# Phase 1 PR-B: scope set pulled forward from PR-C so the worker's
+# METAOBJECTS phase + PR-C's webhook handlers can both read what they
+# need without forcing the merchant to re-authorize twice. Per scope:
+#   read_products                â€” explicit even though write_products
+#                                  implies read in most contexts; avoids
+#                                  edge-case GraphQL field-level rejects
+#   write_products               â€” product mutations (existing)
+#   read_inventory               â€” variant inventory state (existing)
+#   read_metaobjects             â€” METAOBJECTS phase reads instances
+#   read_metaobject_definitions  â€” METAOBJECTS phase enumerates types
+#   read_customers               â€” PR-C customers/* webhook handlers
+#   write_customers              â€” PR-C customer profile writes
+#   read_orders                  â€” PR-C orders/* webhook handlers (plus
+#                                  Phase 3 attribution reconciliation)
+scopes = "read_products,write_products,read_inventory,read_metaobjects,read_metaobject_definitions,read_customers,write_customers,read_orders"
+
+[auth]
+redirect_urls = [ "https://web-production-3b1d7.up.railway.app/auth/callback" ]
+
+
+=== app/shopify.server.ts (full content) ===
+import "@shopify/shopify-app-react-router/adapters/node";
+import {
+  ApiVersion,
+  AppDistribution,
+  shopifyApp,
+} from "@shopify/shopify-app-react-router/server";
+import { PrismaSessionStorage } from "@shopify/shopify-app-session-storage-prisma";
+import prisma from "./db.server";
+
+const shopify = shopifyApp({
+  apiKey: process.env.SHOPIFY_API_KEY,
+  apiSecretKey: process.env.SHOPIFY_API_SECRET || "",
+  apiVersion: ApiVersion.October25,
+  scopes: process.env.SCOPES?.split(","),
+  appUrl: process.env.SHOPIFY_APP_URL || "",
+  authPathPrefix: "/auth",
+  sessionStorage: new PrismaSessionStorage(prisma),
+  distribution: AppDistribution.AppStore,
+  future: {
+    expiringOfflineAccessTokens: true,
+  },
+  ...(process.env.SHOP_CUSTOM_DOMAIN
+    ? { customShopDomains: [process.env.SHOP_CUSTOM_DOMAIN] }
+    : {}),
+});
+
+export default shopify;
+export const apiVersion = ApiVersion.October25;
+export const addDocumentResponseHeaders = shopify.addDocumentResponseHeaders;
+export const authenticate = shopify.authenticate;
+export const unauthenticated = shopify.unauthenticated;
+export const login = shopify.login;
+export const registerWebhooks = shopify.registerWebhooks;
+export const sessionStorage = shopify.sessionStorage;
+
+
+=== Programmatic registerWebhooks() / topicSubscribe call sites (grep) ===
+(none — search returned no matches)
+
+=== Webhook route handlers under app/routes/webhooks.* ===
+webhooks.app.scopes_update.tsx
+webhooks.app.uninstalled.tsx
+webhooks.collections.create.tsx
+webhooks.collections.delete.tsx
+webhooks.collections.update.tsx
+webhooks.customers.create.tsx
+webhooks.customers.data-request.tsx
+webhooks.customers.delete.tsx
+webhooks.customers.redact.tsx
+webhooks.customers.update.tsx
+webhooks.inventory_levels.update.tsx
+webhooks.metaobjects.create.tsx
+webhooks.metaobjects.delete.tsx
+webhooks.metaobjects.update.tsx
+webhooks.orders.cancelled.tsx
+webhooks.orders.create.tsx
+webhooks.orders.updated.tsx
+webhooks.products.create.tsx
+webhooks.products.delete.tsx
+webhooks.products.update.tsx
+webhooks.shop.redact.tsx
+
+
+=== webhooks.products.create.tsx — TaggingJob enqueue conditions ===
+Lines 31-37: early-return if MerchantConfig.lastFullSyncAt is null
+Lines 78-90: TaggingJob enqueue ONLY when topic==PRODUCTS_CREATE AND resourceGid set AND local Product row exists
+                Calls enqueueTaggingForProduct(triggerSource='WEBHOOK_CREATE')
+                kind defaults to SINGLE_PRODUCT (NOT RE_EMBED)
+
+=== webhooks.products.update.tsx — does NOT enqueue TaggingJob ===
+Only enqueues CatalogSyncJob DELTA via enqueueDeltaForShop. By design (PR-2.1):
+DELTA path enqueues SINGLE_PRODUCT TaggingJob with triggerSource='DELTA_HASH_CHANGE'
+for hashChanged products at app/server/worker-phase-products.ts:158.
+
+=== CRITICAL: enqueueTaggingForProduct never enqueues RE_EMBED ===
+app/lib/catalog/enqueue-tagging.server.ts line 32: kind constrained to
+SINGLE_PRODUCT or MANUAL_RETAG. Defaults to SINGLE_PRODUCT.
+RE_EMBED is enqueued ONLY by:
+  - scripts/bulk-reembed-products.ts (3.1.5 survivor; one-shot)
+  - mech.6 hand-enqueued verification (MANUAL)
+There is NO automatic RE_EMBED trigger on hash change, webhook fire, or cron tick.
+
+=== CRON triggerSource lives on CatalogSyncJob, not TaggingJob ===
+app/server/cron-tick.server.ts:153 — triggerSource='CRON' is passed to
+enqueueDeltaForShop (CatalogSyncJob), not enqueueTaggingForProduct (TaggingJob).
+So 'zero CRON rows in TaggingJob' is by design, not a bug. CRON-driven DELTA
+drains will produce DELTA_HASH_CHANGE TaggingJob rows downstream.
+
+=== API version mismatch (worth surfacing) ===
+shopify.app.toml         api_version = '2026-07'
+app/shopify.server.ts    apiVersion: ApiVersion.October25  (== '2025-10')
+Webhooks are registered against the toml version (2026-07);
+Admin API client uses the SDK version (2025-10).
