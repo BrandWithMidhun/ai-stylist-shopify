@@ -1,0 +1,109 @@
+// PR-3.1.6-mech.1: enqueue helper for kind=RE_EMBED TaggingJob rows.
+//
+// Sibling to enqueueTaggingForProduct (enqueue-tagging.server.ts). The two
+// helpers are kept separate even though their structure is near-identical
+// because their dedup semantics differ:
+//
+//   enqueueTaggingForProduct dedups against ANY queued job for the
+//   (shopDomain, productId) tuple. That matches the partial unique index
+//   `(shopDomain, productId) WHERE status='QUEUED'`, which is kind-agnostic.
+//
+//   enqueueReembedForProduct dedups against queued RE_EMBED jobs only.
+//   This is the right semantic for the recurring-sync wire: we want
+//   "another RE_EMBED is pending for this product" to dedup, not "any
+//   tagging-related job exists for this product". A SINGLE_PRODUCT
+//   ahead of us in the queue should NOT be treated as a queued RE_EMBED.
+//
+// Race window: if a different-kind QUEUED job exists for the product when
+// this helper runs, the application-level dedup misses it (kind filter
+// excludes it), but the partial unique index raises P2002 on insert. The
+// catch handler does another kind-specific find — which returns null,
+// since the conflict was a different kind. The function throws in that
+// case. Caller (worker-tagging completion enqueue) catches + logs and
+// does not fail the parent job. The mech.2 NULL-hash scanner backstop
+// catches the long tail of products that miss this firing.
+//
+// triggerSource is required (no default). Each caller commits to the
+// trigger semantic at the call site:
+//   TAGGING_COMPLETION   — worker-tagging post-SUCCEEDED transition (this mech)
+//   NULL_HASH_SWEEP      — cron-tick scanner (mech.2)
+//   UNEXCLUDE            — webhooks.products.update on excluded→eligible (mech.3)
+//   MANUAL               — admin-triggered manual re-embed
+//   INITIAL_BACKFILL     — scripts/bulk-reembed-products.ts (3.1.5 survivor)
+
+import type { TaggingJob } from "@prisma/client";
+import prisma from "../../db.server";
+
+export type ReembedTriggerSource =
+  | "TAGGING_COMPLETION"
+  | "NULL_HASH_SWEEP"
+  | "UNEXCLUDE"
+  | "MANUAL"
+  | "INITIAL_BACKFILL";
+
+export type EnqueueReembedResult = {
+  jobId: string;
+  deduped: boolean;
+};
+
+export async function enqueueReembedForProduct(input: {
+  shopDomain: string;
+  productId: string;
+  triggerSource: ReembedTriggerSource;
+}): Promise<EnqueueReembedResult> {
+  const existing = await findQueuedReembedJobForProduct(
+    input.shopDomain,
+    input.productId,
+  );
+  if (existing) {
+    return { jobId: existing.id, deduped: true };
+  }
+
+  try {
+    const created = await prisma.taggingJob.create({
+      data: {
+        shopDomain: input.shopDomain,
+        productId: input.productId,
+        kind: "RE_EMBED",
+        status: "QUEUED",
+        triggerSource: input.triggerSource,
+      },
+    });
+    return { jobId: created.id, deduped: false };
+  } catch (err) {
+    if (isUniqueViolation(err)) {
+      const winner = await findQueuedReembedJobForProduct(
+        input.shopDomain,
+        input.productId,
+      );
+      if (winner) {
+        return { jobId: winner.id, deduped: true };
+      }
+      // P2002 from a different-kind queued job (kind-agnostic partial
+      // unique index). Re-throw so caller can log and decide. The
+      // scanner backstop will pick this up next sweep.
+    }
+    throw err;
+  }
+}
+
+async function findQueuedReembedJobForProduct(
+  shopDomain: string,
+  productId: string,
+): Promise<TaggingJob | null> {
+  return prisma.taggingJob.findFirst({
+    where: {
+      shopDomain,
+      productId,
+      kind: "RE_EMBED",
+      status: "QUEUED",
+    },
+    orderBy: { enqueuedAt: "desc" },
+  });
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  if (typeof err !== "object" || err === null) return false;
+  const code = (err as { code?: unknown }).code;
+  return code === "P2002";
+}

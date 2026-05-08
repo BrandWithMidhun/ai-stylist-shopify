@@ -93,6 +93,10 @@ const baseProduct = {
   productType: "shirt",
   vendor: "VendorA",
   shopifyTags: ["linen"],
+  // PR-3.1.6-mech.1: defensive eligibility recheck reads these.
+  status: "ACTIVE",
+  deletedAt: null,
+  recommendationExcluded: false,
   knowledgeContentHash: "hash-A",
   embeddingContentHash: "hash-A",
   tags: [{ axis: "category", value: "shirt" }],
@@ -246,5 +250,89 @@ describe("processReEmbedJob — failure paths", () => {
     const finishCall = finishTaggingJob.mock.calls[0];
     expect(finishCall[1].status).toBe("FAILED");
     expect(finishCall[1].errorClass).toBe("CONNECTION");
+  });
+});
+
+// PR-3.1.6-mech.1: defensive eligibility recheck.
+// Recurring sync may enqueue RE_EMBED for a product that was ACTIVE at
+// enqueue time but flipped to DRAFT / ARCHIVED / soft-deleted / excluded
+// before claim time. The handler skips with SUCCEEDED + meta.skipped=true
+// rather than burning a Voyage call or returning FAILED.
+describe("processReEmbedJob — defensive status check (3.1.6-mech.1)", () => {
+  it("skips with reason='status_changed' when product is DRAFT", async () => {
+    productFindFirst.mockResolvedValue({ ...baseProduct, status: "DRAFT" });
+
+    const result = await processReEmbedJob({ job: makeJob() });
+
+    expect(result.outcome).toBe("skipped");
+    expect(embedDocumentWithUsage).not.toHaveBeenCalled();
+    expect(executeRaw).not.toHaveBeenCalled();
+    expect(taggingJobUpdate).not.toHaveBeenCalled();
+    expect(finishTaggingJob).toHaveBeenCalledOnce();
+    const finishCall = finishTaggingJob.mock.calls[0];
+    expect(finishCall[1].status).toBe("SUCCEEDED");
+    expect(finishCall[1].summary).toMatchObject({
+      kind: "RE_EMBED",
+      outcome: "skipped",
+      skipped: true,
+      reason: "status_changed",
+      skipDetail: { status: "DRAFT", deleted: false, excluded: false },
+    });
+  });
+
+  it("skips with reason='status_changed' when deletedAt is set", async () => {
+    productFindFirst.mockResolvedValue({
+      ...baseProduct,
+      deletedAt: new Date(),
+    });
+
+    const result = await processReEmbedJob({ job: makeJob() });
+
+    expect(result.outcome).toBe("skipped");
+    expect(embedDocumentWithUsage).not.toHaveBeenCalled();
+    const finishCall = finishTaggingJob.mock.calls[0];
+    expect(finishCall[1].status).toBe("SUCCEEDED");
+    expect(finishCall[1].summary).toMatchObject({
+      reason: "status_changed",
+      skipDetail: { status: "ACTIVE", deleted: true, excluded: false },
+    });
+  });
+
+  it("skips with reason='status_changed' when recommendationExcluded=true", async () => {
+    productFindFirst.mockResolvedValue({
+      ...baseProduct,
+      recommendationExcluded: true,
+    });
+
+    const result = await processReEmbedJob({ job: makeJob() });
+
+    expect(result.outcome).toBe("skipped");
+    expect(embedDocumentWithUsage).not.toHaveBeenCalled();
+    const finishCall = finishTaggingJob.mock.calls[0];
+    expect(finishCall[1].summary).toMatchObject({
+      reason: "status_changed",
+      skipDetail: { status: "ACTIVE", deleted: false, excluded: true },
+    });
+  });
+
+  it("skips with reason='product_not_found' when product row is missing (was FAILED in mech.6)", async () => {
+    productFindFirst.mockResolvedValue(null);
+
+    const result = await processReEmbedJob({ job: makeJob() });
+
+    expect(result.outcome).toBe("skipped");
+    expect(embedDocumentWithUsage).not.toHaveBeenCalled();
+    expect(finishTaggingJob).toHaveBeenCalledOnce();
+    const finishCall = finishTaggingJob.mock.calls[0];
+    expect(finishCall[1].status).toBe("SUCCEEDED");
+    expect(finishCall[1].summary).toMatchObject({
+      kind: "RE_EMBED",
+      outcome: "skipped",
+      skipped: true,
+      reason: "product_not_found",
+    });
+    // Behavior change vs mech.6: was logTaggingFailure + FAILED status.
+    // Now SUCCEEDED-with-skip. logTaggingFailure should NOT be called.
+    expect(logTaggingFailure).not.toHaveBeenCalled();
   });
 });

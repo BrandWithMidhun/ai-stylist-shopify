@@ -46,6 +46,7 @@ import {
 import { sleep } from "../lib/catalog/shopify-throttle.server";
 import { processInitialBackfill } from "./worker-tagging-backfill";
 import { processReEmbedJob } from "./worker-reembed";
+import { enqueueReembedForProduct } from "../lib/catalog/enqueue-reembed.server";
 import { log } from "./worker-logger";
 
 const TAGGING_POLL_MIN_MS = 2000;
@@ -397,6 +398,60 @@ async function processTaggingJob(
       model: result.model,
     },
   });
+
+  // PR-3.1.6-mech.1: trigger an embedding refresh now that ProductTag rows
+  // have been rewritten. The Decision-A skip predicate
+  //   embeddingContentHash === knowledgeContentHash
+  // is a SAFETY NET (prevents Voyage calls when nothing actually drifted),
+  // not a sufficient TRIGGER — knowledgeContentHash deliberately excludes
+  // ProductTag rows (knowledge-hash.server.ts:13-17) but the embedding
+  // text includes them, so a tag-only rewrite leaves the embedding stale
+  // unless we explicitly enqueue. Failures here are caught + logged and
+  // do NOT fail the parent job (it already SUCCEEDED).
+  await triggerPostTaggingReembed(job);
+}
+
+// PR-3.1.6-mech.1: post-completion RE_EMBED enqueue.
+// Extracted as a named export so tests can exercise the gating logic
+// (kind filter, error swallowing, log shape) without invoking the full
+// processTaggingJob loop. Production caller is processTaggingJob's
+// SUCCEEDED path above.
+export async function triggerPostTaggingReembed(job: TaggingJob): Promise<void> {
+  // Defensive kind gate: this site is reached only via the SINGLE_PRODUCT/
+  // MANUAL_RETAG path because INITIAL_BACKFILL and RE_EMBED return earlier
+  // in processTaggingJob. The explicit check makes the intent visible and
+  // survives future kind additions without surprise.
+  if (job.kind !== "SINGLE_PRODUCT" && job.kind !== "MANUAL_RETAG") return;
+  if (!job.productId) return;
+
+  try {
+    const result = await enqueueReembedForProduct({
+      shopDomain: job.shopDomain,
+      productId: job.productId,
+      triggerSource: "TAGGING_COMPLETION",
+    });
+    log.info("reembed enqueued from tagging completion", {
+      event: "reembed_enqueued_from_completion",
+      taggingJobId: job.id,
+      shopDomain: job.shopDomain,
+      productId: job.productId,
+      reembedJobId: result.jobId,
+      deduped: result.deduped,
+      sourceKind: job.kind,
+    });
+  } catch (err) {
+    log.error("reembed enqueue failed from tagging completion", {
+      event: "reembed_enqueue_error",
+      taggingJobId: job.id,
+      shopDomain: job.shopDomain,
+      productId: job.productId,
+      sourceKind: job.kind,
+      message: err instanceof Error ? err.message : String(err),
+    });
+    // Do NOT rethrow — parent job already SUCCEEDED. Mech.2 NULL-hash
+    // scanner backstop will catch any product whose RE_EMBED enqueue
+    // dropped here.
+  }
 }
 
 // callTaggerWithRetry handles the RATE_LIMIT/CONNECTION/MALFORMED_JSON

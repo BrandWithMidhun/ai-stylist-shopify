@@ -46,6 +46,14 @@ type ReEmbedSummary = {
   tokens?: number;
   costMicros?: number;
   durationMs?: number;
+  // PR-3.1.6-mech.1: structured detail attached to status_changed skips so
+  // forensic queries can see WHICH eligibility check tripped without
+  // re-reading the Product row.
+  skipDetail?: {
+    status?: string;
+    deleted?: boolean;
+    excluded?: boolean;
+  };
 };
 
 export type ProcessReEmbedResult =
@@ -87,11 +95,26 @@ export async function processReEmbedJob(params: {
 
   await heartbeatTaggingJob(job.id);
 
+  // PR-3.1.6-mech.1: defensive eligibility check at claim time.
+  //
+  // Two changes from mech.6's shape:
+  //   1. Drop the `deletedAt: null` filter from the WHERE clause so we can
+  //      DETECT a mid-queue deletion and skip-with-status_changed instead
+  //      of returning null and treating it as a hard failure.
+  //   2. Select status / deletedAt / recommendationExcluded so we can
+  //      enforce the same eligibility predicate the read path uses
+  //      (status='ACTIVE' AND deletedAt IS NULL AND
+  //       recommendationExcluded=false). Recurring sync (3.1.6 wire) means
+  //      products can flip ineligible between enqueue and claim; this
+  //      defensive recheck closes that race.
+  //   3. Filter ProductTag rows by status='APPROVED' so embedding text
+  //      reflects the same tag set Stage 1 retrieval surfaces. PENDING_REVIEW
+  //      and REJECTED tags would create text that doesn't match anything
+  //      Stage 1 returns. Pre-mech.1 the query had no status filter.
   const product = await prisma.product.findFirst({
     where: {
       id: job.productId,
       shopDomain: job.shopDomain,
-      deletedAt: null,
     },
     select: {
       id: true,
@@ -100,37 +123,89 @@ export async function processReEmbedJob(params: {
       productType: true,
       vendor: true,
       shopifyTags: true,
+      status: true,
+      deletedAt: true,
+      recommendationExcluded: true,
       knowledgeContentHash: true,
       embeddingContentHash: true,
-      tags: { select: { axis: true, value: true } },
+      tags: {
+        where: { status: "APPROVED" },
+        select: { axis: true, value: true },
+      },
     },
   });
 
   if (!product) {
-    const message = `Product ${job.productId} not found for RE_EMBED on ${job.shopDomain}`;
-    log.error("re-embed product not found", {
-      event: "reembed_product_not_found",
+    // PR-3.1.6-mech.1 behavior change: was FAILED in mech.6; now SUCCEEDED-
+    // with-skip because mid-queue deletion is normal recurring-sync state,
+    // not an unrecoverable error. Op debt #21 fold-in.
+    const durationMs = Date.now() - startMs;
+    log.info("re-embed skipped (product not found)", {
+      event: "reembed_skipped_product_not_found",
       jobId: job.id,
       shopDomain: job.shopDomain,
       productId: job.productId,
+      durationMs,
     });
-    await logTaggingFailure({
-      jobId: job.id,
-      errorClass: "OTHER",
-      message,
+    await updateTaggingProgress(job.id, {
+      processedProducts: 1,
+      totalProducts: 1,
     });
     await finishTaggingJob(job.id, {
-      status: "FAILED",
-      errorClass: "OTHER",
-      errorMessage: message,
+      status: "SUCCEEDED",
       summary: {
         kind: "RE_EMBED",
-        outcome: "failed",
-        skipped: false,
+        outcome: "skipped",
+        skipped: true,
         reason: "product_not_found",
+        durationMs,
       } satisfies ReEmbedSummary as Prisma.InputJsonValue,
     });
-    return { outcome: "failed", tokens: 0, costMicros: 0, message };
+    return { outcome: "skipped", tokens: 0, costMicros: 0 };
+  }
+
+  // PR-3.1.6-mech.1: status/deletion/exclusion eligibility recheck.
+  // Mirrors the v2 pipeline read-path filter so a mid-queue flip
+  // (ACTIVE → DRAFT, recommendationExcluded false → true, soft-delete)
+  // skips cleanly rather than burning a Voyage call on a product that
+  // can never be retrieved.
+  const isStatusChanged =
+    product.status !== "ACTIVE" ||
+    product.deletedAt !== null ||
+    product.recommendationExcluded === true;
+
+  if (isStatusChanged) {
+    const durationMs = Date.now() - startMs;
+    log.info("re-embed skipped (status changed mid-queue)", {
+      event: "reembed_skipped_status_changed",
+      jobId: job.id,
+      shopDomain: job.shopDomain,
+      productId: job.productId,
+      status: product.status,
+      deleted: product.deletedAt !== null,
+      excluded: product.recommendationExcluded,
+      durationMs,
+    });
+    await updateTaggingProgress(job.id, {
+      processedProducts: 1,
+      totalProducts: 1,
+    });
+    await finishTaggingJob(job.id, {
+      status: "SUCCEEDED",
+      summary: {
+        kind: "RE_EMBED",
+        outcome: "skipped",
+        skipped: true,
+        reason: "status_changed",
+        durationMs,
+        skipDetail: {
+          status: product.status,
+          deleted: product.deletedAt !== null,
+          excluded: product.recommendationExcluded,
+        },
+      } satisfies ReEmbedSummary as Prisma.InputJsonValue,
+    });
+    return { outcome: "skipped", tokens: 0, costMicros: 0 };
   }
 
   // Decision A predicate exactly: skip if embeddingContentHash IS NOT

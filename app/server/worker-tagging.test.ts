@@ -15,18 +15,23 @@
 // criteria. This file tests via the external behavior only.
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { TaggingJob } from "@prisma/client";
 
-const { mockLog, mockPrisma } = vi.hoisted(() => ({
+const { mockLog, mockPrisma, enqueueReembedMock } = vi.hoisted(() => ({
   mockLog: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   mockPrisma: {
     taggingJob: {
       findFirst: vi.fn(),
     },
   },
+  enqueueReembedMock: vi.fn(),
 }));
 
 vi.mock("./worker-logger", () => ({ log: mockLog }));
 vi.mock("../db.server", () => ({ default: mockPrisma }));
+vi.mock("../lib/catalog/enqueue-reembed.server", () => ({
+  enqueueReembedForProduct: enqueueReembedMock,
+}));
 
 // Helper inlined here to test the same logic shape used in
 // worker-tagging.ts. If the production helper changes, update this.
@@ -152,5 +157,123 @@ describe("tagging_queue_blocked_by_backfill event", () => {
     };
     await expect(maybeLogBackfillBlockingEvent(job)).resolves.toBeUndefined();
     expect(mockLog.info).not.toHaveBeenCalled();
+  });
+});
+
+// PR-3.1.6-mech.1: post-completion RE_EMBED enqueue wire tests.
+// triggerPostTaggingReembed is exported from worker-tagging.ts. Tests
+// mock enqueueReembedForProduct (the helper it calls) via vi.mock above.
+
+import { triggerPostTaggingReembed } from "./worker-tagging";
+
+function makeTaggingJob(overrides: Partial<TaggingJob> = {}): TaggingJob {
+  return {
+    id: "tagging-job-1",
+    shopDomain: "test.shop",
+    productId: "prod-1",
+    kind: "SINGLE_PRODUCT",
+    status: "SUCCEEDED",
+    triggerSource: "DELTA_HASH_CHANGE",
+    enqueuedAt: new Date(),
+    startedAt: new Date(),
+    finishedAt: new Date(),
+    heartbeatAt: new Date(),
+    totalProducts: 1,
+    processedProducts: 1,
+    failedProducts: 0,
+    skippedProducts: 0,
+    costUsdMicros: 0n,
+    inputTokens: 0,
+    outputTokens: 0,
+    errorClass: null,
+    errorMessage: null,
+    errorCount: 0,
+    summary: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  } as TaggingJob;
+}
+
+describe("triggerPostTaggingReembed (PR-3.1.6-mech.1 completion enqueue)", () => {
+  beforeEach(() => {
+    enqueueReembedMock.mockReset();
+    mockLog.info.mockReset();
+    mockLog.error.mockReset();
+  });
+
+  it("enqueues RE_EMBED with triggerSource=TAGGING_COMPLETION on a SINGLE_PRODUCT job", async () => {
+    enqueueReembedMock.mockResolvedValueOnce({ jobId: "reembed-1", deduped: false });
+
+    await triggerPostTaggingReembed(
+      makeTaggingJob({ kind: "SINGLE_PRODUCT", productId: "prod-X" }),
+    );
+
+    expect(enqueueReembedMock).toHaveBeenCalledTimes(1);
+    expect(enqueueReembedMock).toHaveBeenCalledWith({
+      shopDomain: "test.shop",
+      productId: "prod-X",
+      triggerSource: "TAGGING_COMPLETION",
+    });
+    expect(mockLog.info).toHaveBeenCalledOnce();
+    expect(mockLog.info.mock.calls[0][1]).toMatchObject({
+      event: "reembed_enqueued_from_completion",
+      reembedJobId: "reembed-1",
+      deduped: false,
+      sourceKind: "SINGLE_PRODUCT",
+    });
+  });
+
+  it("enqueues RE_EMBED on a MANUAL_RETAG job too", async () => {
+    enqueueReembedMock.mockResolvedValueOnce({ jobId: "reembed-2", deduped: true });
+
+    await triggerPostTaggingReembed(
+      makeTaggingJob({ kind: "MANUAL_RETAG", productId: "prod-Y" }),
+    );
+
+    expect(enqueueReembedMock).toHaveBeenCalledTimes(1);
+    expect(mockLog.info.mock.calls[0][1]).toMatchObject({
+      event: "reembed_enqueued_from_completion",
+      sourceKind: "MANUAL_RETAG",
+      deduped: true,
+    });
+  });
+
+  it("does NOT enqueue when kind is RE_EMBED (no infinite loop)", async () => {
+    await triggerPostTaggingReembed(
+      makeTaggingJob({ kind: "RE_EMBED", productId: "prod-Z" }),
+    );
+    expect(enqueueReembedMock).not.toHaveBeenCalled();
+  });
+
+  it("does NOT enqueue when kind is INITIAL_BACKFILL", async () => {
+    await triggerPostTaggingReembed(
+      makeTaggingJob({ kind: "INITIAL_BACKFILL", productId: null }),
+    );
+    expect(enqueueReembedMock).not.toHaveBeenCalled();
+  });
+
+  it("does NOT enqueue when productId is null on an otherwise-eligible kind", async () => {
+    await triggerPostTaggingReembed(
+      makeTaggingJob({ kind: "SINGLE_PRODUCT", productId: null }),
+    );
+    expect(enqueueReembedMock).not.toHaveBeenCalled();
+  });
+
+  it("swallows enqueue errors without throwing; logs at error level", async () => {
+    enqueueReembedMock.mockRejectedValueOnce(new Error("db unreachable"));
+
+    await expect(
+      triggerPostTaggingReembed(
+        makeTaggingJob({ kind: "SINGLE_PRODUCT", productId: "prod-W" }),
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(mockLog.error).toHaveBeenCalledOnce();
+    expect(mockLog.error.mock.calls[0][1]).toMatchObject({
+      event: "reembed_enqueue_error",
+      sourceKind: "SINGLE_PRODUCT",
+      message: "db unreachable",
+    });
   });
 });
