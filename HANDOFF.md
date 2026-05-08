@@ -1,6 +1,6 @@
 # HANDOFF — AI Stylist Shopify App
 
-**Last updated:** 2026-05-08, after Sub-bundle 3.1 close (mech.1 → mech.6 shipped). **Phase 1 CLOSED. Phase 2 CLOSED. Phase 3 IN PROGRESS — sub-bundle 3.1 closed; sub-bundle 3.1.5 (bulk re-embed) is next.**
+**Last updated:** 2026-05-08, after Sub-bundle 3.1.5 close (bulk re-embed of 1,168 NULL-hash ACTIVE dev-shop products). **Phase 1 CLOSED. Phase 2 CLOSED. Phase 3 IN PROGRESS — sub-bundles 3.1 and 3.1.5 closed; recurring-sync sub-bundle (working name 3.1.6) is next.**
 **Supersedes:** Previous HANDOFF.
 **North star:** `docs/recommendation-engine-brief.md` v0.3 (commit `22e849c`).
 **Scope:** `docs/scope-decisions.md` (commit `616fe70`).
@@ -455,7 +455,61 @@ Mech.6 shipped `717fcdf` (orchestrator + v2 tool + RE_EMBED handler + voyage-cos
 - `.pr-3-1-mech-6-artifacts/product-tag-inspection.txt` — ProductTag census surfacing the APPROVED-tag gap
 - `.pr-3-1-mech-6-artifacts/re-embed-handler-verify.txt` — RE_EMBED job + product hash match
 
-Sub-bundle 3.1 closes here. Next: 3.1.5 bulk re-embed (~$0.08 Voyage cost projected, enqueues ~1,169 RE_EMBED jobs against the dev shop's NULL-hash products, runs asynchronously through the worker). After 3.1.5: post-eval-pass flip commit (one-line `registry.server.ts` change to point the agent's `recommend_products` tool at v2). After flip: Sub-bundle 3.2 planning round (order ingest + sales velocity + AttributionEvent).
+Sub-bundle 3.1 closes here. Next was 3.1.5 bulk re-embed — shipped 2026-05-08 against the dev shop, see Sub-bundle 3.1.5 close subsection below for actuals. After 3.1.5: recurring-sync sub-bundle (working name 3.1.6) to diagnose the zero WEBHOOK_CREATE/CRON TaggingJob rows that 3.1.5 surfaced — fork-density warrants a planning round (op debt #18). Then post-eval-pass flip commit (one-line `registry.server.ts` change to point the agent's `recommend_products` tool at v2, plus variant-loading on v2 ProductCard per op debt #15). Then Sub-bundle 3.2 planning round (order ingest + sales velocity + AttributionEvent).
+
+#### Sub-bundle 3.1.5 close (2026-05-08)
+
+One-shot bulk pass to populate `embeddingContentHash` for ACTIVE dev-shop products that pre-existed the column (Phase 1 schema addition; the Phase 12b backfill predates it). No code changes to the v2 pipeline, the worker, or the schema — just feeding the existing mech.6 RE_EMBED handler against the documented filter.
+
+**Filter (mirrors v2 read-path):** `embeddingContentHash IS NULL AND status='ACTIVE' AND deletedAt IS NULL AND recommendationExcluded=false`. DRAFT/ARCHIVED/deleted/excluded products are skipped — they never appear in customer chat and embedding them would be waste.
+
+**Pre-pass census (filtered):**
+- 2,632 total products on the dev shop
+- 1,168 ACTIVE not-deleted not-excluded NULL-hash (target)
+- 1 ACTIVE hash-match (mech.6 verification, processed earlier)
+- 1,463 correctly excluded (1,419 DRAFT + 44 ARCHIVED) — embedding skipped by design
+- 0 hash-mismatch (no Decision-A drift cases existed pre-pass)
+
+**Bulk operation actuals:**
+- 1,168 RE_EMBED jobs enqueued via `scripts/bulk-reembed-products.ts` in 5,986ms via a single `createMany` INSERT (idempotent via `skipDuplicates`, defended by the partial unique index `(shopDomain, productId) WHERE status='QUEUED'`)
+- `triggerSource=INITIAL_BACKFILL` (matches Phase 12b semantic)
+- Worker drained serially (single-claim concurrency) in **3m 15.86s** wall-clock from earliest `enqueuedAt` to latest `finishedAt`
+- Per-job latency: **p50=143ms, p95=183ms, p99=603ms, max=3,555ms**
+- 1,168 SUCCEEDED / 0 SKIPPED / 0 FAILED (all NULL-hash → no Decision-A skip path triggered, as expected)
+- **451,833 input tokens, 27,139 micros = $0.027139 USD** (well under the $0.012-$0.10 projected band)
+
+**Post-pass census:**
+- ACTIVE not-deleted not-excluded NULL-hash: **0** (target fully drained)
+- ACTIVE hash-match: 1,169 (1,168 from this pass + 1 from mech.6 verify)
+- DRAFT/null: 1,419 (untouched, correctly skipped)
+- ARCHIVED/null: 44 (untouched, correctly skipped)
+- All ACTIVE embeddings now Decision-A-skippable for any future re-embed pass unless `knowledgeContentHash` actually drifts.
+
+**Post-pass eval rerun (diagnostic only):**
+- EvalRun `cmowf5su90000q71wr63la2mk`, `pipelineVersion=3.1.0`, `durationMs=11459`
+- `aggregateScore 0.0833` — **identical to mech.6 baseline 0.0833**, 1 PASS / 0 PARTIAL / 11 FAIL (same fixtures pass/fail as mech.6)
+- Re-embedding rest-of-catalog does not move the eval needle: the 11 FAILs short-circuit at Stage 1 because their target categories (saree, kurta, jacket, shorts, shirt-with-other-axes) lack APPROVED tags from the PR-2.2 calibration sample. Adding embeddings to those products doesn't help if Stage 1 filters them out before semantic retrieval runs.
+- Threshold remains locked at the R3 value of 0.0833. Threshold revision is a separate decision at the post-eval-pass flip commit (or whenever a sub-bundle moves the number up).
+
+**Survivor script:** `scripts/bulk-reembed-products.ts` joins `scripts/bulk-approve-tags.ts` as a "shop onboarding kit" canonical mechanism. Both are shop-parameterized (`--shop=<domain>`), idempotent (`skipDuplicates`), and dry-runnable. This pattern will become a Phase 4/5 onboarding wizard — see op debt #19.
+
+**Operational debt (5 new items appended to the running list — continuing from 16):**
+
+17. Bulk re-derived row counts must preserve all read-path filters. The 1,169 → 2,631 "drift" between 3.1 close and 3.1.5 gate was actually the absence of the active+not-deleted+not-excluded filter from the 3.1.5-prep query, not real catalog growth. The 1,168 ACTIVE-not-deleted-not-excluded count was correct all along. Re-derive with the same predicates the read path uses.
+18. Zero WEBHOOK_CREATE / CRON rows in production TaggingJob (only INITIAL_BACKFILL, MANUAL, DELTA_HASH_CHANGE present pre-3.1.5) indicates broken recurring sync. Could be: webhook subscription missing on dev shop, handler not enqueueing, cron tick not scanning for missing-hash products, or feature flag gating. Diagnosis scheduled as next sub-bundle (working name 3.1.6) — fork-density warrants a planning round.
+19. Operational scripts that survive their immediate run (e.g., `scripts/bulk-approve-tags.ts` at `389acae`, and now `scripts/bulk-reembed-products.ts`) form a "shop onboarding kit" that will become a Phase 4/5 onboarding wizard. They must be shop-parameterized (`--shop` arg), idempotent, dry-runnable, and log to audit-style tables where applicable. One-shot ops scripts that get deleted at commit may hardcode but the convention should be explicit.
+20. Merchant un-excluding a product (`recommendationExcluded` flips true → false) has no re-embed trigger today. If the product was previously excluded and never embedded, un-excluding leaves it without an embedding indefinitely. Recurring-sync sub-bundle should handle this (likely: webhook on Product update should compare prior/current `recommendationExcluded` and enqueue RE_EMBED on the false transition).
+21. The RE_EMBED handler trusts enqueue-time eligibility — it doesn't re-check status / deletedAt / recommendationExcluded at claim time. Acceptable for one-shot bulk passes on stable catalogs; insufficient for continuous recurring sync on production catalogs where status flips happen mid-queue. Add handler-side defensive check + new skip reason ("status_changed") before recurring-sync sub-bundle ships.
+
+**Six artifacts captured:**
+- `.pr-3-1-5-artifacts/00-pre-pass-census.txt` — full filtered breakdown + inflight-job zero check
+- `.pr-3-1-5-artifacts/01-bulk-enqueue-dry-run.txt` — wouldEnqueue=1168 dry-run
+- `.pr-3-1-5-artifacts/02-bulk-enqueue.txt` — real enqueue: requested=1168, inserted=1168, duplicatesSkipped=0
+- `.pr-3-1-5-artifacts/03-drain-wait.txt` — initial + 3 polls + DRAINED snapshot
+- `.pr-3-1-5-artifacts/04-post-drain-summary.txt` — by-status counts, tokens, cost, p50/p95/p99/max latency, post-drain census
+- `.pr-3-1-5-artifacts/05-post-pass-eval-baseline.txt` — eval rerun proving threshold-locked behaviour
+
+Sub-bundle 3.1.5 closes here. Next: recurring-sync sub-bundle (working name 3.1.6) — fork-density warrants a planning round (op debt #18 + #20 + #21 all interact). Then post-eval-pass flip commit (one-line `registry.server.ts` + variant-loading on v2 ProductCard per op debt #15). Then Sub-bundle 3.2 planning round (order ingest + sales velocity + AttributionEvent).
 
 ---
 
