@@ -1,0 +1,98 @@
+=== Step 0 surface verification — payload shape findings ===
+
+QUESTION: Does the products/update webhook payload include recommendationExcluded?
+
+ANSWER: NO. Definitively no. Surfacing structural finding before code changes.
+
+=== Why ===
+
+`recommendationExcluded` is NOT a Shopify field. It is a custom column on
+the AI Stylist app's `Product` table, added in migration
+`20260424195530_add_recommendation_excluded_flag`. Shopify has no notion
+of this concept — it's purely an internal merchant-facing toggle managed
+by the AI Stylist admin UI to decide whether a product appears in
+recommendation results.
+
+The Shopify products/update webhook payload contains the standard
+Shopify product record (id, title, handle, body_html, vendor, tags,
+status, variants, options, images, updated_at, etc.) but cannot
+contain `recommendationExcluded` because Shopify doesn't know about it.
+
+=== Sole mutation path ===
+
+Verified via grep: only ONE site in the codebase mutates
+`recommendationExcluded`:
+
+  app/routes/api.products.$id.exclude.tsx:44
+    data: { recommendationExcluded: parsed.data.excluded }
+
+This is the internal PATCH endpoint that the merchant's AI Stylist
+admin UI calls when they toggle the "Exclude from recommendations"
+flag on a product (per `specs/005d-product-edit-drawer.md` and
+`specs/005c-intelligence-dashboard.md`).
+
+All other references in the codebase are reads (filter conditions,
+type definitions, test fixtures) or an optimistic UI update in
+Dashboard.tsx that dispatches to the same PATCH endpoint.
+
+=== Implication for mech.3 ===
+
+The mech.3 prompt's wire site assumption is wrong. The plan said:
+"Modify app/routes/webhooks.products.update.tsx … compare prior/current
+recommendationExcluded from webhook payload."
+
+That cannot work — the webhook payload doesn't carry the field.
+
+The CORRECT wire site is `app/routes/api.products.$id.exclude.tsx`
+itself: when the merchant toggles the flag and the route writes
+`recommendationExcluded: false` (after it was previously `true`),
+enqueue RE_EMBED there. That is structurally cleaner than a webhook
+detour:
+  - Single-place change, in code we already own
+  - Deterministic prior-state lookup (read the current row before
+    update; no webhook delivery races)
+  - Authenticated context (the route already calls
+    `authenticate.admin(request)`)
+  - No transaction-boundary concerns (the route uses a single
+    `prisma.product.updateMany`, RE_EMBED enqueue can sit after
+    the write)
+
+=== Corroboration: schema confirms field shape ===
+
+  prisma/schema.prisma line 169:
+    recommendationExcluded Boolean @default(false)
+
+Top-level Product column, default false.
+
+=== Type union check (Decision 3 / mech.1 surface) ===
+
+  app/lib/catalog/enqueue-reembed.server.ts line 40:
+    | "UNEXCLUDE"
+
+In the `ReembedTriggerSource` union. No type changes needed if/when
+mech.3 ships at the corrected wire site.
+
+The header comment at line 30 of the same file says:
+  //   UNEXCLUDE — webhooks.products.update on excluded→eligible (mech.3)
+
+That comment is also wrong (same root cause: it documents the
+prompt-time guess). If the corrected wire is approved, that comment
+needs to update too — one-line fix in mech.3 proper.
+
+=== Verdict ===
+
+Per the prompt's surfacing rules: "If step 0 finds the payload doesn't
+include `recommendationExcluded` in any form: surface and STOP. mech.3
+needs a different signal source."
+
+Surfacing. Stopping. Awaiting user decision on:
+  (a) Authorize me to proceed with the corrected wire site
+      (api.products.$id.exclude.tsx), under otherwise-locked decisions
+      from the original prompt, OR
+  (b) Different approach (generic post-mutation hook? something else?), OR
+  (c) Defer mech.3 entirely until merchant-side wire is needed
+      (currently the dev shop has zero `recommendationExcluded=true`
+      products per all the verification artifacts; this trigger has
+      no live data to validate against).
+
+No code changes made. No HANDOFF amendment. Just this prep artifact.
