@@ -1,0 +1,172 @@
+RELEVANT LOCKED DECISIONS — VERBATIM CAPTURE
+
+Capture of every locked decision Thread 3's option-pick interacts
+with. Source: header comments of v2 source files. Numbering scoped
+per-mech (see artifact 21 for numbering caution).
+
+================================================================
+1. STAGE 1: STRUCTURAL FILTER POSTURE
+   File: app/lib/recommendations/v2/stage-1-hard-filters.server.ts
+   Lines 8-14 (header)
+================================================================
+
+----- VERBATIM -----
+// Filters applied (every call):
+//   - shopDomain match
+//   - status = 'ACTIVE'
+//   - deletedAt IS NULL
+//   - recommendationExcluded = false      (Stage 4 reads recommendationPromoted)
+//   - embedding IS NOT NULL                (Stage 2 needs the vector)
+//   - EXISTS at least one variant with availableForSale = true
+----- END VERBATIM -----
+
+THREAD 3 NOTE: The variant `availableForSale = true` EXISTS predicate
+is the structural cap producing Thread 2's 29-product universe. Any
+"soften Stage 1" (B.i, B.ii) interacts with this line.
+
+================================================================
+2. STAGE 1: APPROVED-ONLY POSTURE
+   File: app/lib/recommendations/v2/stage-1-hard-filters.server.ts
+   Lines 25-28 (header)
+================================================================
+
+----- VERBATIM -----
+// APPROVED-only ProductTag filter: PENDING_REVIEW and REJECTED tags are
+// merchant-undecided / merchant-rejected, so Stage 1 must not act on
+// them. Same posture as rule-engine.server.ts (rules write APPROVED;
+// AI writes PENDING_REVIEW; merchant reviews to APPROVED/REJECTED).
+----- END VERBATIM -----
+
+THREAD 3 NOTE: This is the design line option B.iii (accept
+PENDING_REVIEW as tie-breaker) would cross. Re-opening this decision
+requires going back to the merchant-review-as-trust-gate model — out of
+scope for 3.1.7.
+
+================================================================
+3. PIPELINE: ORCHESTRATOR DOES NOT TOUCH REGISTRY
+   File: app/lib/recommendations/v2/pipeline.server.ts
+   Lines 22-25 (mech.6 D6)
+================================================================
+
+----- VERBATIM -----
+//   D6. The orchestrator does NOT modify registry.server.ts. It is
+//       importable by tests and by the eval-harness PipelineRunner; the
+//       agent's tool registration continues to point at the legacy
+//       recommend-products tool until the post-eval-pass flip commit.
+----- END VERBATIM -----
+
+THREAD 3 NOTE: Confirms Thread 1's finding that the registry edit IS
+the flip. D6 explicitly defers the flip to "the post-eval-pass flip
+commit" (3.1.7 if Thread 3 picks A or B.* with flip).
+
+================================================================
+4. PIPELINE: RECOMMENDATIONEVENT WRITE LOCATION
+   File: app/lib/recommendations/v2/pipeline.server.ts
+   Lines 27-30 (mech.6 D7)
+================================================================
+
+----- VERBATIM -----
+//   D7. RecommendationEvent writes happen in the v2 tool stub
+//       (recommend-products-v2.server.ts), NOT here. Keeping the
+//       orchestrator pure-compute (no side-effect writes) is what makes
+//       the integration test cheap to mock.
+----- END VERBATIM -----
+
+THREAD 3 NOTE: Bears on op debt #15's "where does variant-loading go"
+question. D7's principle (orchestrator stays pure-compute) argues for
+variant-loading to ALSO go in the v2 tool stub, not in Stage 6 (the
+op debt's "cleaner, mirrors legacy tool" preference is consistent
+with D7).
+
+================================================================
+5. STAGE 5: OOS SUBSTITUTE STRUCTURALLY ABSENT
+   File: app/lib/recommendations/v2/stage-5-diversity.server.ts
+   Lines 27-33 (mech.5 D6)
+================================================================
+
+----- VERBATIM -----
+// OOS substitute path is structurally absent in 3.1 (per locked
+// decision D6). Stage 1's EXISTS pre-filter handles steady state; the
+// rare mid-pipeline-flip case (variant availability changes between
+// Stage 1 and Stage 5) is unaddressed. Documented as op debt at 3.1
+// close. mech.6 orchestrator may add a fresh availableForSale check
+// on top-N candidates before Stage 5 ranks; if implemented there,
+// Stage 5 stays as-is.
+----- END VERBATIM -----
+
+THREAD 3 NOTE: This is the locked decision option B.ii would re-open
+(or, more precisely, finally exercise). The "Stage 1's EXISTS pre-
+filter handles steady state" claim is what Thread 2 invalidated by
+showing the steady state IS the problem (29 products).
+
+================================================================
+6. STAGE 6: PRODUCTCARD FORMAT MIRRORS LEGACY
+   File: app/lib/recommendations/v2/stage-6-output.server.ts
+   Lines 27-34 (mech.5 D9)
+================================================================
+
+----- VERBATIM -----
+// ProductCard format (per locked decision D9): mirrors the legacy
+// formatProductCard shape from
+// app/lib/chat/tools/recommend-products.server.ts. Adds two v2-only
+// fields (traceContributions + whyTrace + finalScore) that the agent's
+// render path ignores; RecommendationEvent.candidates persists them
+// for audit. The flip commit (post-eval-pass) swaps the agent's
+// recommend_products tool registration; the wire format the agent
+// sees does not change.
+----- END VERBATIM -----
+
+THREAD 3 NOTE: D9 said "mirrors legacy" but the implementation
+hardcoded variantId=null + available=true (Stage 6 lines 166-167).
+Op debt #15 records the gap between D9's spec and the implementation.
+3.1.7's variant-loading mech closes this gap.
+
+================================================================
+7. SCOPE-LEVEL: STAGE 1 = HARD FILTERS, MODE-LIMITED TO FASHION
+   File: app/lib/catalog/store-axes.ts
+   Lines 22-43 (HARD_FILTER_AXES constant + comments)
+================================================================
+
+----- VERBATIM (selected) -----
+// Hard-filter axes per store mode. Stage 1 of the v2 pipeline narrows the
+// candidate set by ANDing values from extracted QueryAttributes against
+// ProductTag rows with status='APPROVED'.
+//
+// FASHION: gender + category — the axes that feel categorically wrong if
+// violated (a male user asking for shirts should never see dresses,
+// regardless of semantic similarity).
+//
+// Other modes default empty in 3.1. Phase 5's per-mode calibration sets
+// values per merchant evidence; the structural slot is here so adding
+// values is a constants-only change.
+
+export const HARD_FILTER_AXES: Record<StoreMode, readonly string[]> = {
+  FASHION: ["gender", "category"],
+  ELECTRONICS: [],
+  FURNITURE: [],
+  BEAUTY: [],
+  JEWELLERY: [],
+  GENERAL: [],
+};
+----- END VERBATIM -----
+
+THREAD 3 NOTE: Confirms FASHION-only relevance for Stage 1 hard
+filters. Any 3.1.7 option that touches HARD_FILTER_AXES is FASHION-
+specific and doesn't change other modes' contracts.
+
+================================================================
+SUMMARY OF LOCKED DECISIONS RELEVANT TO 3.1.7
+================================================================
+
+- The flip is a single-seam edit in registry.server.ts (D6 mech.6).
+- Variant-loading should follow D7 mech.6 pattern: in v2 tool stub,
+  not in Stage 6, to keep the orchestrator pure-compute.
+- ProductCard wire format is locked to mirror legacy (D9 mech.5);
+  variantId/available placeholders are an implementation gap to close,
+  not a contract redesign.
+- Variant-availability filter is structural and lives in Stage 1
+  EXISTS predicate; OOS-substitute Stage 5 path was deliberately
+  deferred (mech.5 D6).
+- APPROVED-only filter on ProductTag is a project-wide trust-gate
+  posture; relaxing it would be a project-level redecision, not a
+  3.1.7-scope change.

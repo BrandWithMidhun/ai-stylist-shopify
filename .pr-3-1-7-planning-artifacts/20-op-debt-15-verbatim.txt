@@ -1,0 +1,37 @@
+OP DEBT #15 — VERBATIM RE-PULL (Thread 1 already captured this in
+artifact 07; Thread 3 re-reads for fresh-eyes confirmation per the
+prompt's premise-discipline reminder).
+
+Source location: HANDOFF.md line 446.
+
+----- VERBATIM (one paragraph, line 446) -----
+15. v2 ProductCard ships with `variantId=null` and `available=true`. No re-check of `ProductVariant.availableForSale` in v2. Post-eval-pass flip commit must add variant-loading to v2 tool stub before agent registration, otherwise add-to-cart has no variantId. Either v2 tool stub loads variants for top-N after orchestrator returns (cleaner, mirrors legacy tool), or Stage 6 itself loads variants. Decide at flip-commit prompt time.
+----- END VERBATIM -----
+
+CROSS-CHECK against Thread 1 artifact 07: identical text. No change.
+
+CONFIRMED INTERPRETATION:
+
+- Two design alternatives explicitly named: (1) "v2 tool stub loads
+  variants for top-N after orchestrator returns" or (2) "Stage 6 itself
+  loads variants". Op debt's editorial preference: (1) is "cleaner,
+  mirrors legacy tool".
+- The "fresh availableForSale check" mentioned in stage-5-diversity
+  .server.ts:31-33 is a related but distinct alternative — checks at
+  stage 5 ranking time, not stage 6 output time. The op debt #15 text
+  doesn't pick this third option but it's architecturally adjacent.
+- "Decide at flip-commit prompt time" means the decision was deferred
+  to whenever the flip commit got prompted. Thread 3's option-pick
+  must answer this question before any flip-related option ships.
+
+THREAD 3 INTERSECTION WITH OP DEBT #11:
+
+If 3.1.7 picks any option that moves the variant filter out of Stage
+1 (Thread 2's option B.ii), the variant-loading question from #15
+gets coupled to the variant-availability-authority question from #11.
+Both must resolve simultaneously: where does authoritative variant
+state live in the pipeline? Thread 3 artifact 24 weighs this directly.
+
+If 3.1.7 ships only the flip + variant-loading (Thread 2's option A
+or option C path), #15 ships in isolation but #11 stays open as
+deferred architectural concern.

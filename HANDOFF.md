@@ -1,6 +1,6 @@
 # HANDOFF — AI Stylist Shopify App
 
-**Last updated:** 2026-05-08, after Sub-bundle 3.1.6 close (recurring-sync wire shipped, α backfill executed, 3 trigger paths verified end-to-end). **Phase 1 CLOSED. Phase 2 CLOSED. Phase 3 IN PROGRESS — sub-bundles 3.1, 3.1.5, and 3.1.6 closed; next: post-eval-pass flip planning round.**
+**Last updated:** 2026-05-09, after Sub-bundle 3.1.7 planning round close (Stage 1 universe correction + variant-loading + secondary-axis bulk approval; flip itself deferred to 3.1.8). **Phase 1 CLOSED. Phase 2 CLOSED. Phase 3 IN PROGRESS — sub-bundles 3.1, 3.1.5, and 3.1.6 closed; next: 3.1.7 mech.1 (variant-filter relocation to Stage 6).**
 **Supersedes:** Previous HANDOFF.
 **North star:** `docs/recommendation-engine-brief.md` v0.3 (commit `22e849c`).
 **Scope:** `docs/scope-decisions.md` (commit `616fe70`).
@@ -684,18 +684,77 @@ Pre-pass NULL-bump on **1,169 ACTIVE products**, then re-ran `scripts/bulk-reemb
 - `.pr-3-1-6-close-artifacts/08-sweep-evidence.txt` — 3 NULL_HASH_SWEEP jobs (mech.2.5 TC2)
 - `.pr-3-1-6-close-artifacts/09-post-alpha-eval-baseline.txt` — eval rerun proving threshold-locked behaviour (0.0833 invariant)
 
-**Sub-bundle 3.1.6 closes here.** Next: post-eval-pass flip planning round. The planning round is now informed by:
-- Eval invariance from 3.1.5 (`aggregateScore` stayed 0.0833 across embedding-coverage changes)
-- Eval result from this close's α backfill (`aggregateScore` still 0.0833 across embedding-text-semantics changes)
-- Recurring sync wire is operational (mech.1 + mech.2 + mech.3 all verified end-to-end)
+**Sub-bundle 3.1.6 closes here.** Next was the 3.1.7 planning round — closed 2026-05-09 (this commit). See Sub-bundle 3.1.7 planning round close subsection below for the locked architecture and mech split. After 3.1.7 ships: Sub-bundle 3.1.8 (the v1→v2 flip itself, the chat-tools registry edit + legacy tool deletion). Then Sub-bundle 3.2 planning round (order ingest + sales velocity + `AttributionEvent`).
 
-Likely planning-round scope:
-- Whether the flip threshold (R3 = 0.0833) needs revision given the new eval data
-- Whether Stage 1 fallback behaviour should soften when APPROVED tag coverage is sparse (Thread 3 finding from 3.1.6 planning, now confirmed by α backfill eval invariance)
-- Whether Phase 5 catalog tagging should be reordered earlier in the roadmap to fix the data-coverage bottleneck before the flip ships
-- Variant-loading on v2 ProductCard per op debt #15 (pre-existing flip prerequisite)
+#### Sub-bundle 3.1.7 planning round close (2026-05-09)
 
-After the flip-planning round + flip commit: Sub-bundle 3.2 planning round (order ingest + sales velocity + `AttributionEvent`).
+Three read-only investigation threads ran on top of `e48e079` (no commits, no code changes, no DB writes — investigation-only). Threads 1, 2, and 3 produced 26 artifacts in `.pr-3-1-7-planning-artifacts/` plus one read-only probe script (`probe-stage-1.ts`). Architecture locked; mech split locked; mech prompts not yet authored. The full planning artifact lives at `docs/planning/3-1-7-post-eval-pass-flip.md` — that document is the source of truth for mech.1's prompt.
+
+**The framing 3.1.7 was originally given (3.1.6 close subsection above) was empirically invalidated by the threads:**
+
+- **Thread 1** confirmed the flip is a one-place edit (~3 logical edits in `app/lib/chat/tools/registry.server.ts`) but also confirmed op debt #15's variant-loading gap is genuinely unwired and would functionally regress every recommendation's Add-to-Cart if the flip shipped as-is.
+- **Thread 2** ran `probe-stage-1.ts` against the production DB (`ai-fashion-store.myshopify.com` via Railway proxy at 2026-05-09T08:05Z) and surfaced two new findings: (a) Stage 1's structural universe is **29 of 1,169 ACTIVE+embedded products** (the `availableForSale=true EXISTS` predicate eliminates 1,140), not a tag-coverage gap; (b) every secondary axis (`occasion`, `color_family`, `material`, `fit`, `season`, `size_range`, `style_type`) is at **0% APPROVED catalog-wide**. The triple eval-invariance at 0.0833 is mathematically degenerate: 1 candidate × 1 satisfying = relaxed=1.0; 1.0/12 = 0.0833. R3=0.0833 was set TO the empirical baseline and has never been at risk of regressing below.
+- **Thread 3** weighed six reformulated options (A: ship-flip-as-is; B.i: soften Stage 1 on empty result; B.ii: relocate variant filter; C: defer flip + ship universe correction; D: bulk-approve more axes alone; E: vocabulary expansion alone) against the threads' findings and recommended **Option C-folded** (B.ii + #15 closure + D + conditional E + R3 retire) as 3.1.7's scope, with the flip itself deferred to 3.1.8.
+
+**Locked architecture:** Option C-folded.
+
+- **mech.1 — Variant-filter relocation to Stage 6.** Remove `availableForSale=true EXISTS` from Stage 1 hard-filter. Add binary `available: <real value>` attachment in Stage 6's `formatProductCard`. Universe expands from 29 → 1,169. Closes op debt #11 architecturally (OOS-substitute concern moves from "deferred Stage 5 substitute pass" to "Stage 6 just doesn't surface OOS items").
+- **mech.1.5 — verification artifact** (re-run probe-stage-1.ts; capture interim eval delta).
+- **mech.2 — Variant-loading wire.** Resolve Stage 6's `variantId: null` and `compareAtPrice: null` stubs against real variant data. Closes op debt #15.
+- **mech.2.5 — verification artifact** (probe-driven + dev-shop chat smoke test confirming Add-to-Cart appears on v2 tool stub output).
+- **mech.3 — Bulk-approve secondary axes.** Re-invoke `scripts/bulk-approve-tags.ts` with `--axes=occasion,color_family,material,fit,season,size_range,style_type`. Lifts every secondary axis from 0% APPROVED toward >50% on the 50-product calibration sample.
+- **mech.3.5 — verification artifact** (per-axis catalog coverage scan + first non-degenerate eval baseline).
+- **mech.4 (conditional) — Vocabulary expansion** (`category=saree`, `category=shorts`). Gated on mech.1-3 verification: if saree/shorts fixtures unblock via secondary-axis matches post-mech.3, mech.4 is cut from scope.
+- **mech.5 — Retire R3=0.0833, re-anchor eval baseline.** Final non-degenerate baseline; HANDOFF amendment with op debt items surfaced during mech execution; R3 retired in favor of a re-anchored quality ladder tied to fixture pass-rate.
+
+Total: 4 mechs + 1 conditional mech + close (mech.5). Three mech.N.5 verification artifacts. The 3.1.7 sub-bundle ships entirely against dev shop + eval harness + unit tests; production verification (the actual user-visible flip) belongs to 3.1.8.
+
+**Variant-filter location decision (Stage 6 binary, NOT Stage 3 weighting):** five-point rationale — diagnostic separability (binary keeps availability as one signal; weighting compounds it), chat widget symmetry (`chat-widget.js:839,898` already does binary OOS), op debt #11 clean resolution (Stage 6 binary closes #11; weighting half-resolves), reversibility (binary→weighted is one-line; weighted→binary is multi-surface), decision-audit alignment (mech.5 D6 was trying to express availability-as-hard-fact in the wrong location). Counter-argument acknowledged: multi-merchant OOS policy diversification is more naturally weighting-shaped — captured as op debt #42, revisit at Phase 5+.
+
+**Op debt items #38 – #42 added** (5 items, this planning round's record). Items 38-42 are planning-round contributions; mech-execution-time op debts will append at the 3.1.7 close subsection.
+
+38. Eval-bottleneck framing in 3.1.6 close attributed bottleneck to APPROVED-tag coverage; Thread 2 of 3.1.7 found variant-filter dominance (29 of 1,169 universe). Future eval-bottleneck claims must diagnose Stage 1 universe size BEFORE attributing to tag coverage. Probe pattern: count distinct products surviving Stage 1's structural filters separately from the per-axis tag predicate.
+39. Op debt #11's "Phase 5 catalog tagging will resolve OOS-stress fixtures" framing is invalid. Phase 5 tagging on the 1,140 unbuyable products would not move eval. Resolution path is universe correction (3.1.7-mech.1), not tagging coverage. Closes #11 as architecturally invalid; supersedes with this finding.
+40. Mech.5 D6 ("Stage 1 EXISTS pre-filter handles steady state") was wrong from the start — the steady state IS the problem. Locked decisions warrant periodic re-audit when downstream evidence contradicts the locking premise. Consider a lightweight decision-audit pass at sub-bundle planning rounds (per the new "premise verification" item #33 — D-numbered decisions are no exception).
+41. No standalone decision register exists; D-numbers restart per mech and are scattered across mech prompts and source-file headers. Future planning rounds would benefit from a unified register, but creating one mid-project is its own scope. Capture as low-priority backlog. Until a register lands, D-decision citations must include both mech AND file path to disambiguate (e.g., "pipeline.server.ts D7 mech.6" not just "D7").
+42. Multi-merchant OOS policy diversification (some merchants may want OOS-with-substitutes shown, others want strict exclude) is more naturally expressed as Stage 3 weighting than Stage 6 binary include/exclude. Revisit Stage 6-vs-Stage 3 placement at Phase 5+ when multi-merchant tuning enters scope. Until then, Stage 6 binary is the locked choice (3.1.7-mech.1) for diagnostic separability + chat widget symmetry + reversibility (binary→weighted is one-line; weighted→binary is multi-surface).
+
+**Twenty-six investigation artifacts captured** (plus one read-only probe script):
+
+Thread 1 (registry surface + flip-site verification):
+- `.pr-3-1-7-planning-artifacts/01-registry-server-ts-verbatim.txt` — chat-tools registry verbatim + path correction
+- `.pr-3-1-7-planning-artifacts/02-flip-site-context.txt` — exact edits, line-numbered
+- `.pr-3-1-7-planning-artifacts/03-registry-consumers.txt` — single direct importer
+- `.pr-3-1-7-planning-artifacts/04-v1-public-surface.txt` — legacy tool stub
+- `.pr-3-1-7-planning-artifacts/05-v2-public-surface.txt` — v2 tool stub + variantId/available gap detail
+- `.pr-3-1-7-planning-artifacts/06-productcard-references.txt` — two ProductCard types + chat widget OOS check
+- `.pr-3-1-7-planning-artifacts/07-op-debt-15-verbatim.txt` — first capture of #15 (re-pulled in `20`)
+- `.pr-3-1-7-planning-artifacts/08-thread-1-synthesis.md` — flip is one place + ~3 edits + medium mech
+
+Thread 2 (Stage 1 behaviour under sparse APPROVED tags):
+- `.pr-3-1-7-planning-artifacts/09-stage-1-implementation.txt` — Stage 1 SQL builder verbatim
+- `.pr-3-1-7-planning-artifacts/10-stage-1-tests.txt` — Stage 1 vitest mocks SQL string only
+- `.pr-3-1-7-planning-artifacts/11-eval-directory-listing.txt` — eval architecture data flow
+- `.pr-3-1-7-planning-artifacts/12-eval-fixtures-verbatim.txt` — all 12 fixtures verbatim
+- `.pr-3-1-7-planning-artifacts/13-eval-entry-points.txt` — `npx tsx scripts/run-eval.ts --all`
+- `.pr-3-1-7-planning-artifacts/14-stage-1-per-fixture-output.json` — load-bearing probe output (29-universe finding)
+- `.pr-3-1-7-planning-artifacts/15-stage-1-failure-mode-per-fixture.md` — per-fixture EMPTY/SPARSE/HEALTHY bucketing
+- `.pr-3-1-7-planning-artifacts/16-axis-coverage-scan.json` — curated axis-coverage subset of `14`
+- `.pr-3-1-7-planning-artifacts/17-r3-threshold-references.txt` — R3 location + tautological-anchor proof
+- `.pr-3-1-7-planning-artifacts/18-thread-2-synthesis.md` — variant filter is THE bottleneck
+- `.pr-3-1-7-planning-artifacts/probe-stage-1.ts` — read-only probe (no DB writes; no Voyage call)
+
+Thread 3 (option-pick synthesis):
+- `.pr-3-1-7-planning-artifacts/19-op-debt-11-verbatim.txt` — re-pull of #11 + Thread 3 reading
+- `.pr-3-1-7-planning-artifacts/20-op-debt-15-verbatim.txt` — re-pull of #15 + cross-thread interaction
+- `.pr-3-1-7-planning-artifacts/21-decision-register-locations.txt` — there is no register
+- `.pr-3-1-7-planning-artifacts/22-relevant-locked-decisions.txt` — 7 locked decisions option-pick interacts with
+- `.pr-3-1-7-planning-artifacts/23-option-comparison.md` — 6-option comparison + per-fixture eval prediction grid
+- `.pr-3-1-7-planning-artifacts/24-availability-authority-analysis.md` — three answers; recommends Answer 2
+- `.pr-3-1-7-planning-artifacts/25-test-strategy-per-option.md` — per-option test path mapping
+- `.pr-3-1-7-planning-artifacts/26-thread-3-synthesis.md` — recommends Option C-folded; mech decomposition
+
+Sub-bundle 3.1.7 planning round closes here. Mech chain not yet shipped. After 3.1.7 ships: Sub-bundle 3.1.8 (v1→v2 flip itself + legacy tool deletion). Then Sub-bundle 3.2 planning round (order ingest + sales velocity + `AttributionEvent`).
 
 ---
 

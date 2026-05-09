@@ -1,0 +1,179 @@
+EVAL FIXTURES — ALL 12 VERBATIM
+
+Source: app/lib/recommendations/v2/eval/fixtures/*.json
+Sync: scripts/eval-fixtures-sync.ts populates EvalQuery rows from these files.
+
+NOTE: All 12 fixtures have `expectedHandles: []`. Per HANDOFF op debt #9,
+fixture handle curation is a deferred Midhun task pre-Sub-bundle-3.2 baseline.
+This means combinedScore = 1.0 × relaxedMatchAtK for every fixture (the
+empty-handles branch in scoring.ts:106-110).
+
+----- fashion-casual-office-shirts.json -----
+{
+  "fixtureKey": "fashion-casual-office-shirts",
+  "mode": "FASHION",
+  "intent": "casual office shirts",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["shirt"],
+    "occasion": ["work", "casual"],
+    "style_type": ["minimal", "classic", "relaxed"]
+  },
+  "k": 6,
+  "notes": "Vibe-meets-specific query. The 'casual office' intent is two-axis: occasion in {work, casual} (intersection lets either match) and a relaxed-but-not-festive style. Pinstripe shirts and embroidered ethnic shirts should both rank below plain minimal/classic shirts."
+}
+
+----- fashion-festive-kurta-women.json -----
+{
+  "fixtureKey": "fashion-festive-kurta-women",
+  "mode": "FASHION",
+  "intent": "festive kurta for women",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["kurta"],
+    "occasion": ["festive"],
+    "gender": ["female"]
+  },
+  "k": 6,
+  "notes": "Specific-attribute query covering all three FASHION hard-filter axes (gender + category) plus occasion. Hard-filter discipline gates whether top-K can include male/unisex kurtas at all."
+}
+
+----- fashion-going-out-outfit.json -----
+{
+  "fixtureKey": "fashion-going-out-outfit",
+  "mode": "FASHION",
+  "intent": "going out outfit for evening",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "occasion": ["event", "festive", "casual"],
+    "style_type": ["bold", "preppy", "streetwear", "classic"]
+  },
+  "k": 6,
+  "notes": "Vibe query — evening-out is broad. Accept any of bold/preppy/streetwear/classic (not minimal/relaxed/athleisure) because 'evening' implies a step up from everyday-casual. This fixture is the dual of fashion-minimalist-daily-wear."
+}
+
+----- fashion-linen-shirts-white.json -----
+{
+  "fixtureKey": "fashion-linen-shirts-white",
+  "mode": "FASHION",
+  "intent": "show me white linen shirts",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["shirt"],
+    "color_family": ["white", "beige"],
+    "material": ["linen"]
+  },
+  "k": 6,
+  "notes": "Specific-attribute query covering category + color + material axes simultaneously. expectedHandles intentionally empty in mech.1; Midhun fills in via Prisma Studio inspection of the dev catalog before mech.6 baseline run. Until then, scoring falls back to relaxed-match-only against expectedTagFilters."
+}
+
+----- fashion-minimalist-daily-wear.json -----
+{
+  "fixtureKey": "fashion-minimalist-daily-wear",
+  "mode": "FASHION",
+  "intent": "minimalist daily wear",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "style_type": ["minimal", "classic", "relaxed"],
+    "occasion": ["casual", "work"]
+  },
+  "k": 6,
+  "notes": "Vibe query, semantic-heavy. HANDOFF Phase 3 acceptance line 333 — top-K must skew minimal/classic/relaxed and casual/work; should NOT be dominated by festive/bold/ethnic kurtas (the v0.2 misfire example for 'show me daily wear shirts'). Stage 3 FASHION re-rankers (mech.4) are the work that lifts this fixture from FAIL to PASS."
+}
+
+----- fashion-oos-stress-1.json -----
+{
+  "fixtureKey": "fashion-oos-stress-1",
+  "mode": "FASHION",
+  "intent": "white linen shirt for daily wear",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["shirt"],
+    "color_family": ["white", "beige"],
+    "material": ["linen"]
+  },
+  "k": 6,
+  "notes": "OOS-stress fixture. HANDOFF Phase 3 acceptance line 334 — Stage 5 must substitute an available alternative when the top-1 candidate has zero available variants. Setup for the test: Midhun marks one specific white-linen-shirt product as availableForSale=false on its only variant before running mech.6 baseline. The fixture passes when an alternative shirt fills the slot AND no OOS product appears in the top-K."
+}
+
+----- fashion-oos-stress-2.json -----
+{
+  "fixtureKey": "fashion-oos-stress-2",
+  "mode": "FASHION",
+  "intent": "festive saree for an evening event",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["saree"],
+    "occasion": ["festive", "event"]
+  },
+  "k": 6,
+  "notes": "OOS-stress fixture variant. Same mechanic as fashion-oos-stress-1 but on the saree category. The fashion vocabulary's saree value comes from PR-2.2's FASHION axis baseline. Pairs with fashion-festive-kurta-women so we test OOS handling on both ethnic and Western categories."
+}
+
+----- fashion-oversized-fit-kurta.json -----
+{
+  "fixtureKey": "fashion-oversized-fit-kurta",
+  "mode": "FASHION",
+  "intent": "oversized fit kurta",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["kurta"],
+    "fit": ["oversized", "relaxed"]
+  },
+  "k": 6,
+  "notes": "Specific-attribute query stressing the fit axis. relaxed accepted as a near-match for oversized — both should make the top-K when the user asks for an oversized vibe."
+}
+
+----- fashion-show-jackets.json -----
+{
+  "fixtureKey": "fashion-show-jackets",
+  "mode": "FASHION",
+  "intent": "show me jackets",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["jacket"]
+  },
+  "k": 6,
+  "notes": "Explicit category query. The simplest possible Stage 1 hard-filter test: every top-K product must have category=jacket. If even one shirt or kurta sneaks in, the hard-filter dispatch is broken."
+}
+
+----- fashion-show-trousers.json -----
+{
+  "fixtureKey": "fashion-show-trousers",
+  "mode": "FASHION",
+  "intent": "what trousers do you have",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["pants"]
+  },
+  "k": 6,
+  "notes": "Explicit category query with synonym mapping. The FASHION category vocabulary uses 'pants', not 'trousers' — Stage 3 query extraction must normalise the synonym so Stage 1 hard-filters on category=pants. If trousers reaches Stage 1 raw, this fixture fails."
+}
+
+----- fashion-summer-shorts-size-m.json -----
+{
+  "fixtureKey": "fashion-summer-shorts-size-m",
+  "mode": "FASHION",
+  "intent": "summer shorts in size M",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["shorts"],
+    "season": ["summer", "all_season"],
+    "size_range": ["m"]
+  },
+  "k": 6,
+  "notes": "Specific-attribute query stressing season + size_range axes (added in PR-2.2-mech.1 and pre-existing respectively). all_season accepted alongside summer because India-context summer-versus-all-season is fluid."
+}
+
+----- fashion-wedding-reception.json -----
+{
+  "fixtureKey": "fashion-wedding-reception",
+  "mode": "FASHION",
+  "intent": "something for a wedding reception",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "occasion": ["festive", "event", "formal"]
+  },
+  "k": 6,
+  "notes": "Vibe query with no category constraint — wedding-reception outfits span kurtas, sarees, lehengas, suits, dresses. The eval scores on occasion satisfaction alone; category diversity is checked indirectly via Stage 5 diversity rules."
+}

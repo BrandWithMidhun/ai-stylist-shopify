@@ -1,0 +1,61 @@
+V1 PUBLIC SURFACE
+
+There is NO `app/lib/recommendations/v1/index.ts` — the directory does not
+exist. The "v1" recommendation surface is the legacy chat tool stub:
+
+  app/lib/chat/tools/recommend-products.server.ts
+
+PUBLIC EXPORTS (full surface):
+
+  // Tool definition (Anthropic Tool shape) — passed to messages.create({ tools })
+  export const recommendProductsTool: ToolDef = {
+    name: "recommend_products",
+    description: "Recommend products to the user using semantic similarity ...",
+    input_schema: {
+      type: "object",
+      properties: {
+        intent:    { type: "string", description: "Rich natural-language ..." },
+        price_min: { type: "number", description: "Minimum price (optional)" },
+        price_max: { type: "number", description: "Maximum price (optional)" },
+        limit:     { type: "number", description: "Max product cards ..." },
+      },
+      required: ["intent"],
+    },
+  };
+
+  // Input type
+  export type RecommendProductsInput = {
+    intent: string;
+    price_min?: number;
+    price_max?: number;
+    limit?: number;
+  };
+
+  // Tool executor — called by registry's executeTool switch
+  export async function recommendProducts(
+    input: RecommendProductsInput,
+    ctx: ToolExecutionContext,
+  ): Promise<ToolResult>
+
+RETURN SHAPE (ToolResult):
+  {
+    ok: true,
+    data: {
+      products: Array<{ id, title, price, currency, available, tags }>,  // slim → Claude
+      total: number,
+      topDistance: number | null,
+      query: input,
+    },
+    products: ProductCard[],   // full out-of-band → widget render
+  }
+
+INTERNAL DEPENDENCIES (not exported):
+  - embedQuery from "../../embeddings/voyage.server"
+  - findSimilarProducts from "../../embeddings/similarity-search.server"
+  - formatProductCard (private to this file, builds ProductCard with
+    real variantId via extractNumericId(variant.shopifyId))
+
+KEY DIFFERENCE vs v2: v1 loads ProductVariant rows during candidate query
+(via findSimilarProducts which includes variants), and formatProductCard
+extracts the numeric variantId from the variant GID. So v1 ProductCard ships
+with a populated variantId — add-to-cart works in the widget.

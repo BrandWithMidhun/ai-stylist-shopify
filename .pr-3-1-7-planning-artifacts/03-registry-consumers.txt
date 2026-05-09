@@ -1,0 +1,45 @@
+REGISTRY CONSUMERS — files importing from app/lib/chat/tools/registry.server.ts
+
+Search command:
+  Grep pattern "registry" path "app/lib/chat" output_mode "content"
+
+Direct importers (1 file):
+  app/lib/chat/agent.server.ts:29
+    import { buildToolList, executeTool } from "./tools/registry.server";
+
+Self-references (NOT consumers):
+  app/lib/chat/tools/registry.server.ts:1                — self
+  app/lib/chat/tools/recommend-products-v2.server.ts:4-9 — comment refs only
+
+Tests: zero. No test file imports from registry.server.ts.
+
+Routes: zero direct importers. The route → registry chain goes through
+agent.server.ts:
+
+  app/routes/api.chat.message.tsx:14
+    import { runAgent } from "../lib/chat/agent.server";
+  app/routes/api.chat.message.tsx:97
+    agentResult = await runAgent({ ... });
+
+  app/lib/chat/agent.server.ts:29
+    import { buildToolList, executeTool } from "./tools/registry.server";
+  app/lib/chat/agent.server.ts:113
+    const tools = buildToolList(config);
+  app/lib/chat/agent.server.ts:153
+    const result = await executeTool(block.name, block.input, { shopDomain });
+
+USER-VISIBLE PATH: api.chat.message route → runAgent → registry → tool stub.
+This is the chat widget's only path to recommendations. The flip's blast
+radius is exactly one route handler (api.chat.message) and one widget
+surface (extensions/storefront-widget/assets/chat-widget.js, which renders
+the ProductCard[] returned in agent output).
+
+Cron / worker / other route handlers: zero. The recommendation engine is
+not invoked from cron, worker, or any non-chat route.
+
+Eval harness path (separate from registry — bypasses agent.server.ts):
+  app/lib/recommendations/v2/eval/pipeline-runner.server.ts
+  app/lib/recommendations/v2/eval/cli.ts
+  These call runPipeline(...) directly. The flip does not affect them — they
+  already exercise v2 unconditionally. So flipping the registry does not
+  break the eval harness.

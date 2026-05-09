@@ -1,0 +1,64 @@
+EVAL ENTRY POINTS
+
+CLI invocation:
+  npx tsx scripts/run-eval.ts --all
+  npx tsx scripts/run-eval.ts --all --shop=ai-fashion-store.myshopify.com
+  npx tsx scripts/run-eval.ts --fixture=<key>
+  npx tsx scripts/run-eval.ts --all --runner=noop   (NoOpPipelineRunner; mech.1 plumbing parity)
+
+No npm script alias — invocation is always direct via `npx tsx`. (`npm run`
+exposes `embed:backfill` but no `eval:run` shortcut.)
+
+Default values (from cli.ts):
+  shopDomain        ai-fashion-store.myshopify.com
+  runner            RealPipelineRunner (mech.6 default)
+  pipelineVersion   "3.1.0" with real runner; "3.1.0-empty" with noop
+  triggeredBy       "CLI"
+
+Persistence side effects (every invocation):
+  - INSERT one EvalRun row (cli.ts $transaction)
+  - INSERT 12 EvalResult rows (one per fixture)
+  - Both writes happen in a single $transaction; partial state never leaks
+
+Output to stdout (from scripts/run-eval.ts):
+  EvalRun <runId>
+    shopDomain:      <shop>
+    pipelineVersion: <version>
+    totalQueries:    12
+    pass / partial / fail: P / R / F
+    aggregateScore:  <0.xxxx>
+    durationMs:      <ms>
+
+    [PASS|FAIL] <fixtureKey> → score=<0.xxxx> (precision=<0.xx>, relaxed=<0.xx>, latencyMs=<n>)
+    ...
+
+  No JSON file is written by run-eval.ts. The structured trace per
+  fixture lives only in EvalResult.topKHandles + EvalResult.topKTagsJson
+  (both queryable via Prisma Studio or a custom report script). The CLI
+  output is human-readable text.
+
+  scripts/report-pipeline-3-1.ts is a separate report tool that reads
+  the latest EvalRun + EvalResult rows for forensic inspection.
+
+Trace-completeness gap noted in HANDOFF op debt #12: prompt's expectation
+of a `topKHandles` array column was correct (it exists), but the
+RecommendationEvent.candidates field (a different table — for production
+chat traffic, not eval) holds the full ProductCard array as JSON. The eval
+side keeps both topKHandles[] and topKTagsJson — the latter is the per-
+product tag detail, but does NOT include Stage 1 contribution metadata.
+Per-fixture Stage 1 outcome data (this thread's central question) is
+NOT persisted by the eval — which is why probe-stage-1.ts in this thread
+captures it independently.
+
+Database connection: tsx scripts read from `.env` (DATABASE_URL =
+shortline.proxy.rlwy.net Railway proxy). No separate test DB.
+
+Past invocations of run-eval.ts (per HANDOFF):
+  - 2026-05-07 mech.1 empty-baseline (NoOpPipelineRunner): aggregateScore=0.0000
+  - 2026-05-07 mech.6 baseline (RealPipelineRunner): aggregateScore=0.0833
+  - 2026-05-08 3.1.5 post-bulk-reembed: aggregateScore=0.0833
+  - 2026-05-08 3.1.6 close post-α-backfill: aggregateScore=0.0833
+
+Triple invariance is the headline finding the resume prompt cites.
+This thread's probe (probe-stage-1.ts) explains the mechanism
+(see artifact 18-thread-2-synthesis.md).

@@ -1,0 +1,924 @@
+{
+  "capturedAt": "2026-05-09T08:05:03.049Z",
+  "shop": "ai-fashion-store.myshopify.com",
+  "catalog": {
+    "totalProducts": 2632,
+    "activeNotDeletedNotExcluded": 1169,
+    "activeWithEmbedding": 1169,
+    "stage1UniverseStructural": 29,
+    "distinctProductsWithAnyApprovedTag": 52
+  },
+  "productTagCensusByAxisAndStatus": {
+    "detailing": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "closure_type": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "pattern": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 17,
+      "REJECTED": 0
+    },
+    "construction_style": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "color_family": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 52,
+      "REJECTED": 0
+    },
+    "category": {
+      "APPROVED": 50,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "design_detail": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "origin": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 2,
+      "REJECTED": 0
+    },
+    "gender": {
+      "APPROVED": 50,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "waistband_type": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "fabric_quality": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "waist_type": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "collar_style": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 7,
+      "REJECTED": 0
+    },
+    "pleat_style": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 3,
+      "REJECTED": 0
+    },
+    "fit_detail": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "product_type": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 5,
+      "REJECTED": 0
+    },
+    "fabric_count": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "skin_friendliness": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 4,
+      "REJECTED": 0
+    },
+    "sub_category": {
+      "APPROVED": 52,
+      "PENDING_REVIEW": 4,
+      "REJECTED": 0
+    },
+    "waistband_style": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "neckline": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "sleeve_length": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 31,
+      "REJECTED": 0
+    },
+    "sustainability": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 57,
+      "REJECTED": 0
+    },
+    "price_tier": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 52,
+      "REJECTED": 0
+    },
+    "fabric_weave": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 2,
+      "REJECTED": 0
+    },
+    "material": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 51,
+      "REJECTED": 0
+    },
+    "pocket_count": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "size_range": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 59,
+      "REJECTED": 0
+    },
+    "fabric_treatment": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 4,
+      "REJECTED": 0
+    },
+    "color_family_secondary": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "set_type": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "skin_friendly": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "statement_piece": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 51,
+      "REJECTED": 0
+    },
+    "fabric_weight": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 4,
+      "REJECTED": 0
+    },
+    "condition": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "style_type": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 52,
+      "REJECTED": 0
+    },
+    "occasion": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 80,
+      "REJECTED": 0
+    },
+    "season": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 59,
+      "REJECTED": 0
+    },
+    "waistband": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "waist_style": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "collar_type": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 17,
+      "REJECTED": 0
+    },
+    "fabric_purity": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "fit": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 51,
+      "REJECTED": 0
+    }
+  },
+  "distinctProductsWithApprovedTagPerAxis": {
+    "gender": 50,
+    "category": 50,
+    "sub_category": 52,
+    "occasion": 0,
+    "color_family": 0,
+    "material": 0,
+    "fit": 0,
+    "season": 0,
+    "size_range": 0,
+    "style_type": 0,
+    "sleeve_length": 0,
+    "pattern": 0,
+    "collar_type": 0,
+    "price_tier": 0,
+    "statement_piece": 0
+  },
+  "perFixture": [
+    {
+      "fixtureKey": "fashion-casual-office-shirts",
+      "intent": "casual office shirts",
+      "expectedTagFilters": {
+        "category": [
+          "shirt"
+        ],
+        "occasion": [
+          "work",
+          "casual"
+        ],
+        "style_type": [
+          "minimal",
+          "classic",
+          "relaxed"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "occasion": [
+          "casual",
+          "work"
+        ],
+        "category": [
+          "shirt"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 0,
+        "latencyMs": 491,
+        "firstCandidateHandles": [],
+        "filtersApplied": {
+          "category": [
+            "shirt"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "shirt"
+          ],
+          "catalogProductsApprovedMatching": 26
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "occasion": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "style_type": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-festive-kurta-women",
+      "intent": "festive kurta for women",
+      "expectedTagFilters": {
+        "category": [
+          "kurta"
+        ],
+        "occasion": [
+          "festive"
+        ],
+        "gender": [
+          "female"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "category": [
+          "kurta"
+        ],
+        "occasion": [
+          "festive"
+        ],
+        "gender": [
+          "female"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 0,
+        "latencyMs": 490,
+        "firstCandidateHandles": [],
+        "filtersApplied": {
+          "gender": [
+            "female"
+          ],
+          "category": [
+            "kurta"
+          ]
+        },
+        "hardFilterAxesActive": 2
+      },
+      "hardFilterCatalogCounts": {
+        "gender": {
+          "axis": "gender",
+          "values": [
+            "female"
+          ],
+          "catalogProductsApprovedMatching": 0
+        },
+        "category": {
+          "axis": "category",
+          "values": [
+            "kurta"
+          ],
+          "catalogProductsApprovedMatching": 2
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "occasion": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "gender": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-going-out-outfit",
+      "intent": "going out outfit for evening",
+      "expectedTagFilters": {
+        "occasion": [
+          "event",
+          "festive",
+          "casual"
+        ],
+        "style_type": [
+          "bold",
+          "preppy",
+          "streetwear",
+          "classic"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "occasion": [
+          "event"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 29,
+        "latencyMs": 499,
+        "firstCandidateHandles": [
+          "aire-relaxed-elastic-pure-linen-trousers-regal-blue",
+          "elite-linen-styling-service",
+          "sloan-pure-linen-embroidered-half-sleeve-shirt-blue",
+          "aman-pure-linen-long-kurta-with-double-pocket-dark-pine-green",
+          "matteo-co-ord-set-black",
+          "shane-pure-linen-embroidered-half-sleeve-shirt-black-pink",
+          "carrey-white-pure-linen-short-sleeve-shirt-with-pocket-detailing-for-men-buy",
+          "shane-pure-linen-embroidered-half-sleeve-shirt-black-green",
+          "pine-pure-linen-color-block-short-sleeve-t-shirt-white",
+          "ameer-pure-linen-toda-hand-embroidered-half-sleeve-shirt-black-factory-rescue",
+          "trevor-ecru-shirt-men-beige-off-white-slim-fit-comfort-fit-pure-linen-short-sleeve-shirts-for-men-buy",
+          "sloan-pure-linen-embroidered-half-sleeve-shirt-green",
+          "paul-pure-linen-stitch-detailed-full-sleeve-shirt-dark-purple",
+          "ezy-convertible-co-ord-sets-black",
+          "becket-linen-short-jacket-slow-green",
+          "shane-pure-linen-embroidered-half-sleeve-shirt-black-red",
+          "peter-pure-linen-stitch-detailed-half-sleeve-shirt-black",
+          "harvey-black-ss-shirt-men-black-slim-fit-comfort-fit-pure-linen-short-sleeve-shirts-for-men-buy",
+          "yup-pure-linen-long-kurta-white",
+          "advik-pure-linen-short-kurta-with-double-button-and-loop-closure-black"
+        ],
+        "filtersApplied": {},
+        "hardFilterAxesActive": 0
+      },
+      "hardFilterCatalogCounts": {},
+      "tagCoverageOnSurvivors": {
+        "occasion": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "style_type": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-linen-shirts-white",
+      "intent": "show me white linen shirts",
+      "expectedTagFilters": {
+        "category": [
+          "shirt"
+        ],
+        "color_family": [
+          "white",
+          "beige"
+        ],
+        "material": [
+          "linen"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "color_family": [
+          "white"
+        ],
+        "material": [
+          "linen"
+        ],
+        "category": [
+          "shirt"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 0,
+        "latencyMs": 245,
+        "firstCandidateHandles": [],
+        "filtersApplied": {
+          "category": [
+            "shirt"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "shirt"
+          ],
+          "catalogProductsApprovedMatching": 26
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "color_family": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "material": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-minimalist-daily-wear",
+      "intent": "minimalist daily wear",
+      "expectedTagFilters": {
+        "style_type": [
+          "minimal",
+          "classic",
+          "relaxed"
+        ],
+        "occasion": [
+          "casual",
+          "work"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "occasion": [
+          "casual"
+        ],
+        "style_type": [
+          "minimal"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 29,
+        "latencyMs": 249,
+        "firstCandidateHandles": [
+          "aire-relaxed-elastic-pure-linen-trousers-regal-blue",
+          "elite-linen-styling-service",
+          "sloan-pure-linen-embroidered-half-sleeve-shirt-blue",
+          "aman-pure-linen-long-kurta-with-double-pocket-dark-pine-green",
+          "matteo-co-ord-set-black",
+          "shane-pure-linen-embroidered-half-sleeve-shirt-black-pink",
+          "carrey-white-pure-linen-short-sleeve-shirt-with-pocket-detailing-for-men-buy",
+          "shane-pure-linen-embroidered-half-sleeve-shirt-black-green",
+          "pine-pure-linen-color-block-short-sleeve-t-shirt-white",
+          "ameer-pure-linen-toda-hand-embroidered-half-sleeve-shirt-black-factory-rescue",
+          "trevor-ecru-shirt-men-beige-off-white-slim-fit-comfort-fit-pure-linen-short-sleeve-shirts-for-men-buy",
+          "sloan-pure-linen-embroidered-half-sleeve-shirt-green",
+          "paul-pure-linen-stitch-detailed-full-sleeve-shirt-dark-purple",
+          "ezy-convertible-co-ord-sets-black",
+          "becket-linen-short-jacket-slow-green",
+          "shane-pure-linen-embroidered-half-sleeve-shirt-black-red",
+          "peter-pure-linen-stitch-detailed-half-sleeve-shirt-black",
+          "harvey-black-ss-shirt-men-black-slim-fit-comfort-fit-pure-linen-short-sleeve-shirts-for-men-buy",
+          "yup-pure-linen-long-kurta-white",
+          "advik-pure-linen-short-kurta-with-double-button-and-loop-closure-black"
+        ],
+        "filtersApplied": {},
+        "hardFilterAxesActive": 0
+      },
+      "hardFilterCatalogCounts": {},
+      "tagCoverageOnSurvivors": {
+        "style_type": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "occasion": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-oos-stress-1",
+      "intent": "white linen shirt for daily wear",
+      "expectedTagFilters": {
+        "category": [
+          "shirt"
+        ],
+        "color_family": [
+          "white",
+          "beige"
+        ],
+        "material": [
+          "linen"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "category": [
+          "shirt"
+        ],
+        "color_family": [
+          "white"
+        ],
+        "material": [
+          "linen"
+        ],
+        "occasion": [
+          "casual"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 0,
+        "latencyMs": 247,
+        "firstCandidateHandles": [],
+        "filtersApplied": {
+          "category": [
+            "shirt"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "shirt"
+          ],
+          "catalogProductsApprovedMatching": 26
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "color_family": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "material": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-oos-stress-2",
+      "intent": "festive saree for an evening event",
+      "expectedTagFilters": {
+        "category": [
+          "saree"
+        ],
+        "occasion": [
+          "festive",
+          "event"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "category": [
+          "saree"
+        ],
+        "occasion": [
+          "event",
+          "festive"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 0,
+        "latencyMs": 244,
+        "firstCandidateHandles": [],
+        "filtersApplied": {
+          "category": [
+            "saree"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "saree"
+          ],
+          "catalogProductsApprovedMatching": 0
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "occasion": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-oversized-fit-kurta",
+      "intent": "oversized fit kurta",
+      "expectedTagFilters": {
+        "category": [
+          "kurta"
+        ],
+        "fit": [
+          "oversized",
+          "relaxed"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "category": [
+          "kurta"
+        ],
+        "fit": [
+          "oversized"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 0,
+        "latencyMs": 247,
+        "firstCandidateHandles": [],
+        "filtersApplied": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "kurta"
+          ],
+          "catalogProductsApprovedMatching": 2
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "fit": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-show-jackets",
+      "intent": "show me jackets",
+      "expectedTagFilters": {
+        "category": [
+          "jacket"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "category": [
+          "jacket"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 0,
+        "latencyMs": 248,
+        "firstCandidateHandles": [],
+        "filtersApplied": {
+          "category": [
+            "jacket"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "jacket"
+          ],
+          "catalogProductsApprovedMatching": 5
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-show-trousers",
+      "intent": "what trousers do you have",
+      "expectedTagFilters": {
+        "category": [
+          "pants"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "category": [
+          "pants"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 1,
+        "latencyMs": 246,
+        "firstCandidateHandles": [
+          "aire-relaxed-elastic-pure-linen-trousers-regal-blue"
+        ],
+        "filtersApplied": {
+          "category": [
+            "pants"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "pants"
+          ],
+          "catalogProductsApprovedMatching": 8
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 1,
+          "satisfyingFilter": 1
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-summer-shorts-size-m",
+      "intent": "summer shorts in size M",
+      "expectedTagFilters": {
+        "category": [
+          "shorts"
+        ],
+        "season": [
+          "summer",
+          "all_season"
+        ],
+        "size_range": [
+          "m"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "category": [
+          "shorts"
+        ],
+        "season": [
+          "summer"
+        ],
+        "size_range": [
+          "m"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 0,
+        "latencyMs": 244,
+        "firstCandidateHandles": [],
+        "filtersApplied": {
+          "category": [
+            "shorts"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "shorts"
+          ],
+          "catalogProductsApprovedMatching": 0
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "season": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "size_range": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-wedding-reception",
+      "intent": "something for a wedding reception",
+      "expectedTagFilters": {
+        "occasion": [
+          "festive",
+          "event",
+          "formal"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "occasion": [
+          "festive",
+          "event"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 29,
+        "latencyMs": 494,
+        "firstCandidateHandles": [
+          "aire-relaxed-elastic-pure-linen-trousers-regal-blue",
+          "elite-linen-styling-service",
+          "sloan-pure-linen-embroidered-half-sleeve-shirt-blue",
+          "aman-pure-linen-long-kurta-with-double-pocket-dark-pine-green",
+          "matteo-co-ord-set-black",
+          "shane-pure-linen-embroidered-half-sleeve-shirt-black-pink",
+          "carrey-white-pure-linen-short-sleeve-shirt-with-pocket-detailing-for-men-buy",
+          "shane-pure-linen-embroidered-half-sleeve-shirt-black-green",
+          "pine-pure-linen-color-block-short-sleeve-t-shirt-white",
+          "ameer-pure-linen-toda-hand-embroidered-half-sleeve-shirt-black-factory-rescue",
+          "trevor-ecru-shirt-men-beige-off-white-slim-fit-comfort-fit-pure-linen-short-sleeve-shirts-for-men-buy",
+          "sloan-pure-linen-embroidered-half-sleeve-shirt-green",
+          "paul-pure-linen-stitch-detailed-full-sleeve-shirt-dark-purple",
+          "ezy-convertible-co-ord-sets-black",
+          "becket-linen-short-jacket-slow-green",
+          "shane-pure-linen-embroidered-half-sleeve-shirt-black-red",
+          "peter-pure-linen-stitch-detailed-half-sleeve-shirt-black",
+          "harvey-black-ss-shirt-men-black-slim-fit-comfort-fit-pure-linen-short-sleeve-shirts-for-men-buy",
+          "yup-pure-linen-long-kurta-white",
+          "advik-pure-linen-short-kurta-with-double-button-and-loop-closure-black"
+        ],
+        "filtersApplied": {},
+        "hardFilterAxesActive": 0
+      },
+      "hardFilterCatalogCounts": {},
+      "tagCoverageOnSurvivors": {
+        "occasion": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+OP DEBT #11 — VERBATIM FROM HANDOFF.md (3.1 mech.6 close)
+
+Source location: HANDOFF.md line 442.
+
+----- VERBATIM (one paragraph, line 442) -----
+11. Stage 5 OOS-stress fixtures untested at mech.6 baseline. Mech.5 prediction ("PASS via Stage 1 EXISTS pre-filter") was wrong — both fixtures FAILed because their target categories (shirt for stress-1, saree for stress-2) didn't have enough APPROVED-tagged products to make it past Stage 1. The OOS-substitute architectural concern that mech.5 deferred has not been exercised at all. Will get exercised when Phase 5 ships full-catalog tagging.
+----- END VERBATIM -----
+
+ADJACENT REFERENCE (Stage 5 source comment, app/lib/recommendations/v2/
+stage-5-diversity.server.ts:27-33):
+
+  // OOS substitute path is structurally absent in 3.1 (per locked
+  // decision D6). Stage 1's EXISTS pre-filter handles steady state; the
+  // rare mid-pipeline-flip case (variant availability changes between
+  // Stage 1 and Stage 5) is unaddressed. Documented as op debt at 3.1
+  // close. mech.6 orchestrator may add a fresh availableForSale check
+  // on top-N candidates before Stage 5 ranks; if implemented there,
+  // Stage 5 stays as-is.
+
+THREAD 3 PREMISE-CORRECTION READING:
+
+Op debt #11 attributes the OOS-stress fixture failures to "not enough
+APPROVED-tagged products to make it past Stage 1" and predicts that
+"Phase 5 full-catalog tagging will resolve this naturally."
+
+Thread 2's probe data (artifact 14) shows this attribution is HALF
+WRONG and the prediction is FULLY WRONG:
+
+1. shirt fixture (stress-1): catalog has 26 APPROVED `category=shirt`
+   products. Op debt's "not enough APPROVED-tagged products" framing is
+   already wrong — there ARE 26 APPROVED. The actual reason Stage 1
+   returns 0: 0 of those 26 are in the 29-product structural universe
+   (the variant `availableForSale=true` EXISTS predicate eliminates
+   them).
+
+2. saree fixture (stress-2): catalog has 0 APPROVED `category=saree`
+   products. Op debt's framing is correct here — there is a tagging
+   gap. But it's a vocabulary gap (saree value never landed in
+   APPROVED state), not a coverage-percentage gap.
+
+3. "Phase 5 full-catalog tagging will resolve this naturally" is FALSE
+   for the shirt fixture, because tagging more products doesn't put
+   them in the structural universe. It only resolves naturally if
+   Phase 5 also fixes the catalog's variant availability state for
+   the products it tags.
+
+This is a NEW PREMISE CORRECTION Thread 3 surfaces that goes beyond
+Threads 1 and 2: op debt #11's resolution path is invalid. The
+OOS-stress fixtures are blocked by the structural variant filter,
+not by tagging coverage.

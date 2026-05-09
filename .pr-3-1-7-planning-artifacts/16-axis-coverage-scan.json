@@ -1,0 +1,75 @@
+{
+  "_note": "This file is a curated subset of the probe-stage-1.ts output (artifact 14). It isolates the axis-coverage data Thread 2 Task 6 asks for, in a format Thread 3 can consume directly. All counts are catalog-wide for shop=ai-fashion-store.myshopify.com captured at 2026-05-09T08:05:03Z.",
+  "shop": "ai-fashion-store.myshopify.com",
+  "capturedAt": "2026-05-09T08:05:03.049Z",
+  "catalog": {
+    "totalProducts": 2632,
+    "activeNotDeletedNotExcluded": 1169,
+    "activeWithEmbedding": 1169,
+    "stage1UniverseStructural": 29,
+    "distinctProductsWithAnyApprovedTag": 52,
+    "_stage1UniverseDefinition": "ACTIVE + deletedAt IS NULL + recommendationExcluded=false + embedding IS NOT NULL + EXISTS variant with availableForSale=true. This is the upstream cap on Stage 1 output regardless of any tag filter."
+  },
+  "perAxisApprovedCoverage": [
+    { "axis": "gender",          "approvedProducts":  50, "pctOfActive": 4.28,  "pctOfStage1Universe": 172.41, "_note": "Bulk-approved at mech.6 baseline. 50 APPROVED but only ~1 in the 29-universe." },
+    { "axis": "category",        "approvedProducts":  50, "pctOfActive": 4.28,  "pctOfStage1Universe": 172.41, "_note": "Bulk-approved at mech.6 baseline." },
+    { "axis": "sub_category",    "approvedProducts":  52, "pctOfActive": 4.45,  "pctOfStage1Universe": 179.31, "_note": "Approved as side effect of bulk-approve operations." },
+    { "axis": "occasion",        "approvedProducts":   0, "pctOfActive": 0.00,  "pctOfStage1Universe": 0.00,   "_note": "80 PENDING_REVIEW, 0 APPROVED. Required by 6 of 12 fixtures." },
+    { "axis": "color_family",    "approvedProducts":   0, "pctOfActive": 0.00,  "pctOfStage1Universe": 0.00,   "_note": "52 PENDING_REVIEW, 0 APPROVED. Required by 2 fixtures." },
+    { "axis": "material",        "approvedProducts":   0, "pctOfActive": 0.00,  "pctOfStage1Universe": 0.00,   "_note": "51 PENDING_REVIEW, 0 APPROVED. Required by 2 fixtures." },
+    { "axis": "fit",             "approvedProducts":   0, "pctOfActive": 0.00,  "pctOfStage1Universe": 0.00,   "_note": "51 PENDING_REVIEW, 0 APPROVED. Required by 1 fixture." },
+    { "axis": "season",          "approvedProducts":   0, "pctOfActive": 0.00,  "pctOfStage1Universe": 0.00,   "_note": "59 PENDING_REVIEW, 0 APPROVED. Required by 1 fixture." },
+    { "axis": "size_range",      "approvedProducts":   0, "pctOfActive": 0.00,  "pctOfStage1Universe": 0.00,   "_note": "59 PENDING_REVIEW, 0 APPROVED. Required by 1 fixture." },
+    { "axis": "style_type",      "approvedProducts":   0, "pctOfActive": 0.00,  "pctOfStage1Universe": 0.00,   "_note": "52 PENDING_REVIEW, 0 APPROVED. Required by 3 fixtures." },
+    { "axis": "sleeve_length",   "approvedProducts":   0, "pctOfActive": 0.00,  "pctOfStage1Universe": 0.00,   "_note": "31 PENDING_REVIEW, 0 APPROVED. Not currently in any fixture." },
+    { "axis": "pattern",         "approvedProducts":   0, "pctOfActive": 0.00,  "pctOfStage1Universe": 0.00,   "_note": "17 PENDING_REVIEW, 0 APPROVED. Not currently in any fixture." },
+    { "axis": "collar_type",     "approvedProducts":   0, "pctOfActive": 0.00,  "pctOfStage1Universe": 0.00,   "_note": "17 PENDING_REVIEW, 0 APPROVED. Not currently in any fixture." },
+    { "axis": "price_tier",      "approvedProducts":   0, "pctOfActive": 0.00,  "pctOfStage1Universe": 0.00,   "_note": "52 PENDING_REVIEW, 0 APPROVED. Not currently in any fixture." },
+    { "axis": "statement_piece", "approvedProducts":   0, "pctOfActive": 0.00,  "pctOfStage1Universe": 0.00,   "_note": "51 PENDING_REVIEW, 0 APPROVED. Not currently in any fixture." }
+  ],
+  "categoryValueCoverageForFixtureExtractedValues": {
+    "_note": "How many catalog products have an APPROVED ProductTag with axis=category AND value=<extracted-value>. Source: probe artifact 14, perFixture[].hardFilterCatalogCounts.",
+    "shirt": 26,
+    "kurta": 2,
+    "jacket": 5,
+    "pants": 8,
+    "saree": 0,
+    "shorts": 0,
+    "_genderFemale": 0
+  },
+  "comparisonToFailingFixtures": {
+    "_note": "Catalog-side count vs Stage 1 universe-side count. The gap is the load-bearing finding: even axes with 8-26 APPROVED catalog products produce 0 Stage 1 candidates because those products are not in the 29-universe.",
+    "category=shirt": {
+      "catalogApprovedCount": 26,
+      "fixturesAffected": ["fashion-casual-office-shirts", "fashion-linen-shirts-white", "fashion-oos-stress-1"],
+      "stage1UniverseIntersection": 0
+    },
+    "category=kurta": {
+      "catalogApprovedCount": 2,
+      "fixturesAffected": ["fashion-festive-kurta-women", "fashion-oversized-fit-kurta"],
+      "stage1UniverseIntersection": 0
+    },
+    "category=jacket": {
+      "catalogApprovedCount": 5,
+      "fixturesAffected": ["fashion-show-jackets"],
+      "stage1UniverseIntersection": 0
+    },
+    "category=pants": {
+      "catalogApprovedCount": 8,
+      "fixturesAffected": ["fashion-show-trousers"],
+      "stage1UniverseIntersection": 1
+    },
+    "category=saree": {
+      "catalogApprovedCount": 0,
+      "fixturesAffected": ["fashion-oos-stress-2"],
+      "stage1UniverseIntersection": 0,
+      "_note": "Vocabulary gap — no APPROVED saree tag exists in the catalog at all. PR-2.2 calibration sample never flagged a saree."
+    },
+    "category=shorts": {
+      "catalogApprovedCount": 0,
+      "fixturesAffected": ["fashion-summer-shorts-size-m"],
+      "stage1UniverseIntersection": 0,
+      "_note": "Vocabulary gap — no APPROVED shorts tag exists in the catalog at all."
+    }
+  }
+}

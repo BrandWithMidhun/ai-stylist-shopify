@@ -1,0 +1,85 @@
+DECISION REGISTER — LOCATION SCAN
+
+There is no standalone decision-register document in the repo. Locked
+decisions are scoped per-mech and live in the source-file headers of
+the mech-output module they govern. The numbering RESTARTS per mech
+(D1-Dn for mech.1; D1-Dn for mech.2; etc.). Decisions referenced
+elsewhere always identify the mech context implicitly via filename.
+
+PROJECT-WIDE LOCKED CONTEXT (the only register-shaped document):
+  docs/scope-decisions.md
+    8 product-scope decisions locked 2026-04-28 by user. None of these
+    bear directly on the 3.1.7 question (they cover brand, multi-mode,
+    retention, integrations, pricing-architecture, customer-profile,
+    auth, prompt-timing). Skipping verbatim capture — see the doc for
+    full text.
+
+PER-MECH LOCKED DECISIONS RELEVANT TO 3.1.7
+(the variant filter / OOS handling / flip path):
+
+  app/lib/recommendations/v2/pipeline.server.ts
+    D1 — Tag-load happens BETWEEN Stage 2 and Stage 3
+    D2 — embedQuery called once between Stage 1 and Stage 2 (after
+         empty-Stage-1 short-circuit)
+    D6 — Orchestrator does NOT modify registry.server.ts
+         (governs option-pick boundary: orchestrator changes do not
+         constitute the flip; flip is a separate mech)
+    D7 — RecommendationEvent writes happen in v2 tool stub, NOT
+         in orchestrator (governs where variant-loading goes if it
+         goes in the tool stub)
+
+  app/lib/recommendations/v2/stage-1-hard-filters.server.ts
+    (Header has no D-numbered list, but locks two key postures
+    structurally:)
+    - "EXISTS at least one variant with availableForSale = true"
+      is structural, applies on EVERY call
+    - "APPROVED-only ProductTag filter" — PENDING_REVIEW and REJECTED
+      tags are merchant-undecided / merchant-rejected, so Stage 1 must
+      not act on them
+
+  app/lib/recommendations/v2/stage-5-diversity.server.ts
+    D6 (mech.5) — OOS substitute path is structurally absent in 3.1.
+                  Stage 1's EXISTS pre-filter handles steady state.
+                  mid-pipeline-flip case unaddressed; documented as
+                  op debt #11 at 3.1 close.
+
+  app/lib/recommendations/v2/stage-6-output.server.ts
+    D7 (mech.5) — finalScore formula
+    D8 (mech.5) — whyTrace deterministic template (no LLM call)
+    D9 (mech.5) — ProductCard format mirrors legacy formatProductCard
+                  (governs op debt #15: variantId=null + available=true
+                  hardcoded placeholders are part of D9's "mirror
+                  legacy" but legacy populates them; v2 doesn't)
+
+  app/lib/recommendations/v2/stage-3-rerank/query-extraction.server.ts
+    D1 (mech.4) — NO LLM call; pure heuristic
+    D6 (mech.4) — Profile overrides applied at extraction time
+    D7 (mech.4) — Synonym dict cap 30-50 entries
+
+  app/lib/recommendations/v2/stage-3-rerank/index.server.ts
+    D2 (mech.4) — Partial<Record<StoreMode, ReRankerSet>> dispatch
+                  pattern (governs how new modes are added in Phase 5)
+
+  app/lib/recommendations/v2/stage-3-rerank/fashion.server.ts
+    D3 (mech.4) — FASHION re-rank weights (occasion 0.4 / fit 0.3
+                  / color 0.2 / body 0.1)
+
+  app/lib/recommendations/v2/stage-4-merchant-signals.server.ts
+    D1, D2 (mech.5) — promoted boost = 0.2; velocity boost
+                       = 0.0 (3.1; populated in 3.2)
+
+NUMBERING CAUTION:
+The D-numbers RESTART per mech. pipeline.server.ts D7 (mech.6's
+"RecommendationEvent writes in tool stub") is a DIFFERENT decision
+from stage-6-output.server.ts D7 (mech.5's "finalScore formula") and
+stage-3-rerank/query-extraction.server.ts D7 (mech.4's "synonym dict
+cap"). When citing decisions in 3.1.7 prompts and HANDOFF entries,
+always include both the mech AND the file path to disambiguate.
+
+NO STANDALONE DECISION REGISTER EXISTS. If 3.1.7 wants one (this
+investigation surfaced this as a documentation gap), it would slot
+naturally as `docs/decisions.md` or as a per-mech section in
+`docs/planning/<sub-bundle>.md`. The 3.1.6 planning doc at
+`docs/planning/3-1-6-recurring-sync.md` does not include a
+"decisions" section either; the per-mech header pattern is the
+load-bearing one in this codebase.

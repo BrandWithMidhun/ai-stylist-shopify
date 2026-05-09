@@ -1,0 +1,44 @@
+OP DEBT #15 — VERBATIM FROM HANDOFF.md
+
+Source location: HANDOFF.md line 446 (in the 3.1-mech.6 close section's
+operational debt list, items 1-21).
+
+----- VERBATIM (one paragraph, line 446) -----
+15. v2 ProductCard ships with `variantId=null` and `available=true`. No re-check of `ProductVariant.availableForSale` in v2. Post-eval-pass flip commit must add variant-loading to v2 tool stub before agent registration, otherwise add-to-cart has no variantId. Either v2 tool stub loads variants for top-N after orchestrator returns (cleaner, mirrors legacy tool), or Stage 6 itself loads variants. Decide at flip-commit prompt time.
+----- END VERBATIM -----
+
+ADJACENT CONTEXT (lines 444-447):
+14. Stage 5 `trace.diversityPenalty` quota-vs-MMR honesty (mech.5 carryover).
+    `diversityPenalty` records MMR jaccard at skip time regardless of whether
+    quota or MMR was the true rejector. If trace audit clarity becomes a
+    debugging need, add `diversityRejectionReason` to Stage 5's per-candidate
+    output via mech.6 orchestrator stitching. Not addressed in 3.1.
+15. v2 ProductCard ships with `variantId=null` and `available=true`. ...
+16. Untracked `scripts/_*.ts` files are still typechecked. ...
+
+REFERENCES TO OP DEBT #15 ELSEWHERE IN HANDOFF.md:
+  Line 512: "Sub-bundle 3.1.5 closes here. ... After 3.1.6 ships:
+            post-eval-pass flip commit (one-line `registry.server.ts` +
+            variant-loading on v2 ProductCard per op debt #15)."
+  Line 696: "- Variant-loading on v2 ProductCard per op debt #15
+            (pre-existing flip prerequisite)"
+
+NOTE ON OP DEBT NUMBERING:
+HANDOFF.md uses two restarted "1." numbered lists — items 1-21 are in the
+PR-3.1 mech.6 close (single flat list across mechs at that close, lines
+~428-501). Items 22-37 are in the 3.1.6 close (lines 658-672). Items in
+the 3.1.6 list that share numbers with the 3.1 list (e.g. there's a
+second-section "22") are ADDITIONS, not redefinitions — per HANDOFF.md
+line 544: "Operational debt added (5 items, #22 – #26 appended verbatim
+to the existing flat list of 21 — no renumbering)".
+
+Item #22 (referenced in resume prompt) IS:
+  3.1.6 close line 658: "Skip predicate (`embeddingContentHash ===
+  knowledgeContentHash`) is incomplete by design ... Recurring sync
+  (3.1.6 mech.1) provides the actual trigger via SINGLE_PRODUCT-completion
+  enqueue."
+
+Item #22 is a recurring-sync skip-predicate concern. It is NOT a flip
+prerequisite. The resume prompt's grouping of #22 with #15 was likely
+incidental — both surfaced from prior planning rounds, but only #15 is
+load-bearing for the 3.1.7 flip decision.

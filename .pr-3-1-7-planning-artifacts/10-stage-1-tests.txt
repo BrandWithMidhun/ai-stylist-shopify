@@ -1,0 +1,68 @@
+FILE: app/lib/recommendations/v2/stage-1-hard-filters.test.ts
+SIZE: 185 lines
+PATH (full): C:\Users\Midhun\Desktop\Projects\ai-stylist\app\lib\recommendations\v2\stage-1-hard-filters.test.ts
+
+PATTERN: vi.mock prisma.$queryRawUnsafe and assert on the SQL string +
+positional params. No DB roundtrips. End-to-end behavioral coverage of
+Stage 1 lives in mech.6's full-pipeline integration test on Railway.
+
+SIX TESTS:
+  1. Empty result handling (DB resolves []).
+  2. Base WHERE clauses always present (status, deletedAt,
+     recommendationExcluded, embedding, LIMIT 1000).
+  3. queryAttributes.gender = ['male'] adds APPROVED ProductTag EXISTS
+     predicate with axis name + values array as positional params.
+  4. Empty queryAttributes per-axis: no gender or category EXISTS
+     predicate added.
+  5. priceMin/priceMax adds overlapping-range clauses with numeric params.
+  6. EXISTS check on ProductVariant.availableForSale is always present
+     in the SQL (asserted across two calls — empty queryAttributes and
+     a populated one — to confirm structural).
+
+KEY OBSERVATIONS:
+
+- Tests are SQL-string assertions. They do NOT exercise the real
+  PostgreSQL query plan or the actual ProductTag/Product data. A SQL
+  string that compiles correctly but returns 0 rows for legitimate
+  user queries (the case observed in probe artifact 14) would still
+  pass these tests.
+- Tests use `t.status = 'APPROVED'` (not `t.reviewState`), confirming
+  schema discipline at the test layer.
+- Test 6 is structural — it asserts the variant-availability filter is
+  always present. None of the tests assert anything about how many
+  candidates the filter would actually return; that's a property of
+  catalog state, not Stage 1 logic.
+
+----- BEGIN VERBATIM -----
+// PR-3.1-mech.2: Stage 1 hard-filter tests.
+//
+// Test pattern: vi.mock the prisma surface and assert on the SQL string
+// and positional params passed to $queryRawUnsafe. This matches the
+// universal repo pattern (rule-engine.test.ts, tagging-cost.test.ts,
+// order-events.test.ts) — see vitest.config.ts:7 ("Minimal Vitest
+// config for unit-testing pure server-side modules").
+//
+// CLAUDE.md operational notes lock the rationale: "Production Railway
+// Postgres is the only database. There is no separate local or shadow
+// DB." End-to-end behavioral coverage of Stage 1 lands in mech.6's
+// full-pipeline integration test on Railway.
+//
+// Six tests, one per Stage 1 invariant from the plan §6:
+//   1. Empty result handling (DB resolves []).
+//   2. Base WHERE clauses always present.
+//   3. queryAttributes.gender = ['male'] → APPROVED-tag EXISTS predicate
+//      added with axis name + values array in params.
+//   4. Empty queryAttributes per-axis: no gender predicate, no category
+//      predicate (sub-assertion per axis per the locked refinement).
+//   5. priceMin/priceMax overlapping range — both clauses present.
+//   6. EXISTS on ProductVariant.availableForSale always present.
+
+[full file body as captured in the source — see
+app/lib/recommendations/v2/stage-1-hard-filters.test.ts for the
+remainder; 185 lines total, vi.mock pattern, six describe/it blocks
+asserting on the SQL string emitted by stage1HardFilters].
+----- END VERBATIM -----
+
+(The verbatim test source is also captured in the conversation log; the
+above synthesizes the test surface for downstream reading. The literal
+file remains the source of truth.)

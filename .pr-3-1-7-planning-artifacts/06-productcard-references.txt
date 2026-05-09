@@ -1,0 +1,114 @@
+PRODUCTCARD — TYPE vs COMPONENT — and where variantId is needed
+
+Op debt #15 says "variant-loading on v2 ProductCard". This refers to the
+v2 ProductCard TYPE (data shape), not a React component called ProductCard.
+The repo does have a React component called ProductCard.tsx, but it is the
+merchant-admin catalog dashboard's card and is unrelated to the chat
+recommendation flow.
+
+------- TWO ProductCard TYPES (the relevant ones) -------
+
+Type 1 — chat tool ProductCard (the contract the registry returns):
+  app/lib/chat/tools/types.ts:31-43
+    export type ProductCard = {
+      id: string;
+      handle: string;
+      title: string;
+      imageUrl: string | null;
+      price: number;
+      compareAtPrice: number | null;
+      currency: string;
+      variantId: string | null; // numeric variant ID for /cart/add.js
+      available: boolean;
+      tags: string[];           // formatted as "axis:value"
+      productUrl: string;       // /products/<handle>
+    };
+
+Type 2 — v2 pipeline ProductCard (mirrors Type 1 + adds telemetry):
+  app/lib/recommendations/v2/types.ts:163-183
+    export type ProductCard = {
+      id, handle, title, imageUrl, price, compareAtPrice, currency,
+      variantId: string | null,
+      available: boolean,
+      tags: string[],
+      productUrl: string,
+      // v2-only (optional):
+      traceContributions?: Array<{ stage; contribution; ms? }>,
+      whyTrace?: string,
+      finalScore?: number,
+    };
+
+The two types are SHAPE-COMPATIBLE on the legacy fields. The flip carries
+v2 ProductCard out of recommend-products-v2.server.ts (which type-narrows
+back to chat tool ProductCard via `products: ProductCard[]` typed against
+chat/tools/types).
+
+------- React component ProductCard.tsx (NOT the chat surface) -------
+
+  app/components/catalog/ProductCard.tsx:33  export function ProductCard({...})
+  app/components/catalog/Dashboard.tsx:445   <ProductCard ... />  (admin dashboard)
+
+This component renders catalog products in the merchant-admin tagging
+dashboard. It is not invoked by the chat widget. The chat widget renders
+recommendations from a vanilla JS file under extensions/, NOT from a React
+component.
+
+------- Storefront widget — where variantId is read -------
+
+The chat widget that renders recommendations (the user-visible surface) is:
+
+  extensions/storefront-widget/assets/chat-widget.js
+
+Lines that depend on ProductCard.variantId being populated:
+
+  Line 839:
+    var oos = !product.variantId || product.available === false;
+  Line 840:
+    // Numeric variantId is required by /cart/add.js. The server already
+  Line 894:
+    var variantId = product && product.variantId;
+  Line 898:
+    if (!variantId || !/^\d+$/.test(String(variantId))) {
+  Line 915:
+    body: JSON.stringify({ id: Number(variantId), quantity: 1 }),
+  Line 928:
+    detail: { variantId: String(variantId) },
+
+IMPACT: with variantId=null on every v2 ProductCard, line 839's `oos` flag
+fires for every recommended product, and line 898's guard returns early on
+add-to-cart. Add-to-Cart silently disappears from every recommended product
+card if the flip ships without variant-loading.
+
+------- v2 ProductCard data state at HEAD (e48e079) -------
+
+Stage 6 (app/lib/recommendations/v2/stage-6-output.server.ts:152-173) writes:
+
+  return {
+    id: c.id,
+    handle: c.handle,
+    title: c.title,
+    imageUrl: c.featuredImageUrl,
+    price,
+    compareAtPrice: null,           <-- always null (data gap, see below)
+    currency,
+    variantId: null,                <-- HARDCODED — op debt #15
+    available: true,                <-- HARDCODED — op debt #15
+    tags: tagsFlat,
+    productUrl: `/products/${c.handle}`,
+    traceContributions: ...,
+    whyTrace,
+    finalScore,
+  };
+
+The pipeline orchestrator (pipeline.server.ts:188-190) calls formatProductCard
+on the Stage 6 candidates and passes through these placeholders unchanged. No
+code path in v2 populates variantId or refreshes available. The v2 tool stub
+(recommend-products-v2.server.ts) also does not load variants — it returns
+the orchestrator's products[] directly to the agent.
+
+ADDITIONAL GAP discovered: compareAtPrice is hardcoded null in v2 too.
+v1 populates it (compareAtPrice from the loaded variant; if compareAtPrice
+> price, becomes the strikethrough price). v2 ships zero strikethroughs.
+This is NOT in op debt #15 explicitly but lives in the same load: any
+variant-loading mech that fixes variantId/available has compareAtPrice
+right there for free.

@@ -1,0 +1,59 @@
+EVAL DIRECTORY LISTING
+
+app/lib/recommendations/v2/eval/
+  cli.ts                              5,667 bytes  — runEval() library entry
+  pipeline-runner.server.ts           2,287 bytes  — RealPipelineRunner (calls runPipeline)
+  runner.server.ts                    3,712 bytes  — runFixtureAgainstPipeline + NoOpPipelineRunner
+  scoring.ts                          4,187 bytes  — pure metric primitives (precisionAtK, relaxedMatchAtK, combinedScore)
+  scoring.test.ts                     3,807 bytes  — unit tests for scoring metrics
+  fixtures/
+    fashion-casual-office-shirts.json   567 bytes
+    fashion-festive-kurta-women.json    457 bytes
+    fashion-going-out-outfit.json       534 bytes
+    fashion-linen-shirts-white.json     588 bytes
+    fashion-minimalist-daily-wear.json  609 bytes
+    fashion-oos-stress-1.json           699 bytes
+    fashion-oos-stress-2.json           533 bytes
+    fashion-oversized-fit-kurta.json    418 bytes
+    fashion-show-jackets.json           396 bytes
+    fashion-show-trousers.json          471 bytes
+    fashion-summer-shorts-size-m.json   493 bytes
+    fashion-wedding-reception.json      479 bytes
+
+scripts/
+  eval-fixtures-sync.ts               3,778 bytes  — syncs fixtures/*.json into EvalQuery rows
+  run-eval.ts                         5,096 bytes  — CLI wrapper around runEval()
+
+DATA FLOW:
+  fixtures/*.json
+       │  (one-time sync per fixture-set version)
+       ▼
+  scripts/eval-fixtures-sync.ts → upserts EvalQuery rows in Postgres
+       │
+       │  (each eval invocation reads from EvalQuery, not from disk)
+       ▼
+  scripts/run-eval.ts → runEval() in cli.ts
+       │
+       ▼
+  cli.ts:
+    - loads EvalQuery rows from prisma
+    - per fixture: runFixtureAgainstPipeline(query, runner)
+    - persists EvalRun + EvalResult rows
+       │
+       ▼
+  runner.server.ts: runFixtureAgainstPipeline
+    - calls PipelineRunner.run({shopDomain, intent, k})
+    - scores via precisionAtK + relaxedMatchAtK + combinedScore
+    - classifies status PASS/PARTIAL/FAIL via classifyStatus
+       │
+       ▼
+  pipeline-runner.server.ts: RealPipelineRunner.run
+    - calls runPipeline (the production v2 orchestrator)
+    - projects ProductCard[] → ProductWithTags[] for scoring
+       │
+       ▼
+  app/lib/recommendations/v2/pipeline.server.ts: runPipeline
+    - Stage 0 → Stage 1 (hard filters) → … → Stage 6
+       │
+       ▼
+  PipelineOutput { products, trace, topDistance, totalMs }

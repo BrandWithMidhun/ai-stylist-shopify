@@ -1,0 +1,89 @@
+R3 THRESHOLD — REFERENCES
+
+Definition (HANDOFF.md line 423):
+  "Eval threshold for post-eval-pass flip commit (R3 lock):
+   `aggregateScore 0.0833` is the mech.6 baseline. Lowering this
+   threshold for sub-bundle 3.2+ requires a HANDOFF amendment with
+   rationale. Raising it is preferred — sub-bundle 3.2 (order ingest +
+   sales velocity) and any expectedHandles curation should both pull
+   this number up."
+
+R3 IS NOT A CODE-LEVEL CONSTANT. There is no Const variable named R3
+in the codebase. Grep for "0.0833" in source files: zero hits. R3 lives
+purely as a documented release-gate convention in HANDOFF.md.
+
+R3 SEMANTICS:
+  - It is a FLOOR (minimum aggregateScore acceptable for the post-eval-
+    pass flip commit), not a ceiling.
+  - It is set TO the mech.6 baseline value (0.0833). This is mathematical-
+    ly tautological at HEAD: every eval baseline so far has been exactly
+    0.0833, so the gate is always satisfied.
+  - "Raising it is preferred" — the convention asks future sub-bundles to
+    push aggregateScore higher and re-anchor R3 upward.
+
+EVAL-INVARIANCE TRAIL (HANDOFF + artifact references):
+
+  HANDOFF.md line 417-418: 3.1 close (mech.6 baseline)
+    EvalRun cmovsu0m80000q7543acmq51d
+    pipelineVersion 3.1.0
+    aggregateScore = 0.0833 (1 PASS / 0 PARTIAL / 11 FAIL)
+    artifact: .pr-3-1-mech-6-artifacts/baseline.txt
+
+  HANDOFF.md line 490: 3.1.5 post-bulk-reembed
+    aggregateScore = 0.0833 (identical, same fixtures pass/fail)
+    artifact: .pr-3-1-5-artifacts/05-post-pass-eval-baseline.txt
+    HANDOFF line 492 confirms: "Threshold remains locked at the R3
+    value of 0.0833. Threshold revision is a separate decision at the
+    post-eval-pass flip commit (or whenever a sub-bundle moves the
+    number up)."
+
+  HANDOFF.md line 645: 3.1.6 close post-α backfill
+    aggregateScore = 0.0833 (identical to mech.6 AND 3.1.5)
+    artifact: .pr-3-1-6-close-artifacts/09-post-alpha-eval-baseline.txt
+    HANDOFF line 647 confirms: "Diagnostic only — does NOT modify the
+    locked R3 threshold (0.0833)."
+
+  HANDOFF.md line 685-689 (3.1.6 close summary):
+    "Eval invariance from 3.1.5 (aggregateScore stayed 0.0833 across
+     embedding-coverage changes)"
+    "Eval result from this close's α backfill (aggregateScore still
+     0.0833 across embedding-text-semantics changes)"
+
+  HANDOFF.md line 693-696 (3.1.7 planning-round candidate scope):
+    "- Whether the flip threshold (R3 = 0.0833) needs revision given
+       the new eval data
+     - Whether Stage 1 fallback behaviour should soften when APPROVED
+       tag coverage is sparse (Thread 3 finding from 3.1.6 planning,
+       now confirmed by α backfill eval invariance)
+     - Whether Phase 5 catalog tagging should be reordered earlier in
+       the roadmap to fix the data-coverage bottleneck before the flip
+       ships
+     - Variant-loading on v2 ProductCard per op debt #15 (pre-existing
+       flip prerequisite)"
+
+THRESHOLD-VALIDITY READING (Thread 2 commentary):
+  R3 = 0.0833 was set to the empirically observed value, not derived
+  from a quality target. Triple-invariance across three radically
+  different upstream interventions (bulk-reembed, α backfill) confirms
+  the threshold is currently bounded BELOW by Stage 1 universe size,
+  not by Stage 2/3 quality. As a release gate, 0.0833 is a no-op floor
+  — every shippable v2 build that doesn't actively regress Stage 1
+  candidate-set arithmetic will hit it.
+
+  Implication for Thread 3: R3=0.0833 does not BLOCK option (a) "ship
+  the flip". Whether the flip should ship at this aggregateScore is a
+  product question (do we accept ~1/12 fixture pass-rate in production?)
+  — not a release-gate question.
+
+GREP RESULTS (raw):
+  HANDOFF.md         lines 408, 417, 423, 490, 492, 645, 647, 685, 688, 689, 693
+  source            : aggregateScore in app/lib/recommendations/v2/eval/cli.ts
+                     (lines 51, 116, 131, 166)
+  source            : aggregateScore in scripts/run-eval.ts:114
+                     and scripts/report-pipeline-3-1.ts:62
+  schema            : aggregateScore Float in prisma/schema.prisma:955
+                     migration created in 20260505100000_phase_3_1_pipeline_schema
+  artifacts (eval baselines, all 0.0833):
+                     .pr-3-1-mech-6-artifacts/baseline.txt
+                     .pr-3-1-5-artifacts/05-post-pass-eval-baseline.txt
+                     .pr-3-1-6-close-artifacts/09-post-alpha-eval-baseline.txt

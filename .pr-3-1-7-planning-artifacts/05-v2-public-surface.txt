@@ -1,0 +1,104 @@
+V2 PUBLIC SURFACE
+
+There is NO `app/lib/recommendations/v2/index.ts`. The "v2" recommendation
+surface is the chat tool stub:
+
+  app/lib/chat/tools/recommend-products-v2.server.ts
+
+which delegates to the multi-stage pipeline orchestrator:
+
+  app/lib/recommendations/v2/pipeline.server.ts → runPipeline(...)
+
+PUBLIC EXPORTS of recommend-products-v2.server.ts (full surface):
+
+  export const recommendProductsV2Tool: ToolDef = {
+    name: "recommend_products",                       // <-- SAME tool name as v1
+    description: "Recommend products to the user using the v2 multi-stage ...",
+    input_schema: {
+      type: "object",
+      properties: {
+        intent:    { type: "string", description: "Rich natural-language ..." },
+        price_min: { type: "number", description: "Minimum price (optional)" },
+        price_max: { type: "number", description: "Maximum price (optional)" },
+        limit:     { type: "number", description: "Max product cards ..." },
+      },
+      required: ["intent"],
+    },
+  };
+
+  export type RecommendProductsV2Input = {
+    intent: string;
+    price_min?: number;
+    price_max?: number;
+    limit?: number;
+  };
+
+  export async function recommendProductsV2(
+    input: RecommendProductsV2Input,
+    ctx: ToolExecutionContext,
+  ): Promise<ToolResult>
+
+RETURN SHAPE (ToolResult):
+  {
+    ok: true,
+    data: {
+      products: Array<{ id, title, price, currency, available, tags }>,  // slim → Claude
+      total: number,
+      topDistance: number | null,
+      query: input,
+    },
+    products: ProductCard[],   // full out-of-band → widget render
+  }
+
+SIDE EFFECT (per locked decision D7): every successful call writes one
+RecommendationEvent row. v1 does NOT do this. (Failures also write a
+RecommendationEvent with an empty candidates array + error trace.)
+
+PARITY ASSESSMENT vs v1:
+
+  Tool definition           IDENTICAL (name, input schema, description vibe match)
+  Input type                IDENTICAL field names + types
+  Function signature        IDENTICAL: (input, ctx) => Promise<ToolResult>
+  Return data.* shape       IDENTICAL (products[], total, topDistance, query)
+  Return products[] shape   COMPATIBLE — see below
+  Side effects              v2 adds RecommendationEvent writes; v1 has no write
+
+PRODUCT CARD SHAPE (declared in v2/types.ts:163-183, matches legacy
+chat/tools/types.ts ProductCard with optional v2-only telemetry):
+
+  type ProductCard = {
+    id, handle, title, imageUrl, price, compareAtPrice, currency,
+    variantId: string | null,
+    available: boolean,
+    tags: string[],          // "axis:value" — same shape as v1
+    productUrl,
+    // v2-only (optional, agent ignores them):
+    traceContributions?: Array<{ stage; contribution; ms? }>,
+    whyTrace?: string,
+    finalScore?: number,
+  };
+
+CRITICAL CONTENT GAP — variantId and available are PLACEHOLDER in v2:
+
+  Stage 6 (formatProductCard at app/lib/recommendations/v2/stage-6-output
+  .server.ts:152-173) hardcodes:
+
+    variantId: null,             // line 166
+    available: true,             // line 167
+
+  Stage 6's own comment (lines 160-165) says:
+    "variantId is not loaded on CandidateProduct in 3.1 (Stage 1's SQL
+    doesn't load variants per D4 of mech.2). The orchestrator (mech.6) is
+    responsible for loading the lowest-priced available variant for each
+    surviving candidate before formatting; for mech.5 standalone tests
+    this stays null. The agent path (post-flip) will see this populated."
+
+  But pipeline.server.ts (mech.6 orchestrator) does NOT load variants.
+  It calls formatProductCard directly with the Stage 5 candidates and
+  passes through the null/true placeholders untouched.
+
+CONCLUSION: v1 and v2 are signature-compatible (function shape, type shape).
+v2 has a populated CONTRACT but unpopulated DATA on two fields the widget
+depends on for add-to-cart. The flip is a wire-level no-op for the agent
+prompt; it is a behavioral REGRESSION for the storefront widget unless
+variant-loading is added.
