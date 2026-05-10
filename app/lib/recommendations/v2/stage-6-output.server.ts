@@ -157,14 +157,18 @@ export function formatProductCard(
     price,
     compareAtPrice: null,
     currency,
-    // variantId is not loaded on CandidateProduct in 3.1 (Stage 1's SQL
-    // doesn't load variants per D4 of mech.2). The orchestrator (mech.6)
-    // is responsible for loading the lowest-priced available variant
-    // for each surviving candidate before formatting; for mech.5
-    // standalone tests this stays null. The agent path (post-flip) will
-    // see this populated.
+    // variantId is still not loaded on CandidateProduct as of 3.1.7 mech.1.
+    // mech.2 (3.1.7) wires variant-loading and populates variantId.
+    //
+    // available (mech.1 D1, 3.1.7): sourced from Stage 1's
+    // `anyVariantAvailable` aggregate. Defaults to false when absent
+    // (OOS-treatment is the safe failure mode at the widget per
+    // chat-widget.js:839,898). When mech.2 lands, Stage 6 will load
+    // variants directly and this attachment will source from the loaded
+    // variant rather than Stage 1's aggregate; at that point Stage 1's
+    // `anyVariantAvailable` column is removed.
     variantId: null,
-    available: true,
+    available: c.anyVariantAvailable ?? false,
     tags: tagsFlat,
     productUrl: `/products/${c.handle}`,
     traceContributions: tracksContributions(c),

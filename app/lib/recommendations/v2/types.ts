@@ -64,6 +64,13 @@ export type CandidateProduct = {
   currency: string | null;
   recommendationPromoted: boolean;
   recommendationExcluded: boolean;
+  /**
+   * Set by Stage 1 (mech.1 D1, 3.1.7): true if the product has any variant
+   * with availableForSale=true. Source for Stage 6's `available` attachment.
+   * mech.2 (3.1.7) will replace this Stage-1-source with a Stage 6 variant
+   * load and remove this field.
+   */
+  anyVariantAvailable?: boolean;
   // ProductTag relation (mech.4 addition). Stage 1 does NOT load tags
   // (D4 from mech.2: "no relation loads in Stage 1") — the orchestrator
   // (mech.6) is responsible for loading APPROVED ProductTag rows for the

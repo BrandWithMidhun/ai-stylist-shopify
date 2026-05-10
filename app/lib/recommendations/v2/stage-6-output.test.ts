@@ -144,4 +144,27 @@ describe("formatProductCard", () => {
     expect(stages).toContain("stage-4-merchant-signals");
     expect(stages).toContain("stage-5-diversity");
   });
+
+  it("attaches available=true when CandidateProduct.anyVariantAvailable is true (mech.1 D1)", () => {
+    const c = makeCandidate("a", { anyVariantAvailable: true });
+    const card = formatProductCard(c, SHOP_META);
+    expect(card.available).toBe(true);
+  });
+
+  it("attaches available=false when CandidateProduct.anyVariantAvailable is false (mech.1 D1)", () => {
+    const c = makeCandidate("a", { anyVariantAvailable: false });
+    const card = formatProductCard(c, SHOP_META);
+    expect(card.available).toBe(false);
+  });
+
+  it("defaults available to false when anyVariantAvailable is absent (OOS-treatment is the safe failure mode)", () => {
+    // makeCandidate's overrides exclude anyVariantAvailable by default,
+    // matching CandidateProduct's optional field shape. The Stage 6
+    // attachment must default to false to keep Add-to-Cart hidden when
+    // upstream availability data is missing.
+    const c = makeCandidate("a");
+    expect(c.anyVariantAvailable).toBeUndefined();
+    const card = formatProductCard(c, SHOP_META);
+    expect(card.available).toBe(false);
+  });
 });

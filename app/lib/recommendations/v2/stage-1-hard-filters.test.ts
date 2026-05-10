@@ -163,14 +163,15 @@ describe("stage1HardFilters", () => {
     expect(params).toContain(300);
   });
 
-  it("EXISTS check on ProductVariant.availableForSale is always present in the SQL", async () => {
-    // Asserted across two calls — empty queryAttributes and a populated
-    // one — to confirm the variant filter is structural, not a function
-    // of the query shape.
+  it("does not filter by variant availability in hard predicates (mech.1 D1: relocated to Stage 6)", async () => {
+    // mech.1 D1 (3.1.7): the structural EXISTS variant filter is removed
+    // from Stage 1's WHERE clause. Asserted across two calls — empty
+    // queryAttributes and a populated one — to confirm the absence is
+    // structural, not a function of the query shape. Regression-prevention
+    // for the variant-filter-relocation contract.
     await stage1HardFilters(baseInput, {}, "FASHION");
     const sql1 = queryRawUnsafe.mock.calls[0][0] as string;
-    expect(sql1).toContain(`FROM "ProductVariant" v`);
-    expect(sql1).toContain(`v."availableForSale" = true`);
+    expect(sql1).not.toContain(`v."availableForSale" = true`);
 
     queryRawUnsafe.mockClear();
     await stage1HardFilters(
@@ -179,7 +180,56 @@ describe("stage1HardFilters", () => {
       "FASHION",
     );
     const sql2 = queryRawUnsafe.mock.calls[0][0] as string;
-    expect(sql2).toContain(`FROM "ProductVariant" v`);
-    expect(sql2).toContain(`v."availableForSale" = true`);
+    expect(sql2).not.toContain(`v."availableForSale" = true`);
+  });
+
+  it("includes anyVariantAvailable aggregate in SELECT (mech.1 D1: temporary source for Stage 6's `available`)", async () => {
+    await stage1HardFilters(baseInput, {}, "FASHION");
+    const sql = queryRawUnsafe.mock.calls[0][0] as string;
+    // The aggregate is a correlated subquery via bool_or, COALESCEd to
+    // false so a product with zero variant rows reads as unavailable.
+    // Aliased as "anyVariantAvailable" so the RawRow projection picks it up.
+    expect(sql).toContain(`bool_or(v."availableForSale")`);
+    expect(sql).toContain(`"anyVariantAvailable"`);
+    expect(sql).toContain(`COALESCE(`);
+  });
+
+  it("threads anyVariantAvailable from raw query into candidates", async () => {
+    queryRawUnsafe.mockResolvedValue([
+      {
+        id: "p1",
+        handle: "h1",
+        title: "T1",
+        productType: null,
+        vendor: null,
+        featuredImageUrl: null,
+        priceMin: null,
+        priceMax: null,
+        currency: null,
+        recommendationPromoted: false,
+        recommendationExcluded: false,
+        anyVariantAvailable: true,
+      },
+      {
+        id: "p2",
+        handle: "h2",
+        title: "T2",
+        productType: null,
+        vendor: null,
+        featuredImageUrl: null,
+        priceMin: null,
+        priceMax: null,
+        currency: null,
+        recommendationPromoted: false,
+        recommendationExcluded: false,
+        anyVariantAvailable: false,
+      },
+    ]);
+
+    const out = await stage1HardFilters(baseInput, {}, "FASHION");
+
+    expect(out.candidates).toHaveLength(2);
+    expect(out.candidates[0].anyVariantAvailable).toBe(true);
+    expect(out.candidates[1].anyVariantAvailable).toBe(false);
   });
 });

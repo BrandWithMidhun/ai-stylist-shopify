@@ -67,6 +67,7 @@ function buildStage1Rows(count: number): unknown[] {
     currency: "USD",
     recommendationPromoted: i === 0,
     recommendationExcluded: false,
+    anyVariantAvailable: true, // mech.1 D1: synthetic rows model in-stock state
   }));
 }
 
