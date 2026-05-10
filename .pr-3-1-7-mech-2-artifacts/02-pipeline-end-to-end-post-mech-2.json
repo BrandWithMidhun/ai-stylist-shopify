@@ -1,0 +1,587 @@
+[
+  {
+    "fixtureKey": "fashion-casual-office-shirts",
+    "intent": "casual office shirts",
+    "productCount": 6,
+    "products": [
+      {
+        "handle": "blue-stone-formal-office-set",
+        "title": "Blue Stone Formal Office Set - Ron Full Sleeve Shirt Blue Grey and Ian Ecru Trousers",
+        "price": 4499,
+        "compareAtPrice": 8498,
+        "currency": "USD",
+        "variantId": "48671795118337",
+        "available": false
+      },
+      {
+        "handle": "ron-pure-linen-full-sleeve-shirt-cobalt-green",
+        "title": "Ron - Pure Linen Full Sleeve Shirt - Cobalt Green",
+        "price": 3999,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671811240193",
+        "available": false
+      },
+      {
+        "handle": "executive-grey-linen-set",
+        "title": "Executive Grey Linen Set - Trevor Half Sleeve Shirt Blue Grey and Ian Trousers Black",
+        "price": 4499,
+        "compareAtPrice": 8598,
+        "currency": "USD",
+        "variantId": "48671791382785",
+        "available": false
+      },
+      {
+        "handle": "stark-pure-linen-half-sleeve-shirt-with-band-collar-space-tuck-coral-peach-factory-rescue",
+        "title": "Stark - Pure Linen Half Sleeve Shirt With Band Collar & Space Tuck - Coral Peach (Factory Rescue)",
+        "price": 1999,
+        "compareAtPrice": 4699,
+        "currency": "USD",
+        "variantId": "48671806488833",
+        "available": false
+      },
+      {
+        "handle": "urban-ease-linen-set",
+        "title": "Urban Ease Linen Set - Oversized Half Sleeve Shirt White and Art Trousers Artichoke Green",
+        "price": 4499,
+        "compareAtPrice": 8498,
+        "currency": "USD",
+        "variantId": "48671787122945",
+        "available": false
+      },
+      {
+        "handle": "harvey-moss-green-fs-breeze-ecru-linen-set-1",
+        "title": "Moss Linen Set - Harvey Full Sleeve Shirt Moss Green and Breeze Ecru Trousers",
+        "price": 4499,
+        "compareAtPrice": 8698,
+        "currency": "USD",
+        "variantId": "48671796789505",
+        "available": false
+      }
+    ],
+    "stage55": {
+      "ms": 1382,
+      "candidatesIn": 6,
+      "candidatesOut": 6,
+      "meta": {
+        "variantsLoadedCount": 6,
+        "candidatesWithoutVariant": 0
+      }
+    },
+    "totalMs": 6351,
+    "topDistance": 0.4346416670511166
+  },
+  {
+    "fixtureKey": "fashion-festive-kurta-women",
+    "intent": "festive kurta for women",
+    "productCount": 0,
+    "products": [],
+    "stage55": null,
+    "totalMs": 694,
+    "topDistance": null
+  },
+  {
+    "fixtureKey": "fashion-going-out-outfit",
+    "intent": "going out outfit for evening",
+    "productCount": 1,
+    "products": [
+      {
+        "handle": "ivy-pure-linen-full-sleeve-co-ord-set-moss-green",
+        "title": "Ivy - Pure Linen Full Sleeve Women's Co-ord Set - Moss Green",
+        "price": 8899,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48672218087681",
+        "available": false
+      }
+    ],
+    "stage55": {
+      "ms": 913,
+      "candidatesIn": 1,
+      "candidatesOut": 1,
+      "meta": {
+        "variantsLoadedCount": 1,
+        "candidatesWithoutVariant": 0
+      }
+    },
+    "totalMs": 3917,
+    "topDistance": 0.6953410920704057
+  },
+  {
+    "fixtureKey": "fashion-linen-shirts-white",
+    "intent": "show me white linen shirts",
+    "productCount": 6,
+    "products": [
+      {
+        "handle": "martin-pure-linen-full-sleeve-shirt-white-black-pinstripe",
+        "title": "Martin - Pure Linen Full Sleeve Shirt - White & Black Pinstripe",
+        "price": 6599,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671804424449",
+        "available": false
+      },
+      {
+        "handle": "rook-pure-linen-relaxed-half-sleeve-shirt-blue-grey-cloud-white",
+        "title": "Rook - Pure Linen Relaxed Half Sleeve Shirt - Blue Grey & Cloud White",
+        "price": 6399,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671802818817",
+        "available": false
+      },
+      {
+        "handle": "alfred-pure-linen-full-sleeve-shirt-black-pinstripe-red-wine",
+        "title": "Alfred - Pure Linen Full Sleeve Shirt - Black Pinstripe & Red Wine",
+        "price": 7299,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671805276417",
+        "available": false
+      },
+      {
+        "handle": "mirage-pure-linen-relaxed-t-shirt-black-pinstripe",
+        "title": "Mirage - Pure Linen Relaxed T-Shirt - Black Pinstripe",
+        "price": 5199,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671800819969",
+        "available": false
+      },
+      {
+        "handle": "twilight-linen-set",
+        "title": "Twilight Linen Set - Harvey Full Sleeve Shirt Twilight Purple and Breeze Trousers White",
+        "price": 4499,
+        "compareAtPrice": 8698,
+        "currency": "USD",
+        "variantId": "48671788368129",
+        "available": false
+      },
+      {
+        "handle": "stark-pure-linen-half-sleeve-shirt-with-band-collar-space-tuck-coral-peach-factory-rescue",
+        "title": "Stark - Pure Linen Half Sleeve Shirt With Band Collar & Space Tuck - Coral Peach (Factory Rescue)",
+        "price": 1999,
+        "compareAtPrice": 4699,
+        "currency": "USD",
+        "variantId": "48671806488833",
+        "available": false
+      }
+    ],
+    "stage55": {
+      "ms": 810,
+      "candidatesIn": 6,
+      "candidatesOut": 6,
+      "meta": {
+        "variantsLoadedCount": 6,
+        "candidatesWithoutVariant": 0
+      }
+    },
+    "totalMs": 2089,
+    "topDistance": 0.43430562393531225
+  },
+  {
+    "fixtureKey": "fashion-minimalist-daily-wear",
+    "intent": "minimalist daily wear",
+    "productCount": 6,
+    "products": [
+      {
+        "handle": "wade-deconstructed-pure-linen-jacket-dusky-violet",
+        "title": "Wade - Deconstructed Pure Linen Jacket - Dusky Violet",
+        "price": 7499,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671808684289",
+        "available": false
+      },
+      {
+        "handle": "wade-deconstructed-pure-linen-jacket-slow-green",
+        "title": "Wade - Deconstructed Pure Linen Jacket - Slow Green",
+        "price": 7499,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671947686145",
+        "available": false
+      },
+      {
+        "handle": "emma-regular-collar-shacket-military-green",
+        "title": "Emma - Regular Collar Shacket - Military Green",
+        "price": 7899,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48672220086529",
+        "available": false
+      },
+      {
+        "handle": "ecru-linen-jacket-jogger-co-ord-set",
+        "title": "Ecru Linen Jacket & Jogger Co-Ord Set",
+        "price": 13499,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48672391889153",
+        "available": true
+      },
+      {
+        "handle": "muted-brown-linen-jacket-jogger-co-ord-set",
+        "title": "Muted Brown Linen Jacket & Jogger Co-Ord Set",
+        "price": 13499,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671911903489",
+        "available": false
+      },
+      {
+        "handle": "pastel-blue-linen-jacket-jogger-co-ord-set",
+        "title": "Pastel Blue Linen Jacket & Jogger Co-Ord Set",
+        "price": 13499,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671910396161",
+        "available": false
+      }
+    ],
+    "stage55": {
+      "ms": 456,
+      "candidatesIn": 6,
+      "candidatesOut": 6,
+      "meta": {
+        "variantsLoadedCount": 6,
+        "candidatesWithoutVariant": 0
+      }
+    },
+    "totalMs": 3351,
+    "topDistance": 0.5796952498140775
+  },
+  {
+    "fixtureKey": "fashion-oos-stress-1",
+    "intent": "white linen shirt for daily wear",
+    "productCount": 6,
+    "products": [
+      {
+        "handle": "martin-pure-linen-full-sleeve-shirt-white-black-pinstripe",
+        "title": "Martin - Pure Linen Full Sleeve Shirt - White & Black Pinstripe",
+        "price": 6599,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671804621057",
+        "available": false
+      },
+      {
+        "handle": "rook-pure-linen-relaxed-half-sleeve-shirt-blue-grey-cloud-white",
+        "title": "Rook - Pure Linen Relaxed Half Sleeve Shirt - Blue Grey & Cloud White",
+        "price": 6399,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671802851585",
+        "available": false
+      },
+      {
+        "handle": "alfred-pure-linen-full-sleeve-shirt-black-pinstripe-red-wine",
+        "title": "Alfred - Pure Linen Full Sleeve Shirt - Black Pinstripe & Red Wine",
+        "price": 7299,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671805047041",
+        "available": false
+      },
+      {
+        "handle": "ron-pure-linen-full-sleeve-shirt-cobalt-green",
+        "title": "Ron - Pure Linen Full Sleeve Shirt - Cobalt Green",
+        "price": 3999,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671811174657",
+        "available": false
+      },
+      {
+        "handle": "kent-pure-linen-full-sleeve-shirt-turquoise-pinstripe",
+        "title": "Kent - Pure Linen Full Sleeve Shirt - Turquoise Pinstripe",
+        "price": 6599,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671805014273",
+        "available": false
+      },
+      {
+        "handle": "saville-pure-linen-club-collar-full-sleeve-shirt-slate-grey",
+        "title": "Saville - Pure Linen Club Collar Full Sleeve Shirt - Slate Grey",
+        "price": 6599,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671805473025",
+        "available": false
+      }
+    ],
+    "stage55": {
+      "ms": 473,
+      "candidatesIn": 6,
+      "candidatesOut": 6,
+      "meta": {
+        "variantsLoadedCount": 6,
+        "candidatesWithoutVariant": 0
+      }
+    },
+    "totalMs": 1974,
+    "topDistance": 0.3963469986501891
+  },
+  {
+    "fixtureKey": "fashion-oos-stress-2",
+    "intent": "festive saree for an evening event",
+    "productCount": 0,
+    "products": [],
+    "stage55": null,
+    "totalMs": 456,
+    "topDistance": null
+  },
+  {
+    "fixtureKey": "fashion-oversized-fit-kurta",
+    "intent": "oversized fit kurta",
+    "productCount": 2,
+    "products": [
+      {
+        "handle": "gul-pure-linen-mandarin-collar-regular-kurta-black-sap-green",
+        "title": "Gul - Pure Linen Mandarin Collar Regular Kurta - Black & Sap Green",
+        "price": 6799,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671800361217",
+        "available": false
+      },
+      {
+        "handle": "sid-kurta-pure-linen-kurta-with-concealed-placket-mineral-grey",
+        "title": "Sid Kurta - Pure Linen Kurta with Concealed Placket - Mineral Grey",
+        "price": 6499,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671809962241",
+        "available": false
+      }
+    ],
+    "stage55": {
+      "ms": 915,
+      "candidatesIn": 2,
+      "candidatesOut": 2,
+      "meta": {
+        "variantsLoadedCount": 2,
+        "candidatesWithoutVariant": 0
+      }
+    },
+    "totalMs": 2430,
+    "topDistance": 0.5044662050367219
+  },
+  {
+    "fixtureKey": "fashion-show-jackets",
+    "intent": "show me jackets",
+    "productCount": 5,
+    "products": [
+      {
+        "handle": "wade-deconstructed-pure-linen-jacket-dusky-violet",
+        "title": "Wade - Deconstructed Pure Linen Jacket - Dusky Violet",
+        "price": 7499,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671808585985",
+        "available": false
+      },
+      {
+        "handle": "dusky-violet-pure-linen-deconstructed-jacket-trouser-set",
+        "title": "Dusky Violet Pure Linen Deconstructed Jacket & Trouser Set",
+        "price": 11998,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671807930625",
+        "available": false
+      },
+      {
+        "handle": "becket-linen-short-jacket-cappuccino-beige-factory-rescue",
+        "title": "Becket - Linen Short Jacket - Cappuccino Beige (Factory Rescue)",
+        "price": 2999,
+        "compareAtPrice": 7199,
+        "currency": "USD",
+        "variantId": "48671798722817",
+        "available": false
+      },
+      {
+        "handle": "becket-linen-short-jacket-dusky-violet",
+        "title": "Becket - Linen Short Jacket - Dusky Violet",
+        "price": 7299,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671809667329",
+        "available": false
+      },
+      {
+        "handle": "bond-classic-pure-linen-jacket-sage-green-factory-rescue",
+        "title": "Bond - Classic Pure Linen Jacket - Sage Green (Factory Rescue)",
+        "price": 2999,
+        "compareAtPrice": 7499,
+        "currency": "USD",
+        "variantId": "48671798690049",
+        "available": false
+      }
+    ],
+    "stage55": {
+      "ms": 923,
+      "candidatesIn": 5,
+      "candidatesOut": 5,
+      "meta": {
+        "variantsLoadedCount": 5,
+        "candidatesWithoutVariant": 0
+      }
+    },
+    "totalMs": 2402,
+    "topDistance": 0.6078940203316188
+  },
+  {
+    "fixtureKey": "fashion-show-trousers",
+    "intent": "what trousers do you have",
+    "productCount": 6,
+    "products": [
+      {
+        "handle": "ian-pure-linen-trousers-dusky-violet",
+        "title": "Ian Pure Linen Trousers - Dusky Violet",
+        "price": 4499,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671813239041",
+        "available": false
+      },
+      {
+        "handle": "niel-pure-linen-trousers-cocoa-brown",
+        "title": "Neil - Pure Linen Trousers - Cocoa Brown",
+        "price": 5799,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671801835777",
+        "available": false
+      },
+      {
+        "handle": "ashford-pure-linen-double-pleated-high-waisted-trousers-black",
+        "title": "Ashford - Pure Linen Double Pleated High Waisted Trousers - Black",
+        "price": 6899,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671801475329",
+        "available": false
+      },
+      {
+        "handle": "brandon-double-button-broad-pure-linen-trousers-slow-green",
+        "title": "Brandon Double Button Broad Pure Linen Trousers - Slow Green",
+        "price": 4499,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671813665025",
+        "available": false
+      },
+      {
+        "handle": "cal-pure-linen-double-pleated-trousers-ecru",
+        "title": "Cal - Pure Linen Double Pleated Trousers - Ecru",
+        "price": 5699,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671801639169",
+        "available": false
+      },
+      {
+        "handle": "aire-relaxed-elastic-pure-linen-trousers-regal-blue",
+        "title": "Aire - Relaxed Elastic Pure Linen Trousers - Regal Blue",
+        "price": 5499,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671802032385",
+        "available": true
+      }
+    ],
+    "stage55": {
+      "ms": 458,
+      "candidatesIn": 6,
+      "candidatesOut": 6,
+      "meta": {
+        "variantsLoadedCount": 6,
+        "candidatesWithoutVariant": 0
+      }
+    },
+    "totalMs": 1943,
+    "topDistance": 0.5649687570370694
+  },
+  {
+    "fixtureKey": "fashion-summer-shorts-size-m",
+    "intent": "summer shorts in size M",
+    "productCount": 0,
+    "products": [],
+    "stage55": null,
+    "totalMs": 454,
+    "topDistance": null
+  },
+  {
+    "fixtureKey": "fashion-wedding-reception",
+    "intent": "something for a wedding reception",
+    "productCount": 6,
+    "products": [
+      {
+        "handle": "craig-pure-linen-v-neck-full-sleeve-shirt-salmon-pink",
+        "title": "Craig - Pure Linen V Neck Full Sleeve Shirt - Salmon Pink",
+        "price": 4199,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48672466829569",
+        "available": false
+      },
+      {
+        "handle": "harvey-pure-linen-half-sleeve-shirt-red-chambray",
+        "title": "Harvey - Pure Linen Half Sleeve Shirt - Red Chambray",
+        "price": 3999,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48672103858433",
+        "available": false
+      },
+      {
+        "handle": "craig-pure-linen-v-neck-full-sleeve-shirt-blue-chambray",
+        "title": "Craig - Pure Linen V Neck Full Sleeve Shirt - Blue Chambray",
+        "price": 4199,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671838404865",
+        "available": false
+      },
+      {
+        "handle": "craig-pure-linen-v-neck-short-sleeve-shirt-black",
+        "title": "Craig - Pure Linen V Neck Short Sleeve Shirt - Black",
+        "price": 4099,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48671937331457",
+        "available": false
+      },
+      {
+        "handle": "robert-black-shirt-men-black-slim-fit-comfort-fit-pure-linen-short-sleeve-shirts-for-men-buy",
+        "title": "Robert - Pure Linen Pocket Detailed Half Sleeve Shirt - Black",
+        "price": 4099,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48672562053377",
+        "available": false
+      },
+      {
+        "handle": "han-pure-linen-pathani-pyjama-black",
+        "title": "Han - Pure Linen Pathani Pyjama - Black",
+        "price": 5299,
+        "compareAtPrice": null,
+        "currency": "USD",
+        "variantId": "48672006013185",
+        "available": false
+      }
+    ],
+    "stage55": {
+      "ms": 476,
+      "candidatesIn": 6,
+      "candidatesOut": 6,
+      "meta": {
+        "variantsLoadedCount": 6,
+        "candidatesWithoutVariant": 0
+      }
+    },
+    "totalMs": 2924,
+    "topDistance": 0.7546571636608643
+  }
+]

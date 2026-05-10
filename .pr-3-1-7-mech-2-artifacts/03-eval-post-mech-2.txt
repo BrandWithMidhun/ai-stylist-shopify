@@ -1,0 +1,22 @@
+npm warn Unknown project config "shamefully-hoist". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+EvalRun cmozis3lg0000q7ukskdstwt1
+  shopDomain:      ai-fashion-store.myshopify.com
+  pipelineVersion: 3.1.0
+  totalQueries:    12
+  pass / partial / fail: 2 / 0 / 10
+  aggregateScore:  0.1667
+  durationMs:      26728
+
+  [FAIL] fashion-casual-office-shirts → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=3763)
+  [FAIL] fashion-festive-kurta-women → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=722)
+  [FAIL] fashion-going-out-outfit → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=3576)
+  [FAIL] fashion-linen-shirts-white → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=1791)
+  [FAIL] fashion-minimalist-daily-wear → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=2553)
+  [FAIL] fashion-oos-stress-1 → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=1847)
+  [FAIL] fashion-oos-stress-2 → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=730)
+  [FAIL] fashion-oversized-fit-kurta → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=2575)
+  [PASS] fashion-show-jackets → score=1.0000 (precision=0.00, relaxed=1.00, latencyMs=3572)
+  [PASS] fashion-show-trousers → score=1.0000 (precision=0.00, relaxed=1.00, latencyMs=2382)
+  [FAIL] fashion-summer-shorts-size-m → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=517)
+  [FAIL] fashion-wedding-reception → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=2699)
