@@ -754,7 +754,9 @@ Thread 3 (option-pick synthesis):
 - `.pr-3-1-7-planning-artifacts/25-test-strategy-per-option.md` — per-option test path mapping
 - `.pr-3-1-7-planning-artifacts/26-thread-3-synthesis.md` — recommends Option C-folded; mech decomposition
 
-Sub-bundle 3.1.7 planning round closes here. Mech chain not yet shipped. After 3.1.7 ships: Sub-bundle 3.1.8 (v1→v2 flip itself + legacy tool deletion). Then Sub-bundle 3.2 planning round (order ingest + sales velocity + `AttributionEvent`).
+Sub-bundle 3.1.7 planning round closes here. Mech chain in progress: planning round (`6176311`) → mech.1 (`bbc79d1`) → mech.1.5 (this commit). After 3.1.7 ships: Sub-bundle 3.1.8 (v1→v2 flip itself + legacy tool deletion). Then Sub-bundle 3.2 planning round (order ingest + sales velocity + `AttributionEvent`).
+
+**Mech.1 status:** mech.1 (`bbc79d1`) closes op debt #11 architecturally — variant-availability filter relocated from Stage 1 to Stage 6 binary attachment per mech.1 D1; OOS-substitute concern resolves via "Stage 6 just doesn't surface OOS items" rather than a deferred Stage 5 substitute pass. mech.1.5 verification (`.pr-3-1-7-mech-1-artifacts/`) confirms Stage 1 input universe lifted from 29 → 1,169 products on the dev shop, and aggregateScore moved 0.0833 → 0.1667 (2 PASS / 0 PARTIAL / 10 FAIL; new PASS is `fashion-show-jackets`). The remaining 10 FAILs are blocked by the secondary-axis APPROVED gap (mech.3's target) and 2 vocabulary gaps (mech.4's conditional target). Op debt #15 stays open until mech.2.
 
 ---
 

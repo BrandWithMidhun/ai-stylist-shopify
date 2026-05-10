@@ -8,11 +8,15 @@
 // Does NOT call Voyage (no Stage 2 invocation).
 // Does NOT write any DB rows.
 //
-// Output:
+// Output (default):
 //   .pr-3-1-7-planning-artifacts/14-stage-1-per-fixture-output.json
+//
+// Override the output path via --out=<path>. Verification reruns must use
+// --out so the planning-time baseline (artifact 14) is never trampled.
 //
 // Run via:
 //   npx tsx --env-file=.env .pr-3-1-7-planning-artifacts/probe-stage-1.ts
+//   npx tsx --env-file=.env .pr-3-1-7-planning-artifacts/probe-stage-1.ts --out=.pr-3-1-7-mech-1-artifacts/01-probe-stage-1-post-mech-1.json
 
 import "dotenv/config";
 import * as fs from "node:fs";
@@ -32,11 +36,23 @@ const FIXTURE_DIR = path.join(
   "eval",
   "fixtures",
 );
-const OUT_PATH = path.join(
+const DEFAULT_OUT_PATH = path.join(
   process.cwd(),
   ".pr-3-1-7-planning-artifacts",
   "14-stage-1-per-fixture-output.json",
 );
+
+function parseOutPath(): string {
+  for (const arg of process.argv.slice(2)) {
+    if (arg.startsWith("--out=")) {
+      const v = arg.slice("--out=".length).trim();
+      if (v) return path.isAbsolute(v) ? v : path.join(process.cwd(), v);
+    }
+  }
+  return DEFAULT_OUT_PATH;
+}
+
+const OUT_PATH = parseOutPath();
 
 type Fixture = {
   fixtureKey: string;
@@ -115,9 +131,26 @@ async function main() {
     SHOP,
   );
   const activeWithEmbedding = Number(activeWithEmbeddingRows[0]?.c ?? 0);
-  // Also: how many ACTIVE+embedded products have an available variant — i.e.
-  // the structural Stage 1 input universe BEFORE per-axis APPROVED filters.
-  const stage1UniverseRows = await prisma.$queryRawUnsafe<{ c: bigint }[]>(
+  // Stage 1 input count post-mech.1 D1 (3.1.7): the structural filters Stage 1
+  // applies before per-axis APPROVED-tag predicates. Matches Stage 1's actual
+  // WHERE clause at HEAD. Pre-mech.1 this also included an EXISTS variant
+  // filter that capped the count at 29 on this dev shop; mech.1 D1 relocated
+  // that filter to Stage 6 binary attachment.
+  const stage1InputAfterMech1Rows = await prisma.$queryRawUnsafe<{ c: bigint }[]>(
+    `SELECT COUNT(*)::bigint AS c FROM "Product" p
+       WHERE p."shopDomain" = $1
+         AND p.status = 'ACTIVE'
+         AND p."deletedAt" IS NULL
+         AND p."recommendationExcluded" = false
+         AND p.embedding IS NOT NULL`,
+    SHOP,
+  );
+  const stage1InputAfterMech1 = Number(stage1InputAfterMech1Rows[0]?.c ?? 0);
+  // Preserved as a historical metric: the count of products that have at
+  // least one variant with availableForSale=true. Pre-mech.1 this WAS the
+  // Stage 1 input count; post-mech.1 it is the count Stage 6 will surface
+  // as `available=true`.
+  const productsWithAvailableVariantRows = await prisma.$queryRawUnsafe<{ c: bigint }[]>(
     `SELECT COUNT(*)::bigint AS c FROM "Product" p
        WHERE p."shopDomain" = $1
          AND p.status = 'ACTIVE'
@@ -130,7 +163,7 @@ async function main() {
          )`,
     SHOP,
   );
-  const stage1Universe = Number(stage1UniverseRows[0]?.c ?? 0);
+  const productsWithAvailableVariant = Number(productsWithAvailableVariantRows[0]?.c ?? 0);
   const distinctApprovedProducts = await prisma.productTag.findMany({
     where: { shopDomain: SHOP, status: "APPROVED" },
     distinct: ["productId"],
@@ -244,7 +277,13 @@ async function main() {
       totalProducts,
       activeNotDeletedNotExcluded: activeProducts,
       activeWithEmbedding,
-      stage1UniverseStructural: stage1Universe,
+      // Pre-mech.1: Stage 1's structural input was bounded by the variant
+      // EXISTS filter (recorded as `productsWithAvailableVariant` post-
+      // rename). Post-mech.1 D1: Stage 1's structural input no longer
+      // includes the variant filter; new field below reports the actual
+      // post-mech.1 input count.
+      stage1InputAfterMech1,
+      productsWithAvailableVariant,
       distinctProductsWithAnyApprovedTag: distinctApprovedProducts.length,
     },
     productTagCensusByAxisAndStatus: census,
