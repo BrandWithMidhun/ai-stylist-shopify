@@ -11,8 +11,8 @@
 //   - deletedAt IS NULL
 //   - recommendationExcluded = false      (Stage 4 reads recommendationPromoted)
 //   - embedding IS NOT NULL                (Stage 2 needs the vector)
-//   - (variant availability NO LONGER filtered here — see mech.1 D1
-//     below; binary `available` is attached at Stage 6)
+//   - (variant availability NOT touched in Stage 1; Stage 5.5 in
+//     pipeline.server.ts handles variant load — see mech.2 D1)
 //
 // Filters appended conditionally:
 //   - priceMin / priceMax overlapping range (when set on PipelineInput)
@@ -65,7 +65,6 @@ type RawRow = {
   currency: string | null;
   recommendationPromoted: boolean;
   recommendationExcluded: boolean;
-  anyVariantAvailable: boolean; // mech.1 D1: see header + SELECT comment
 };
 
 export async function stage1HardFilters(
@@ -125,22 +124,14 @@ export async function stage1HardFilters(
     hardFilterAxesActive += 1;
   }
 
-  // mech.1 D1 (3.1.7): variant-availability filter relocated from Stage 1
-  // hard-filter to Stage 6 binary attachment. Universe expands from ~29
-  // products (with variant filter) to ~1,169 products (without). The
-  // `anyVariantAvailable` aggregate is computed here as the temporary
-  // source for Stage 6's `available` field; mech.2 will replace this
-  // with a real variant-load step in Stage 6 and remove this aggregate.
-  // See docs/planning/3-1-7-post-eval-pass-flip.md Section 3 for the
-  // mech sequencing rationale.
+  // mech.1 D1 (3.1.7) added a `bool_or(v.availableForSale)` aggregate to
+  // this SELECT as a temporary source for Stage 6's `available` field.
+  // mech.2 D1 (3.1.7) retired that aggregate by moving variant-loading
+  // to Stage 5.5 in pipeline.server.ts (see loadAndAttachVariants).
+  // Stage 1 no longer touches variant data in any form.
   const sql = `SELECT p.id, p.handle, p.title, p."productType", p.vendor,
        p."featuredImageUrl", p."priceMin", p."priceMax", p.currency,
-       p."recommendationPromoted", p."recommendationExcluded",
-       COALESCE((
-         SELECT bool_or(v."availableForSale")
-         FROM "ProductVariant" v
-         WHERE v."productId" = p.id
-       ), false) AS "anyVariantAvailable"
+       p."recommendationPromoted", p."recommendationExcluded"
 FROM "Product" p
 WHERE ${wherePredicates.join("\n  AND ")}
 LIMIT ${CANDIDATE_LIMIT}`;
@@ -159,7 +150,6 @@ LIMIT ${CANDIDATE_LIMIT}`;
     currency: r.currency,
     recommendationPromoted: r.recommendationPromoted,
     recommendationExcluded: r.recommendationExcluded,
-    anyVariantAvailable: r.anyVariantAvailable,
   }));
 
   // candidatesIn / candidatesOut convention for Stage 1:

@@ -145,26 +145,56 @@ describe("formatProductCard", () => {
     expect(stages).toContain("stage-5-diversity");
   });
 
-  it("attaches available=true when CandidateProduct.anyVariantAvailable is true (mech.1 D1)", () => {
-    const c = makeCandidate("a", { anyVariantAvailable: true });
+  it("attaches variant data when CandidateProduct.loadedVariant is populated (mech.2 D1)", () => {
+    const c = makeCandidate("a", {
+      loadedVariant: {
+        shopifyId: "gid://shopify/ProductVariant/123456789",
+        price: 75,
+        compareAtPrice: 100,
+        availableForSale: true,
+      },
+    });
     const card = formatProductCard(c, SHOP_META);
+    expect(card.variantId).toBe("123456789");
+    expect(card.price).toBe(75);
+    expect(card.compareAtPrice).toBe(100);
     expect(card.available).toBe(true);
   });
 
-  it("attaches available=false when CandidateProduct.anyVariantAvailable is false (mech.1 D1)", () => {
-    const c = makeCandidate("a", { anyVariantAvailable: false });
+  it("attaches available=false when loadedVariant.availableForSale is false (mech.2 D1)", () => {
+    const c = makeCandidate("a", {
+      loadedVariant: {
+        shopifyId: "gid://shopify/ProductVariant/999",
+        price: 50,
+        compareAtPrice: null,
+        availableForSale: false,
+      },
+    });
     const card = formatProductCard(c, SHOP_META);
     expect(card.available).toBe(false);
+    expect(card.variantId).toBe("999");
   });
 
-  it("defaults available to false when anyVariantAvailable is absent (OOS-treatment is the safe failure mode)", () => {
-    // makeCandidate's overrides exclude anyVariantAvailable by default,
-    // matching CandidateProduct's optional field shape. The Stage 6
-    // attachment must default to false to keep Add-to-Cart hidden when
-    // upstream availability data is missing.
-    const c = makeCandidate("a");
-    expect(c.anyVariantAvailable).toBeUndefined();
+  it("defaults to OOS-shape when loadedVariant is null (no variant loaded)", () => {
+    const c = makeCandidate("a", { loadedVariant: null });
     const card = formatProductCard(c, SHOP_META);
     expect(card.available).toBe(false);
+    expect(card.variantId).toBe(null);
+    expect(card.compareAtPrice).toBe(null);
+    // price falls back to c.priceMin (100 in makeCandidate's default)
+    expect(card.price).toBe(100);
+  });
+
+  it("returns compareAtPrice=null when variant.compareAtPrice <= variantPrice (no meaningful discount)", () => {
+    const c = makeCandidate("a", {
+      loadedVariant: {
+        shopifyId: "gid://shopify/ProductVariant/1",
+        price: 100,
+        compareAtPrice: 100, // equal — not a discount
+        availableForSale: true,
+      },
+    });
+    const card = formatProductCard(c, SHOP_META);
+    expect(card.compareAtPrice).toBe(null);
   });
 });

@@ -183,53 +183,16 @@ describe("stage1HardFilters", () => {
     expect(sql2).not.toContain(`v."availableForSale" = true`);
   });
 
-  it("includes anyVariantAvailable aggregate in SELECT (mech.1 D1: temporary source for Stage 6's `available`)", async () => {
+  it("does not include the bool_or aggregate after mech.2 D1 retired it", async () => {
+    // mech.1 D1 added a `bool_or(v."availableForSale")` correlated subquery
+    // to Stage 1's SELECT as a temporary source for Stage 6's `available`
+    // field. mech.2 D1 retired that aggregate by moving variant-loading
+    // to Stage 5.5 (loadAndAttachVariants in pipeline.server.ts). This
+    // test guards against accidental reintroduction of the aggregate
+    // into Stage 1's SELECT.
     await stage1HardFilters(baseInput, {}, "FASHION");
     const sql = queryRawUnsafe.mock.calls[0][0] as string;
-    // The aggregate is a correlated subquery via bool_or, COALESCEd to
-    // false so a product with zero variant rows reads as unavailable.
-    // Aliased as "anyVariantAvailable" so the RawRow projection picks it up.
-    expect(sql).toContain(`bool_or(v."availableForSale")`);
-    expect(sql).toContain(`"anyVariantAvailable"`);
-    expect(sql).toContain(`COALESCE(`);
-  });
-
-  it("threads anyVariantAvailable from raw query into candidates", async () => {
-    queryRawUnsafe.mockResolvedValue([
-      {
-        id: "p1",
-        handle: "h1",
-        title: "T1",
-        productType: null,
-        vendor: null,
-        featuredImageUrl: null,
-        priceMin: null,
-        priceMax: null,
-        currency: null,
-        recommendationPromoted: false,
-        recommendationExcluded: false,
-        anyVariantAvailable: true,
-      },
-      {
-        id: "p2",
-        handle: "h2",
-        title: "T2",
-        productType: null,
-        vendor: null,
-        featuredImageUrl: null,
-        priceMin: null,
-        priceMax: null,
-        currency: null,
-        recommendationPromoted: false,
-        recommendationExcluded: false,
-        anyVariantAvailable: false,
-      },
-    ]);
-
-    const out = await stage1HardFilters(baseInput, {}, "FASHION");
-
-    expect(out.candidates).toHaveLength(2);
-    expect(out.candidates[0].anyVariantAvailable).toBe(true);
-    expect(out.candidates[1].anyVariantAvailable).toBe(false);
+    expect(sql).not.toContain(`bool_or`);
+    expect(sql).not.toContain(`"anyVariantAvailable"`);
   });
 });

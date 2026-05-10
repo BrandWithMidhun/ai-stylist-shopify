@@ -65,12 +65,20 @@ export type CandidateProduct = {
   recommendationPromoted: boolean;
   recommendationExcluded: boolean;
   /**
-   * Set by Stage 1 (mech.1 D1, 3.1.7): true if the product has any variant
-   * with availableForSale=true. Source for Stage 6's `available` attachment.
-   * mech.2 (3.1.7) will replace this Stage-1-source with a Stage 6 variant
-   * load and remove this field.
+   * Set by Stage 5.5 (mech.2 D1, 3.1.7): the lowest-priced available variant
+   * for this product (falls back to lowest-priced overall if none available).
+   * Mirrors v1 `findSimilarProducts`'s variant-load shape exactly:
+   * `orderBy: [{ availableForSale: "desc" }, { price: "asc" }], take: 1`.
+   * Stage 6's `formatProductCard` reads variantId, compareAtPrice, and
+   * available from this field. Optional because the integration test fixture
+   * may construct CandidateProduct without going through Stage 5.5.
    */
-  anyVariantAvailable?: boolean;
+  loadedVariant?: {
+    shopifyId: string;
+    price: number;
+    compareAtPrice: number | null;
+    availableForSale: boolean;
+  } | null;
   // ProductTag relation (mech.4 addition). Stage 1 does NOT load tags
   // (D4 from mech.2: "no relation loads in Stage 1") — the orchestrator
   // (mech.6) is responsible for loading APPROVED ProductTag rows for the

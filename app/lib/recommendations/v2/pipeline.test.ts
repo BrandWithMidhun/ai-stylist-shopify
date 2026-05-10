@@ -23,6 +23,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   queryRawUnsafe,
   productTagFindMany,
+  productFindMany,
   merchantConfigFindUnique,
   customerProfileAttributeFindMany,
   findSimilarProductsAmongCandidates,
@@ -30,6 +31,7 @@ const {
 } = vi.hoisted(() => ({
   queryRawUnsafe: vi.fn(),
   productTagFindMany: vi.fn(),
+  productFindMany: vi.fn(),
   merchantConfigFindUnique: vi.fn(),
   customerProfileAttributeFindMany: vi.fn(),
   findSimilarProductsAmongCandidates: vi.fn(),
@@ -39,6 +41,7 @@ const {
 vi.mock("../../../db.server", () => ({
   default: {
     $queryRawUnsafe: queryRawUnsafe,
+    product: { findMany: productFindMany },
     productTag: { findMany: productTagFindMany },
     merchantConfig: { findUnique: merchantConfigFindUnique },
     customerProfileAttribute: { findMany: customerProfileAttributeFindMany },
@@ -67,7 +70,6 @@ function buildStage1Rows(count: number): unknown[] {
     currency: "USD",
     recommendationPromoted: i === 0,
     recommendationExcluded: false,
-    anyVariantAvailable: true, // mech.1 D1: synthetic rows model in-stock state
   }));
 }
 
@@ -119,6 +121,7 @@ function makeDeps(): PipelineDeps {
   // diverge from PrismaClient; cast through unknown for test purposes).
   return {
     prisma: {
+      product: { findMany: productFindMany },
       productTag: { findMany: productTagFindMany },
       merchantConfig: { findUnique: merchantConfigFindUnique },
       customerProfileAttribute: { findMany: customerProfileAttributeFindMany },
@@ -131,6 +134,7 @@ function makeDeps(): PipelineDeps {
 beforeEach(() => {
   queryRawUnsafe.mockReset();
   productTagFindMany.mockReset();
+  productFindMany.mockReset();
   merchantConfigFindUnique.mockReset();
   customerProfileAttributeFindMany.mockReset();
   findSimilarProductsAmongCandidates.mockReset();
@@ -143,6 +147,10 @@ beforeEach(() => {
   });
   customerProfileAttributeFindMany.mockResolvedValue([]);
   productTagFindMany.mockResolvedValue([]);
+  // Stage 5.5 variant-load default: empty rows → loadedVariant becomes
+  // null on every Stage 5 survivor → Stage 6 attaches the OOS-default
+  // shape. Per-test setups override with real variant rows when needed.
+  productFindMany.mockResolvedValue([]);
   findSimilarProductsAmongCandidates.mockResolvedValue([]);
   queryRawUnsafe.mockResolvedValue([]);
   embedQueryMock.mockResolvedValue(new Array(1024).fill(0));
@@ -186,9 +194,28 @@ describe("runPipeline — happy path with 20-candidate synthetic set", () => {
     );
 
     productTagFindMany.mockResolvedValue(buildTagsFor(survivingIds));
+
+    // Stage 5.5 variant-load (mech.2 D1): every product has one in-stock
+    // variant. Stage 1 returns up to 20 candidates; Stage 5 narrows to ≤6.
+    // Mock returns variants for all 20 — Stage 5.5's prisma call uses
+    // `id: { in: ids }` against the surviving Stage 5 set, so superset
+    // coverage is fine.
+    productFindMany.mockResolvedValue(
+      rows.map((r) => ({
+        id: (r as { id: string }).id,
+        variants: [
+          {
+            shopifyId: `gid://shopify/ProductVariant/${(r as { id: string }).id}-v1`,
+            price: 100,
+            compareAtPrice: null,
+            availableForSale: true,
+          },
+        ],
+      })),
+    );
   });
 
-  it("trace contains all 8 stage entries in order", async () => {
+  it("trace contains all 9 stage entries in order (mech.2 D1: stage-5.5-variant-load inserted)", async () => {
     const out = await runPipeline(baseInput, makeDeps());
     const stageNames = out.trace.stages.map((s) => s.name);
     expect(stageNames).toEqual([
@@ -199,6 +226,7 @@ describe("runPipeline — happy path with 20-candidate synthetic set", () => {
       "stage-3-rerank",
       "stage-4-merchant-signals",
       "stage-5-diversity",
+      "stage-5.5-variant-load",
       "stage-6-output",
     ]);
   });

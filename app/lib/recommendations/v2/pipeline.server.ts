@@ -69,6 +69,7 @@ const MAX_CANDIDATE_POOL = 100;
 
 const STAGE_QUERY_EXTRACTION = "stage-0-query-extraction";
 const STAGE_TAG_LOAD = "stage-2.5-tag-load";
+const STAGE_VARIANT_LOAD = "stage-5.5-variant-load";
 
 export async function runPipeline(
   input: PipelineInput,
@@ -181,8 +182,30 @@ export async function runPipeline(
   const stage5Out = stage5Diversity(stage4Out.candidates, targetN);
   stages.push(stage5Out.contribution);
 
+  // --- Stage 5.5: variant load (mech.2 D1, 3.1.7). --------------------
+  // Single Prisma roundtrip: load lowest-priced available variant for
+  // every Stage 5 survivor (bounded at HARD_LIMIT=12 IDs max). Mirrors
+  // Stage 2.5's tag-load shape. See loadAndAttachVariants comment block
+  // for the selection rule rationale.
+  const variantLoadStartMs = Date.now();
+  const stage6Input = await loadAndAttachVariants(deps, stage5Out.candidates);
+  const variantLoadMs = Date.now() - variantLoadStartMs;
+  const variantsLoadedCount = stage6Input.filter(
+    (c) => c.loadedVariant != null,
+  ).length;
+  stages.push({
+    name: STAGE_VARIANT_LOAD,
+    ms: variantLoadMs,
+    candidatesIn: stage5Out.candidates.length,
+    candidatesOut: stage6Input.length,
+    meta: {
+      variantsLoadedCount,
+      candidatesWithoutVariant: stage6Input.length - variantsLoadedCount,
+    },
+  });
+
   // --- Stage 6: output (finalScore + whyTrace). -----------------------
-  const stage6Out = stage6Output(stage5Out.candidates, shopMeta);
+  const stage6Out = stage6Output(stage6Input, shopMeta);
   stages.push(stage6Out.contribution);
 
   const products: ProductCard[] = stage6Out.candidates.map((c) =>
@@ -273,6 +296,59 @@ async function loadAndAttachTags(
   }));
 }
 
+// mech.2 D1 (3.1.7): variant-authority moved from Stage 1 aggregate
+// (mech.1 D1) to Stage 5.5 variant-load. Mirrors loadAndAttachTags's
+// shape: single Prisma roundtrip with productId: { in: ids }, joined
+// via Map. Variant selection rule mirrors v1 findSimilarProducts:
+//   orderBy: [{ availableForSale: "desc" }, { price: "asc" }], take: 1
+// Picks the lowest-priced available variant; falls back to lowest-
+// priced overall if none available. Stage 6's formatProductCard reads
+// variantId / compareAtPrice / available from c.loadedVariant.
+//
+// Empty candidates short-circuits without a DB call (mirrors
+// loadAndAttachTags).
+async function loadAndAttachVariants(
+  deps: PipelineDeps,
+  candidates: CandidateProduct[],
+): Promise<CandidateProduct[]> {
+  if (candidates.length === 0) return [];
+  const ids = candidates.map((c) => c.id);
+  const rows = await deps.prisma.product.findMany({
+    where: { id: { in: ids } },
+    select: {
+      id: true,
+      variants: {
+        take: 1,
+        orderBy: [{ availableForSale: "desc" }, { price: "asc" }],
+        select: {
+          shopifyId: true,
+          price: true,
+          compareAtPrice: true,
+          availableForSale: true,
+        },
+      },
+    },
+  });
+  const byProduct = new Map<
+    string,
+    NonNullable<CandidateProduct["loadedVariant"]>
+  >();
+  for (const r of rows) {
+    const v = r.variants[0];
+    if (!v) continue;
+    byProduct.set(r.id, {
+      shopifyId: v.shopifyId,
+      price: Number(v.price),
+      compareAtPrice: v.compareAtPrice != null ? Number(v.compareAtPrice) : null,
+      availableForSale: v.availableForSale,
+    });
+  }
+  return candidates.map((c) => ({
+    ...c,
+    loadedVariant: byProduct.get(c.id) ?? null,
+  }));
+}
+
 // CustomerProfile snapshot loader. In 3.1 the dev shop has zero
 // CustomerProfileAttribute rows (PR-D D.3 verifier confirmed), so this
 // path is exercised only by tests that explicitly set profileId. The
@@ -325,4 +401,5 @@ export const __PIPELINE_INTERNALS_FOR_TEST = {
   PIPELINE_VERSION,
   STAGE_QUERY_EXTRACTION,
   STAGE_TAG_LOAD,
+  STAGE_VARIANT_LOAD,
 };

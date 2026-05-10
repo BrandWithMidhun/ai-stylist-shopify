@@ -146,35 +146,57 @@ export function formatProductCard(
         .filter((t) => t.status === "APPROVED")
         .map((t) => `${t.axis}:${t.value}`)
     : [];
-  const price = c.priceMin ?? 0;
   const currency = c.currency ?? "USD";
+
+  // mech.2 D1 (3.1.7): variantId, compareAtPrice, available all sourced
+  // from c.loadedVariant (set by Stage 5.5 variant-load in
+  // pipeline.server.ts). Mirrors v1 recommend-products.server.ts's
+  // formatProductCard contract:
+  //   - variantId: numeric ID stripped from the Shopify GID (null when
+  //     no variant).
+  //   - compareAtPrice: variant's compareAtPrice if it is strictly greater
+  //     than the cart price (otherwise null — preserves v1's "discount
+  //     only when the comparison is meaningful" semantic).
+  //   - available: variant's availableForSale, false if no variant loaded
+  //     (OOS-treatment is the safe failure mode at the chat widget per
+  //     chat-widget.js:839,898).
+  // price falls back to c.priceMin when no variant loaded — same fallback
+  // chain v1 uses.
+  const variant = c.loadedVariant ?? null;
+  const variantPrice =
+    variant?.price != null ? variant.price : (c.priceMin ?? 0);
+  const variantCompare =
+    variant?.compareAtPrice != null && variant.compareAtPrice > variantPrice
+      ? variant.compareAtPrice
+      : null;
 
   return {
     id: c.id,
     handle: c.handle,
     title: c.title,
     imageUrl: c.featuredImageUrl,
-    price,
-    compareAtPrice: null,
+    price: variantPrice,
+    compareAtPrice: variantCompare,
     currency,
-    // variantId is still not loaded on CandidateProduct as of 3.1.7 mech.1.
-    // mech.2 (3.1.7) wires variant-loading and populates variantId.
-    //
-    // available (mech.1 D1, 3.1.7): sourced from Stage 1's
-    // `anyVariantAvailable` aggregate. Defaults to false when absent
-    // (OOS-treatment is the safe failure mode at the widget per
-    // chat-widget.js:839,898). When mech.2 lands, Stage 6 will load
-    // variants directly and this attachment will source from the loaded
-    // variant rather than Stage 1's aggregate; at that point Stage 1's
-    // `anyVariantAvailable` column is removed.
-    variantId: null,
-    available: c.anyVariantAvailable ?? false,
+    variantId: variant ? extractNumericId(variant.shopifyId) : null,
+    available: variant?.availableForSale ?? false,
     tags: tagsFlat,
     productUrl: `/products/${c.handle}`,
     traceContributions: tracksContributions(c),
     whyTrace,
     finalScore,
   };
+}
+
+// extractNumericId mirrors recommend-products.server.ts's helper.
+// Hoisting to a shared util is intentionally deferred — see v1's
+// comment block. mech.2 D1 makes this the second copy; if a third
+// caller appears, hoist.
+function extractNumericId(gid: string | null | undefined): string | null {
+  if (!gid) return null;
+  const tail = gid.split("/").pop();
+  if (!tail || !/^\d+$/.test(tail)) return null;
+  return tail;
 }
 
 export function stage6Output(
