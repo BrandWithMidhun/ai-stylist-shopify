@@ -1,0 +1,53 @@
+npm warn Unknown project config "shamefully-hoist". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+shopDomain:    ai-fashion-store.myshopify.com
+targetAxes:    occasion, color_family, material, fit, season, size_range, style_type
+actorId:       system://3.1.7-mech.3-bulk-approve
+dryRun:        false
+minConfidence: 0.8
+
+=== BEFORE ===
+ProductTag counts by (axis, status):
+  occasion:
+    PENDING_REVIEW: 80
+  color_family:
+    PENDING_REVIEW: 52
+  material:
+    PENDING_REVIEW: 51
+  fit:
+    PENDING_REVIEW: 51
+  season:
+    PENDING_REVIEW: 59
+  size_range:
+    PENDING_REVIEW: 59
+  style_type:
+    PENDING_REVIEW: 52
+Eligibility by intersection of all axes:
+  APPROVED occasion:    0
+  APPROVED color_family:    0
+  APPROVED material:    0
+  APPROVED fit:    0
+  APPROVED season:    0
+  APPROVED size_range:    0
+  APPROVED style_type:    0
+  Intersection:       0
+
+Candidates to approve: 312
+  flipped 50/312
+PrismaClientKnownRequestError: 
+Invalid `prisma.productTag.update()` invocation in
+C:\Users\Midhun\Desktop\Projects\ai-stylist\scripts\bulk-approve-tags.ts:216:25
+
+  213 for (let i = 0; i < candidates.length; i += BATCH) {
+  214   const batch = candidates.slice(i, i + BATCH);
+  215   const ops = batch.flatMap((c) => [
+→ 216     prisma.productTag.update(
+Server has closed the connection.
+    at bl.handleRequestError (C:\Users\Midhun\Desktop\Projects\ai-stylist\node_modules\@prisma\client\src\runtime\RequestHandler.ts:228:13)
+    at bl.handleAndLogRequestError (C:\Users\Midhun\Desktop\Projects\ai-stylist\node_modules\@prisma\client\src\runtime\RequestHandler.ts:174:12)
+    at bl.request (C:\Users\Midhun\Desktop\Projects\ai-stylist\node_modules\@prisma\client\src\runtime\RequestHandler.ts:143:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async o (C:\Users\Midhun\Desktop\Projects\ai-stylist\node_modules\@prisma\client\src\runtime\getPrismaClient.ts:833:24) {
+  code: 'P1017',
+  meta: { modelName: 'ProductTag' },
+  clientVersion: '6.19.3'
+}

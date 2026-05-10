@@ -1,0 +1,41 @@
+npm warn Unknown project config "shamefully-hoist". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+shopDomain:    ai-fashion-store.myshopify.com
+targetAxes:    occasion, color_family, material, fit, season, size_range, style_type
+actorId:       system://manual-bulk-approve
+dryRun:        true
+minConfidence: 0.8
+
+=== BEFORE ===
+ProductTag counts by (axis, status):
+  occasion:
+    PENDING_REVIEW: 80
+  color_family:
+    PENDING_REVIEW: 52
+  material:
+    PENDING_REVIEW: 51
+  fit:
+    PENDING_REVIEW: 51
+  season:
+    PENDING_REVIEW: 59
+  size_range:
+    PENDING_REVIEW: 59
+  style_type:
+    PENDING_REVIEW: 52
+Eligibility by intersection of all axes:
+  APPROVED occasion:    0
+  APPROVED color_family:    0
+  APPROVED material:    0
+  APPROVED fit:    0
+  APPROVED season:    0
+  APPROVED size_range:    0
+  APPROVED style_type:    0
+  Intersection:       0
+
+Candidates to approve: 312
+
+--dry-run: skipping writes. Sample of first 5 candidates:
+  cmor0tlil001as20onevj5m3k: productId=cmoeeljes000go436ms0j14uu axis=fit value=relaxed source=AI
+  cmor0tlin001ds20op56geuad: productId=cmoeeljes000go436ms0j14uu axis=color_family value=purple source=AI
+  cmor0tlip001gs20ouzyxa78h: productId=cmoeeljes000go436ms0j14uu axis=occasion value=casual source=AI
+  cmor0tlis001js20ohobz3igb: productId=cmoeeljes000go436ms0j14uu axis=style_type value=classic source=AI
+  cmor0tlix001ps20od9zp2jzl: productId=cmoeeljes000go436ms0j14uu axis=material value=linen source=AI

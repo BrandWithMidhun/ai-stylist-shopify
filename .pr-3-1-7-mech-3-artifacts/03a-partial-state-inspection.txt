@@ -1,0 +1,34 @@
+npm warn Unknown project config "shamefully-hoist". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+ProductTagAudit rows from this mech.3 run: 50
+Audit rows by axis:
+  occasion       9
+  color_family   9
+  material       9
+  fit            8
+  season         8
+  size_range     0
+  style_type     7
+
+Per-axis ProductTag status snapshot post-batch-1-failure:
+  occasion:
+    PENDING_REVIEW: 71
+    APPROVED: 9
+  color_family:
+    PENDING_REVIEW: 43
+    APPROVED: 9
+  material:
+    PENDING_REVIEW: 42
+    APPROVED: 9
+  fit:
+    PENDING_REVIEW: 43
+    APPROVED: 8
+  season:
+    PENDING_REVIEW: 51
+    APPROVED: 8
+  size_range:
+    PENDING_REVIEW: 59
+  style_type:
+    PENDING_REVIEW: 45
+    APPROVED: 7
+
+Remaining high-confidence (≥0.8) PENDING_REVIEW on the 7 axes: 262

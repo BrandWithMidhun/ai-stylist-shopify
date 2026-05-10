@@ -1,0 +1,28 @@
+model ProductTag {
+  id         String          @id @default(cuid())
+  productId  String
+  shopDomain String
+  axis       String
+  value      String
+  confidence Float?
+  source     String
+  locked     Boolean         @default(false)
+  metadata   Json?
+  status     TagReviewStatus @default(PENDING_REVIEW)
+  reviewedAt DateTime?
+  reviewedBy String? // Shopify staff member GID (gid://shopify/StaffMember/<id>)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, axis, value])
+  @@index([shopDomain, axis, value])
+  @@index([productId])
+  @@index([shopDomain, source])
+  @@index([shopDomain, status])
+}
+---
+NOTE: ProductTag has confidence: Float? at line 367. Per mech.3 prompt's
+decision gate, the dry-run sample is inspected for confidence distribution
+before proceeding live.

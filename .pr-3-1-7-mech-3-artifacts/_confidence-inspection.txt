@@ -1,0 +1,14 @@
+npm warn Unknown project config "shamefully-hoist". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+Total PENDING_REVIEW candidates: 404
+Confidence is NULL: 0 (0.0%)
+Confidence is set:  404
+  min/p25/median/p75/max: 0.400 / 0.800 / 0.880 / 0.930 / 0.990
+  below 0.8: 92 (22.8% of confidence-set rows; 22.8% of total)
+  per-axis count of confidence < 0.8:
+    occasion       14/80
+    color_family   4/52
+    material       0/51
+    fit            12/51
+    season         11/59
+    size_range     44/59
+    style_type     7/52

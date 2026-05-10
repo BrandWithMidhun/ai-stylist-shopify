@@ -1,0 +1,78 @@
+npm warn Unknown project config "shamefully-hoist". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+shopDomain:    ai-fashion-store.myshopify.com
+targetAxes:    occasion, color_family, material, fit, season, size_range, style_type
+actorId:       system://3.1.7-mech.3-bulk-approve
+dryRun:        false
+minConfidence: 0.8
+
+=== BEFORE ===
+ProductTag counts by (axis, status):
+  occasion:
+    PENDING_REVIEW: 71
+    APPROVED: 9
+  color_family:
+    PENDING_REVIEW: 43
+    APPROVED: 9
+  material:
+    PENDING_REVIEW: 42
+    APPROVED: 9
+  fit:
+    PENDING_REVIEW: 43
+    APPROVED: 8
+  season:
+    PENDING_REVIEW: 51
+    APPROVED: 8
+  size_range:
+    PENDING_REVIEW: 59
+  style_type:
+    PENDING_REVIEW: 45
+    APPROVED: 7
+Eligibility by intersection of all axes:
+  APPROVED occasion:    8
+  APPROVED color_family:    8
+  APPROVED material:    9
+  APPROVED fit:    8
+  APPROVED season:    7
+  APPROVED size_range:    0
+  APPROVED style_type:    6
+  Intersection:       0
+
+Candidates to approve: 262
+  flipped 50/262
+  flipped 100/262
+  flipped 150/262
+  flipped 200/262
+  flipped 250/262
+  flipped 262/262
+
+=== AFTER ===
+ProductTag counts by (axis, status):
+  occasion:
+    PENDING_REVIEW: 14
+    APPROVED: 66
+  color_family:
+    PENDING_REVIEW: 4
+    APPROVED: 48
+  material:
+    APPROVED: 51
+  fit:
+    PENDING_REVIEW: 12
+    APPROVED: 39
+  season:
+    PENDING_REVIEW: 11
+    APPROVED: 48
+  size_range:
+    PENDING_REVIEW: 44
+    APPROVED: 15
+  style_type:
+    PENDING_REVIEW: 7
+    APPROVED: 45
+Eligibility by intersection of all axes:
+  APPROVED occasion:    49
+  APPROVED color_family:    47
+  APPROVED material:    51
+  APPROVED fit:    39
+  APPROVED season:    47
+  APPROVED size_range:    3
+  APPROVED style_type:    44
+  Intersection:       2

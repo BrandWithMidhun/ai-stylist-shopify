@@ -1,0 +1,22 @@
+npm warn Unknown project config "shamefully-hoist". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+Per-axis APPROVED+PENDING_REVIEW counts post-mech.3:
+  occasion:
+    PENDING_REVIEW: 14
+    APPROVED: 66
+  color_family:
+    PENDING_REVIEW: 4
+    APPROVED: 48
+  material:
+    APPROVED: 51
+  fit:
+    PENDING_REVIEW: 12
+    APPROVED: 39
+  season:
+    PENDING_REVIEW: 11
+    APPROVED: 48
+  size_range:
+    PENDING_REVIEW: 44
+    APPROVED: 15
+  style_type:
+    PENDING_REVIEW: 7
+    APPROVED: 45
