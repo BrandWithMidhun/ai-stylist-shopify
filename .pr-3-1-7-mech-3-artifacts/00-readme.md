@@ -51,6 +51,11 @@ secondary axes). The chain was non-trivial:
 | 03b-bulk-approve-live-resumed.txt | mech.3 (this commit) | wave 2: 262/262 flipped, clean AFTER snapshot |
 | _post-pass-snapshot.ts | mech.3 (this commit) | one-shot post-pass snapshot script |
 | 04-post-pass-axis-coverage.txt | mech.3 (this commit) | standalone per-axis APPROVED counts post-pass |
+| _axis-coverage-snapshot.ts | mech.3.5 | one-shot per-axis coverage probe (all 9 axes) |
+| 05-probe-stage-1-post-mech-3.json | mech.3.5 | Stage 1 regression check post-mech.3 |
+| 05-axis-coverage-post-mech-3.txt | mech.3.5 | per-axis APPROVED + PENDING + REJECTED across all 9 axes |
+| 06-eval-post-mech-3.txt | mech.3.5 | eval CLI re-run post-mech.3 (aggregateScore 0.3333) |
+| 07-mech-3-verification-analysis.md | mech.3.5 | distribution-shift analysis + per-fixture trajectory |
 
 The underscore-prefixed files (`_inspect-confidence.ts`,
 `_confidence-inspection.txt`) flag themselves as one-shot evidentiary

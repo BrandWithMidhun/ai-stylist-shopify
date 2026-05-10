@@ -1,0 +1,1004 @@
+{
+  "capturedAt": "2026-05-10T18:27:07.924Z",
+  "shop": "ai-fashion-store.myshopify.com",
+  "catalog": {
+    "totalProducts": 2632,
+    "activeNotDeletedNotExcluded": 1169,
+    "activeWithEmbedding": 1169,
+    "stage1InputAfterMech1": 1169,
+    "productsWithAvailableVariant": 29,
+    "distinctProductsWithAnyApprovedTag": 52
+  },
+  "productTagCensusByAxisAndStatus": {
+    "detailing": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "season": {
+      "APPROVED": 48,
+      "PENDING_REVIEW": 11,
+      "REJECTED": 0
+    },
+    "closure_type": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "pattern": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 17,
+      "REJECTED": 0
+    },
+    "construction_style": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "color_family": {
+      "APPROVED": 48,
+      "PENDING_REVIEW": 4,
+      "REJECTED": 0
+    },
+    "category": {
+      "APPROVED": 50,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "design_detail": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "origin": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 2,
+      "REJECTED": 0
+    },
+    "gender": {
+      "APPROVED": 50,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "waistband_type": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "fabric_quality": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "waist_type": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "collar_style": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 7,
+      "REJECTED": 0
+    },
+    "style_type": {
+      "APPROVED": 45,
+      "PENDING_REVIEW": 7,
+      "REJECTED": 0
+    },
+    "pleat_style": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 3,
+      "REJECTED": 0
+    },
+    "fit_detail": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "product_type": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 5,
+      "REJECTED": 0
+    },
+    "fabric_count": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "skin_friendliness": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 4,
+      "REJECTED": 0
+    },
+    "sub_category": {
+      "APPROVED": 52,
+      "PENDING_REVIEW": 4,
+      "REJECTED": 0
+    },
+    "waistband_style": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "neckline": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "sleeve_length": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 31,
+      "REJECTED": 0
+    },
+    "sustainability": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 57,
+      "REJECTED": 0
+    },
+    "price_tier": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 52,
+      "REJECTED": 0
+    },
+    "fabric_weave": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 2,
+      "REJECTED": 0
+    },
+    "pocket_count": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "size_range": {
+      "APPROVED": 15,
+      "PENDING_REVIEW": 44,
+      "REJECTED": 0
+    },
+    "occasion": {
+      "APPROVED": 66,
+      "PENDING_REVIEW": 14,
+      "REJECTED": 0
+    },
+    "fabric_treatment": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 4,
+      "REJECTED": 0
+    },
+    "color_family_secondary": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "set_type": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "skin_friendly": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "statement_piece": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 51,
+      "REJECTED": 0
+    },
+    "fabric_weight": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 4,
+      "REJECTED": 0
+    },
+    "condition": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "waistband": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "waist_style": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    },
+    "fit": {
+      "APPROVED": 39,
+      "PENDING_REVIEW": 12,
+      "REJECTED": 0
+    },
+    "collar_type": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 17,
+      "REJECTED": 0
+    },
+    "material": {
+      "APPROVED": 51,
+      "PENDING_REVIEW": 0,
+      "REJECTED": 0
+    },
+    "fabric_purity": {
+      "APPROVED": 0,
+      "PENDING_REVIEW": 1,
+      "REJECTED": 0
+    }
+  },
+  "distinctProductsWithApprovedTagPerAxis": {
+    "gender": 50,
+    "category": 50,
+    "sub_category": 52,
+    "occasion": 49,
+    "color_family": 47,
+    "material": 51,
+    "fit": 39,
+    "season": 47,
+    "size_range": 3,
+    "style_type": 44,
+    "sleeve_length": 0,
+    "pattern": 0,
+    "collar_type": 0,
+    "price_tier": 0,
+    "statement_piece": 0
+  },
+  "perFixture": [
+    {
+      "fixtureKey": "fashion-casual-office-shirts",
+      "intent": "casual office shirts",
+      "expectedTagFilters": {
+        "category": [
+          "shirt"
+        ],
+        "occasion": [
+          "work",
+          "casual"
+        ],
+        "style_type": [
+          "minimal",
+          "classic",
+          "relaxed"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "occasion": [
+          "casual",
+          "work"
+        ],
+        "category": [
+          "shirt"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 26,
+        "latencyMs": 468,
+        "firstCandidateHandles": [
+          "monarc-pure-linen-spread-collar-half-sleeve-shirt-citrus-yellow-factory-rescue",
+          "martin-pure-linen-full-sleeve-shirt-white-black-pinstripe",
+          "rook-pure-linen-relaxed-half-sleeve-shirt-blue-grey-cloud-white",
+          "kent-pure-linen-full-sleeve-shirt-turquoise-pinstripe",
+          "ron-pure-linen-full-sleeve-shirt-cobalt-green",
+          "urban-ease-linen-set",
+          "craig-pure-linen-v-neck-full-sleeve-shirt-coral-peach-factory-rescue",
+          "alfred-pure-linen-full-sleeve-shirt-black-pinstripe-red-wine",
+          "nathan-cuban-collar-pure-linen-half-sleeve-shirt-fondue-pink-factory-rescue",
+          "stark-pure-linen-half-sleeve-shirt-with-band-collar-space-tuck-coral-peach-factory-rescue",
+          "zeke-pure-linen-shirt-with-back-box-pleat-button-detail-cobalt-green",
+          "nathan-cuban-collar-pure-linen-half-sleeve-shirt-light-grey-factory-rescue",
+          "blue-stone-formal-office-set",
+          "flint-pure-linen-shirt-with-mandarin-collar-trio-button-detail-oakwood-brown",
+          "harvey-pure-linen-half-sleeve-shirt-brown-chambray-factory-rescue",
+          "harvey-pure-linen-half-sleeve-shirt-black-chambray-factory-rescue",
+          "executive-grey-linen-set",
+          "enso-pure-linen-half-sleeve-shirt-coffee-brown",
+          "twilight-linen-set",
+          "camden-pure-linen-full-sleeve-shirt-with-asymmetrical-yoke-brown-pinstripe"
+        ],
+        "filtersApplied": {
+          "category": [
+            "shirt"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "shirt"
+          ],
+          "catalogProductsApprovedMatching": 26
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 26,
+          "satisfyingFilter": 26
+        },
+        "occasion": {
+          "withApprovedOnAxis": 25,
+          "satisfyingFilter": 25
+        },
+        "style_type": {
+          "withApprovedOnAxis": 24,
+          "satisfyingFilter": 24
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-festive-kurta-women",
+      "intent": "festive kurta for women",
+      "expectedTagFilters": {
+        "category": [
+          "kurta"
+        ],
+        "occasion": [
+          "festive"
+        ],
+        "gender": [
+          "female"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "category": [
+          "kurta"
+        ],
+        "occasion": [
+          "festive"
+        ],
+        "gender": [
+          "female"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 0,
+        "latencyMs": 468,
+        "firstCandidateHandles": [],
+        "filtersApplied": {
+          "gender": [
+            "female"
+          ],
+          "category": [
+            "kurta"
+          ]
+        },
+        "hardFilterAxesActive": 2
+      },
+      "hardFilterCatalogCounts": {
+        "gender": {
+          "axis": "gender",
+          "values": [
+            "female"
+          ],
+          "catalogProductsApprovedMatching": 0
+        },
+        "category": {
+          "axis": "category",
+          "values": [
+            "kurta"
+          ],
+          "catalogProductsApprovedMatching": 2
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "occasion": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "gender": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-going-out-outfit",
+      "intent": "going out outfit for evening",
+      "expectedTagFilters": {
+        "occasion": [
+          "event",
+          "festive",
+          "casual"
+        ],
+        "style_type": [
+          "bold",
+          "preppy",
+          "streetwear",
+          "classic"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "occasion": [
+          "event"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 1000,
+        "latencyMs": 1024,
+        "firstCandidateHandles": [
+          "earl-pure-linen-half-sleeve-shirt-with-stitch-details-dark-blue-factory-rescue",
+          "mustang-premium-pure-linen-panel-pants-dark-blue-grey-black",
+          "gul-pure-linen-mandarin-collar-regular-kurta-black-sap-green",
+          "blaze-pure-linen-button-down-full-sleeve-shirt-dark-green",
+          "simon-pure-linen-colour-block-short-sleeve-t-shirt-ecru-factory-rescue",
+          "enso-pure-linen-half-sleeve-shirt-coffee-brown",
+          "ted-pure-linen-full-sleeve-formal-shirt-white",
+          "owen-pure-linen-color-block-short-sleeve-t-shirt-terracotta-red",
+          "sage-green-deconstructed-jacket-trouser-set",
+          "amelia-pure-linen-full-sleeve-shirt-with-pleated-yolk-ecru",
+          "yash-kurta-pure-linen-long-kurta-with-floral-embroidery-mud-red",
+          "sid-kurta-pure-linen-long-kurta-with-concealed-placket-spring-green",
+          "harvey-pure-linen-half-sleeve-shirt-black-chambray-factory-rescue",
+          "arnav-full-sleeve-broad-notched-collar-pure-linen-short-kurta-terracotta-red",
+          "liam-pure-linen-double-pocket-classy-full-sleeve-shirt-white",
+          "flint-pure-linen-shirt-with-mandarin-collar-trio-button-detail-oakwood-brown",
+          "simon-pure-linen-stitch-detail-short-sleeve-t-shirt-moss-green",
+          "harvey-pure-linen-half-sleeve-shirt-shutter-blue-factory-rescue",
+          "simon-pure-linen-stitch-detail-short-sleeve-t-shirt-terracotta-red",
+          "finn-linen-joggers-dark-blue-grey"
+        ],
+        "filtersApplied": {},
+        "hardFilterAxesActive": 0
+      },
+      "hardFilterCatalogCounts": {},
+      "tagCoverageOnSurvivors": {
+        "occasion": {
+          "withApprovedOnAxis": 48,
+          "satisfyingFilter": 38
+        },
+        "style_type": {
+          "withApprovedOnAxis": 43,
+          "satisfyingFilter": 26
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-linen-shirts-white",
+      "intent": "show me white linen shirts",
+      "expectedTagFilters": {
+        "category": [
+          "shirt"
+        ],
+        "color_family": [
+          "white",
+          "beige"
+        ],
+        "material": [
+          "linen"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "color_family": [
+          "white"
+        ],
+        "material": [
+          "linen"
+        ],
+        "category": [
+          "shirt"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 26,
+        "latencyMs": 236,
+        "firstCandidateHandles": [
+          "monarc-pure-linen-spread-collar-half-sleeve-shirt-citrus-yellow-factory-rescue",
+          "martin-pure-linen-full-sleeve-shirt-white-black-pinstripe",
+          "rook-pure-linen-relaxed-half-sleeve-shirt-blue-grey-cloud-white",
+          "kent-pure-linen-full-sleeve-shirt-turquoise-pinstripe",
+          "ron-pure-linen-full-sleeve-shirt-cobalt-green",
+          "urban-ease-linen-set",
+          "craig-pure-linen-v-neck-full-sleeve-shirt-coral-peach-factory-rescue",
+          "alfred-pure-linen-full-sleeve-shirt-black-pinstripe-red-wine",
+          "nathan-cuban-collar-pure-linen-half-sleeve-shirt-fondue-pink-factory-rescue",
+          "stark-pure-linen-half-sleeve-shirt-with-band-collar-space-tuck-coral-peach-factory-rescue",
+          "zeke-pure-linen-shirt-with-back-box-pleat-button-detail-cobalt-green",
+          "nathan-cuban-collar-pure-linen-half-sleeve-shirt-light-grey-factory-rescue",
+          "blue-stone-formal-office-set",
+          "flint-pure-linen-shirt-with-mandarin-collar-trio-button-detail-oakwood-brown",
+          "harvey-pure-linen-half-sleeve-shirt-brown-chambray-factory-rescue",
+          "harvey-pure-linen-half-sleeve-shirt-black-chambray-factory-rescue",
+          "executive-grey-linen-set",
+          "enso-pure-linen-half-sleeve-shirt-coffee-brown",
+          "twilight-linen-set",
+          "camden-pure-linen-full-sleeve-shirt-with-asymmetrical-yoke-brown-pinstripe"
+        ],
+        "filtersApplied": {
+          "category": [
+            "shirt"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "shirt"
+          ],
+          "catalogProductsApprovedMatching": 26
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 26,
+          "satisfyingFilter": 26
+        },
+        "color_family": {
+          "withApprovedOnAxis": 22,
+          "satisfyingFilter": 2
+        },
+        "material": {
+          "withApprovedOnAxis": 26,
+          "satisfyingFilter": 26
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-minimalist-daily-wear",
+      "intent": "minimalist daily wear",
+      "expectedTagFilters": {
+        "style_type": [
+          "minimal",
+          "classic",
+          "relaxed"
+        ],
+        "occasion": [
+          "casual",
+          "work"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "occasion": [
+          "casual"
+        ],
+        "style_type": [
+          "minimal"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 1000,
+        "latencyMs": 308,
+        "firstCandidateHandles": [
+          "earl-pure-linen-half-sleeve-shirt-with-stitch-details-dark-blue-factory-rescue",
+          "mustang-premium-pure-linen-panel-pants-dark-blue-grey-black",
+          "gul-pure-linen-mandarin-collar-regular-kurta-black-sap-green",
+          "blaze-pure-linen-button-down-full-sleeve-shirt-dark-green",
+          "simon-pure-linen-colour-block-short-sleeve-t-shirt-ecru-factory-rescue",
+          "enso-pure-linen-half-sleeve-shirt-coffee-brown",
+          "ted-pure-linen-full-sleeve-formal-shirt-white",
+          "owen-pure-linen-color-block-short-sleeve-t-shirt-terracotta-red",
+          "sage-green-deconstructed-jacket-trouser-set",
+          "amelia-pure-linen-full-sleeve-shirt-with-pleated-yolk-ecru",
+          "yash-kurta-pure-linen-long-kurta-with-floral-embroidery-mud-red",
+          "sid-kurta-pure-linen-long-kurta-with-concealed-placket-spring-green",
+          "harvey-pure-linen-half-sleeve-shirt-black-chambray-factory-rescue",
+          "arnav-full-sleeve-broad-notched-collar-pure-linen-short-kurta-terracotta-red",
+          "liam-pure-linen-double-pocket-classy-full-sleeve-shirt-white",
+          "flint-pure-linen-shirt-with-mandarin-collar-trio-button-detail-oakwood-brown",
+          "simon-pure-linen-stitch-detail-short-sleeve-t-shirt-moss-green",
+          "harvey-pure-linen-half-sleeve-shirt-shutter-blue-factory-rescue",
+          "simon-pure-linen-stitch-detail-short-sleeve-t-shirt-terracotta-red",
+          "finn-linen-joggers-dark-blue-grey"
+        ],
+        "filtersApplied": {},
+        "hardFilterAxesActive": 0
+      },
+      "hardFilterCatalogCounts": {},
+      "tagCoverageOnSurvivors": {
+        "style_type": {
+          "withApprovedOnAxis": 43,
+          "satisfyingFilter": 42
+        },
+        "occasion": {
+          "withApprovedOnAxis": 48,
+          "satisfyingFilter": 43
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-oos-stress-1",
+      "intent": "white linen shirt for daily wear",
+      "expectedTagFilters": {
+        "category": [
+          "shirt"
+        ],
+        "color_family": [
+          "white",
+          "beige"
+        ],
+        "material": [
+          "linen"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "category": [
+          "shirt"
+        ],
+        "color_family": [
+          "white"
+        ],
+        "material": [
+          "linen"
+        ],
+        "occasion": [
+          "casual"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 26,
+        "latencyMs": 234,
+        "firstCandidateHandles": [
+          "monarc-pure-linen-spread-collar-half-sleeve-shirt-citrus-yellow-factory-rescue",
+          "martin-pure-linen-full-sleeve-shirt-white-black-pinstripe",
+          "rook-pure-linen-relaxed-half-sleeve-shirt-blue-grey-cloud-white",
+          "kent-pure-linen-full-sleeve-shirt-turquoise-pinstripe",
+          "ron-pure-linen-full-sleeve-shirt-cobalt-green",
+          "urban-ease-linen-set",
+          "craig-pure-linen-v-neck-full-sleeve-shirt-coral-peach-factory-rescue",
+          "alfred-pure-linen-full-sleeve-shirt-black-pinstripe-red-wine",
+          "nathan-cuban-collar-pure-linen-half-sleeve-shirt-fondue-pink-factory-rescue",
+          "stark-pure-linen-half-sleeve-shirt-with-band-collar-space-tuck-coral-peach-factory-rescue",
+          "zeke-pure-linen-shirt-with-back-box-pleat-button-detail-cobalt-green",
+          "nathan-cuban-collar-pure-linen-half-sleeve-shirt-light-grey-factory-rescue",
+          "blue-stone-formal-office-set",
+          "flint-pure-linen-shirt-with-mandarin-collar-trio-button-detail-oakwood-brown",
+          "harvey-pure-linen-half-sleeve-shirt-brown-chambray-factory-rescue",
+          "harvey-pure-linen-half-sleeve-shirt-black-chambray-factory-rescue",
+          "executive-grey-linen-set",
+          "enso-pure-linen-half-sleeve-shirt-coffee-brown",
+          "twilight-linen-set",
+          "camden-pure-linen-full-sleeve-shirt-with-asymmetrical-yoke-brown-pinstripe"
+        ],
+        "filtersApplied": {
+          "category": [
+            "shirt"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "shirt"
+          ],
+          "catalogProductsApprovedMatching": 26
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 26,
+          "satisfyingFilter": 26
+        },
+        "color_family": {
+          "withApprovedOnAxis": 22,
+          "satisfyingFilter": 2
+        },
+        "material": {
+          "withApprovedOnAxis": 26,
+          "satisfyingFilter": 26
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-oos-stress-2",
+      "intent": "festive saree for an evening event",
+      "expectedTagFilters": {
+        "category": [
+          "saree"
+        ],
+        "occasion": [
+          "festive",
+          "event"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "category": [
+          "saree"
+        ],
+        "occasion": [
+          "event",
+          "festive"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 0,
+        "latencyMs": 238,
+        "firstCandidateHandles": [],
+        "filtersApplied": {
+          "category": [
+            "saree"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "saree"
+          ],
+          "catalogProductsApprovedMatching": 0
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "occasion": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-oversized-fit-kurta",
+      "intent": "oversized fit kurta",
+      "expectedTagFilters": {
+        "category": [
+          "kurta"
+        ],
+        "fit": [
+          "oversized",
+          "relaxed"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "category": [
+          "kurta"
+        ],
+        "fit": [
+          "oversized"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 2,
+        "latencyMs": 240,
+        "firstCandidateHandles": [
+          "gul-pure-linen-mandarin-collar-regular-kurta-black-sap-green",
+          "sid-kurta-pure-linen-kurta-with-concealed-placket-mineral-grey"
+        ],
+        "filtersApplied": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "kurta"
+          ],
+          "catalogProductsApprovedMatching": 2
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 2,
+          "satisfyingFilter": 2
+        },
+        "fit": {
+          "withApprovedOnAxis": 2,
+          "satisfyingFilter": 1
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-show-jackets",
+      "intent": "show me jackets",
+      "expectedTagFilters": {
+        "category": [
+          "jacket"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "category": [
+          "jacket"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 5,
+        "latencyMs": 234,
+        "firstCandidateHandles": [
+          "dusky-violet-pure-linen-deconstructed-jacket-trouser-set",
+          "becket-linen-short-jacket-dusky-violet",
+          "wade-deconstructed-pure-linen-jacket-dusky-violet",
+          "becket-linen-short-jacket-cappuccino-beige-factory-rescue",
+          "bond-classic-pure-linen-jacket-sage-green-factory-rescue"
+        ],
+        "filtersApplied": {
+          "category": [
+            "jacket"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "jacket"
+          ],
+          "catalogProductsApprovedMatching": 5
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 5,
+          "satisfyingFilter": 5
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-show-trousers",
+      "intent": "what trousers do you have",
+      "expectedTagFilters": {
+        "category": [
+          "pants"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "category": [
+          "pants"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 8,
+        "latencyMs": 235,
+        "firstCandidateHandles": [
+          "aire-relaxed-elastic-pure-linen-trousers-regal-blue",
+          "ashford-pure-linen-double-pleated-high-waisted-trousers-black",
+          "niel-pure-linen-trousers-cocoa-brown",
+          "cal-pure-linen-double-pleated-trousers-ecru",
+          "brandon-double-button-broad-pure-linen-trousers-slow-green",
+          "ian-pure-linen-trousers-dusky-violet",
+          "art-pants-pure-linen-elastic-casual-pants-with-drawstrings-muted-brown",
+          "breeze-linen-casual-elastic-pants-artichoke-green"
+        ],
+        "filtersApplied": {
+          "category": [
+            "pants"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "pants"
+          ],
+          "catalogProductsApprovedMatching": 8
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 8,
+          "satisfyingFilter": 8
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-summer-shorts-size-m",
+      "intent": "summer shorts in size M",
+      "expectedTagFilters": {
+        "category": [
+          "shorts"
+        ],
+        "season": [
+          "summer",
+          "all_season"
+        ],
+        "size_range": [
+          "m"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "category": [
+          "shorts"
+        ],
+        "season": [
+          "summer"
+        ],
+        "size_range": [
+          "m"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 0,
+        "latencyMs": 235,
+        "firstCandidateHandles": [],
+        "filtersApplied": {
+          "category": [
+            "shorts"
+          ]
+        },
+        "hardFilterAxesActive": 1
+      },
+      "hardFilterCatalogCounts": {
+        "category": {
+          "axis": "category",
+          "values": [
+            "shorts"
+          ],
+          "catalogProductsApprovedMatching": 0
+        }
+      },
+      "tagCoverageOnSurvivors": {
+        "category": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "season": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        },
+        "size_range": {
+          "withApprovedOnAxis": 0,
+          "satisfyingFilter": 0
+        }
+      }
+    },
+    {
+      "fixtureKey": "fashion-wedding-reception",
+      "intent": "something for a wedding reception",
+      "expectedTagFilters": {
+        "occasion": [
+          "festive",
+          "event",
+          "formal"
+        ]
+      },
+      "extractedQueryAttributes": {
+        "occasion": [
+          "festive",
+          "event"
+        ]
+      },
+      "stage1": {
+        "candidatesReturned": 1000,
+        "latencyMs": 305,
+        "firstCandidateHandles": [
+          "earl-pure-linen-half-sleeve-shirt-with-stitch-details-dark-blue-factory-rescue",
+          "mustang-premium-pure-linen-panel-pants-dark-blue-grey-black",
+          "gul-pure-linen-mandarin-collar-regular-kurta-black-sap-green",
+          "blaze-pure-linen-button-down-full-sleeve-shirt-dark-green",
+          "simon-pure-linen-colour-block-short-sleeve-t-shirt-ecru-factory-rescue",
+          "enso-pure-linen-half-sleeve-shirt-coffee-brown",
+          "ted-pure-linen-full-sleeve-formal-shirt-white",
+          "owen-pure-linen-color-block-short-sleeve-t-shirt-terracotta-red",
+          "sage-green-deconstructed-jacket-trouser-set",
+          "amelia-pure-linen-full-sleeve-shirt-with-pleated-yolk-ecru",
+          "yash-kurta-pure-linen-long-kurta-with-floral-embroidery-mud-red",
+          "sid-kurta-pure-linen-long-kurta-with-concealed-placket-spring-green",
+          "harvey-pure-linen-half-sleeve-shirt-black-chambray-factory-rescue",
+          "arnav-full-sleeve-broad-notched-collar-pure-linen-short-kurta-terracotta-red",
+          "liam-pure-linen-double-pocket-classy-full-sleeve-shirt-white",
+          "flint-pure-linen-shirt-with-mandarin-collar-trio-button-detail-oakwood-brown",
+          "simon-pure-linen-stitch-detail-short-sleeve-t-shirt-moss-green",
+          "harvey-pure-linen-half-sleeve-shirt-shutter-blue-factory-rescue",
+          "simon-pure-linen-stitch-detail-short-sleeve-t-shirt-terracotta-red",
+          "finn-linen-joggers-dark-blue-grey"
+        ],
+        "filtersApplied": {},
+        "hardFilterAxesActive": 0
+      },
+      "hardFilterCatalogCounts": {},
+      "tagCoverageOnSurvivors": {
+        "occasion": {
+          "withApprovedOnAxis": 48,
+          "satisfyingFilter": 15
+        }
+      }
+    }
+  ]
+}
