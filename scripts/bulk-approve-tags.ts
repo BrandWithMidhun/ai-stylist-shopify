@@ -22,12 +22,20 @@ import { PrismaClient } from "@prisma/client";
 // (default "system://manual-bulk-approve").
 //
 // Usage:
-//   tsx scripts/bulk-approve-tags.ts --shop=<domain> --axes=<csv> [--dry-run] [--actor-id=<id>]
+//   tsx scripts/bulk-approve-tags.ts --shop=<domain> --axes=<csv> [--dry-run] [--actor-id=<id>] [--min-confidence=<float>]
 //
 // Defaults:
-//   --shop      ai-fashion-store.myshopify.com
-//   --axes      gender,category
-//   --actor-id  system://manual-bulk-approve
+//   --shop             ai-fashion-store.myshopify.com
+//   --axes             gender,category
+//   --actor-id         system://manual-bulk-approve
+//   --min-confidence   0 (no confidence filter; preserves 3.1 mech.6 idiom)
+//
+// --min-confidence (mech.3a, 3.1.7): when > 0, restricts the candidate
+// set to ProductTag rows where confidence >= <float>. NULL-confidence
+// rows are EXCLUDED at any threshold > 0 (NULL fails Prisma's gte).
+// Use 0.8 to mirror the AI-tagger's "high-confidence" cutoff per
+// 3.1.7 mech.3 D1. Use 0 (default) for full review-state-trust
+// approval mirroring 3.1 mech.6's (gender, category) baseline.
 
 const DEFAULT_SHOP = "ai-fashion-store.myshopify.com";
 const DEFAULT_AXES = ["gender", "category"];
@@ -38,11 +46,13 @@ function parseArgs(): {
   axes: string[];
   actorId: string;
   dryRun: boolean;
+  minConfidence: number;
 } {
   let shop = DEFAULT_SHOP;
   let axes = DEFAULT_AXES;
   let actorId = DEFAULT_ACTOR_ID;
   let dryRun = false;
+  let minConfidence = 0; // mech.3a D1: 0 = no filter, preserves backward-compat
 
   for (const arg of process.argv.slice(2)) {
     if (arg.startsWith("--shop=")) {
@@ -61,12 +71,32 @@ function parseArgs(): {
       if (v) actorId = v;
     } else if (arg === "--dry-run") {
       dryRun = true;
+    } else if (arg.startsWith("--min-confidence=")) {
+      const v = arg.slice("--min-confidence=".length).trim();
+      const parsed = Number(v);
+      if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 1) {
+        minConfidence = parsed;
+      } else {
+        // mech.3a D1: invalid values fail-loud rather than silently
+        // defaulting. The CLI is forensic; an unparseable threshold
+        // should surface, not be ignored.
+        console.error(
+          `Invalid --min-confidence value: ${v}. Must be a number in [0, 1].`,
+        );
+        process.exit(1);
+      }
     }
   }
-  return { shop, axes, actorId, dryRun };
+  return { shop, axes, actorId, dryRun, minConfidence };
 }
 
-const { shop: SHOP, axes: TARGET_AXES, actorId: ACTOR_ID, dryRun: DRY_RUN } = parseArgs();
+const {
+  shop: SHOP,
+  axes: TARGET_AXES,
+  actorId: ACTOR_ID,
+  dryRun: DRY_RUN,
+  minConfidence: MIN_CONFIDENCE,
+} = parseArgs();
 
 const prisma = new PrismaClient();
 
@@ -125,10 +155,11 @@ async function snapshot(label: string) {
 }
 
 async function main() {
-  console.log(`shopDomain:  ${SHOP}`);
-  console.log(`targetAxes:  ${TARGET_AXES.join(", ")}`);
-  console.log(`actorId:     ${ACTOR_ID}`);
-  console.log(`dryRun:      ${DRY_RUN}`);
+  console.log(`shopDomain:    ${SHOP}`);
+  console.log(`targetAxes:    ${TARGET_AXES.join(", ")}`);
+  console.log(`actorId:       ${ACTOR_ID}`);
+  console.log(`dryRun:        ${DRY_RUN}`);
+  console.log(`minConfidence: ${MIN_CONFIDENCE}`);
 
   await snapshot("BEFORE");
 
@@ -139,6 +170,16 @@ async function main() {
       axis: { in: TARGET_AXES },
       status: "PENDING_REVIEW",
       locked: false,
+      // mech.3a D1: filter by AI-tagger confidence when --min-confidence > 0.
+      // NULL confidence rows are EXCLUDED by Prisma's gte (NULL fails the
+      // comparison) — that's intentional. NULL means "AI tagger didn't
+      // record a confidence" which we treat as "do not approve at this
+      // threshold; revisit when reviewer sees the row." When MIN_CONFIDENCE
+      // is 0, the predicate is omitted entirely so existing 3.1 mech.6-style
+      // invocations stay byte-for-byte identical.
+      ...(MIN_CONFIDENCE > 0
+        ? { confidence: { gte: MIN_CONFIDENCE } }
+        : {}),
     },
     select: {
       id: true,
