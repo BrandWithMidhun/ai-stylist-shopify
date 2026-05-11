@@ -1,0 +1,39 @@
+npm warn Unknown project config "shamefully-hoist". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+=== TaggingRule rows on dev shop ===
+Total rules: 7
+  100 [on]  Men's in title → gender=male (id=cmoeo9hrn0013pe36potb9vvh)
+    effects: [{"axis":"gender","value":"male"}]
+    createdAt: 2026-04-25T18:27:46.355Z
+  101 [on]  Women's in title → gender=female (id=cmoeo9hrt0014pe362dzqk9bd)
+    effects: [{"axis":"gender","value":"female"}]
+    createdAt: 2026-04-25T18:27:46.361Z
+  102 [on]  Kurta → category=kurta (id=cmoeo9hrx0015pe36dpa4rdd4)
+    effects: [{"axis":"category","value":"kurta"}]
+    createdAt: 2026-04-25T18:27:46.365Z
+  103 [on]  Jeans → category=jeans (id=cmoeo9hs00016pe36b4hfdw2c)
+    effects: [{"axis":"category","value":"jeans"}]
+    createdAt: 2026-04-25T18:27:46.368Z
+  104 [on]  Linen mention → sub_category=linen (id=cmoeo9hs30017pe36d6831dg6)
+    effects: [{"axis":"sub_category","value":"linen"}]
+    createdAt: 2026-04-25T18:27:46.371Z
+  105 [on]  Cotton mention → sub_category=cotton (id=cmoeo9hs90018pe36pu2o3m6n)
+    effects: [{"axis":"sub_category","value":"cotton"}]
+    createdAt: 2026-04-25T18:27:46.378Z
+  106 [on]  Shorts category (id=cmp19tg3t0000q7k4dbjw2amr)
+    effects: [{"axis":"category","value":"shorts"}]
+    createdAt: 2026-05-11T14:02:05.130Z
+
+=== ProductTag where axis=category, status=APPROVED ===
+  value=innerwear source=AI count=5
+  value=jacket source=AI count=5
+  value=kurta source=RULE count=200
+  value=kurta source=AI count=2
+  value=pants source=AI count=8
+  value=shirt source=AI count=26
+  value=shorts source=RULE count=53
+  value=t_shirt source=AI count=4
+
+=== ProductTagAudit rows from mech.4 ===
+Total mech.4 audit rows: 253
+  axis=category newValue=kurta count=200
+  axis=category newValue=shorts count=53

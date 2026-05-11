@@ -54,8 +54,14 @@ axis and each match writes one tag.
 | _seed-shorts-rule.ts | mech.4 (Step 3) | one-shot DB insert script for the dev shop |
 | 00-seed-shorts-rule.txt | mech.4 (Step 3) | seed insert output (rule id + priority) |
 | 01-apply-rules-dry-run.txt | mech.4 (Step 4) | dry-run: 253 products would be touched |
-| 02-apply-rules-live.txt | mech.4 (Step 5) | live pass: 253 RULE-source APPROVED rows written |
+| 02-apply-rules-live.txt | mech.4 (Step 5) | live pass: 253 RULE-source APPROVED rows written (200 kurta + 53 shorts — see mech.4.5 framing correction) |
 | 03-axis-coverage-post-mech-4.txt | mech.4 (Step 6) | per-axis APPROVED counts post-pass — category 50→303 |
+| 04-probe-stage-1-post-mech-4.json | mech.4.5 | Stage 1 regression probe; kurta fixture shift (2→202) surfaced here |
+| 05-axis-coverage-post-mech-4.txt | mech.4.5 | per-axis APPROVED counts matching artifact 03 |
+| 06-eval-post-mech-4.txt | mech.4.5 | eval CLI re-run — aggregateScore 0.3333 → 0.2917 (regression on kurta fixture) |
+| 07-mech-4-verification-analysis.md | mech.4.5 | full distribution-shift analysis + framing correction + cumulative 3.1.7 attribution |
+| _inspect-rule-state.ts | mech.4.5 | one-shot DB inspection script (discovered the pre-existing kurta+jeans rules) |
+| _inspect-rule-state-output.txt | mech.4.5 | DB state output: 7 rules total, audit trail decomposition (200 kurta + 53 shorts) |
 
 ## Notes
 
@@ -68,6 +74,23 @@ material"` uses `title_contains "linen"` similarly broadly). Trade-off
 accepted at mech-prompt time: title-contains is a legitimate
 categorical signal for "this product is relevant to a shorts query,"
 even when the product is a co-ord set that includes shorts.
+
+**MECH.4.5 FRAMING CORRECTION:** mech.4's commit message and HANDOFF
+entry described the live-pass result as "253 RULE-source APPROVED
+`category=shorts` rows." That's wrong. The actual decomposition (per
+the mech.4.5 DB inspection, `_inspect-rule-state-output.txt`) is:
+**200 RULE-source `category=kurta`** (a pre-existing `Kurta →
+category=kurta` rule fired retroactively when apply-rules-to-shop.ts
+swept the catalog) **+ 53 RULE-source `category=shorts`** (the new
+rule mech.4 added).
+
+The dev shop's TaggingRule table had **6 pre-existing rules** at
+mech.4 start (not 7 as mech.4's prompt context assumed), and two of
+those had `category` effects (`Kurta → category=kurta` at priority
+102, `Jeans → category=jeans` at priority 103) that had never been
+applied to the catalog. Mech.4's `--axes=category` invocation fired
+both alongside the new shorts rule. See artifact 07's full analysis
+and op debt #51.
 
 **Saree skipped, evidence:** `_inspect-saree-shorts-output.txt`
 returned 0 saree-ish products. The existing `saree` entry in
