@@ -1,0 +1,40 @@
+npm warn Unknown project config "shamefully-hoist". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+Per-axis catalog tagging counts post-mech.3 (shop=ai-fashion-store.myshopify.com):
+
+  gender:
+    PENDING_REVIEW: 1
+    APPROVED: 50
+  category:
+    PENDING_REVIEW: 1
+    APPROVED: 303
+  occasion:
+    PENDING_REVIEW: 14
+    APPROVED: 66
+  color_family:
+    PENDING_REVIEW: 4
+    APPROVED: 48
+  material:
+    APPROVED: 51
+  fit:
+    PENDING_REVIEW: 12
+    APPROVED: 39
+  season:
+    PENDING_REVIEW: 11
+    APPROVED: 48
+  size_range:
+    PENDING_REVIEW: 44
+    APPROVED: 15
+  style_type:
+    PENDING_REVIEW: 7
+    APPROVED: 45
+
+Distinct products with APPROVED tag per axis:
+  gender: 50
+  category: 303
+  occasion: 49
+  color_family: 47
+  material: 51
+  fit: 39
+  season: 47
+  size_range: 3
+  style_type: 44

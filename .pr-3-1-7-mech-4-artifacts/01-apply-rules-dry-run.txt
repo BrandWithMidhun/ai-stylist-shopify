@@ -1,0 +1,21 @@
+npm warn Unknown project config "shamefully-hoist". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+shopDomain:  ai-fashion-store.myshopify.com
+targetAxes:  category
+actorId:     system://3.1.7-mech.4-apply-rules
+dryRun:      true
+
+=== BEFORE ===
+  category: status[PENDING_REVIEW=1, APPROVED=50] source[AI=51]
+
+Enabled rules: 7
+Products to evaluate: 1169
+
+Products touched:   253
+Total tags written: 253
+Per-axis writes:
+  category: 253
+
+--dry-run: writes were not persisted.
+
+=== AFTER (dry-run, unchanged) ===
+  category: status[PENDING_REVIEW=1, APPROVED=50] source[AI=51]

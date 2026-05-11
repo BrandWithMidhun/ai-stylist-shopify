@@ -1,0 +1,2 @@
+npm warn Unknown project config "shamefully-hoist". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+Created rule id=cmp19tg3t0000q7k4dbjw2amr priority=106

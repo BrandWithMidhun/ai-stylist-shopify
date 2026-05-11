@@ -105,6 +105,20 @@ export const SEED_RULES: Record<StoreMode, readonly RuleSeed[]> = {
       },
       effects: [{ axis: "material", value: ["denim"] }],
     },
+    {
+      name: "Shorts category",
+      conditions: {
+        kind: "any",
+        conditions: [
+          { kind: "title_contains", value: "shorts" },
+          { kind: "type_equals", value: "shorts" },
+          { kind: "type_equals", value: "men's shorts" },
+          { kind: "type_equals", value: "women's shorts" },
+          { kind: "type_equals", value: "kids shorts" },
+        ],
+      },
+      effects: [{ axis: "category", value: "shorts" }],
+    },
   ],
 
   ELECTRONICS: [

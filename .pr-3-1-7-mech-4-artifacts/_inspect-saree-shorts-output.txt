@@ -1,0 +1,28 @@
+npm warn Unknown project config "shamefully-hoist". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+Saree-ish products:
+Total saree-ish (capped 20): 0
+Shorts-ish products:
+  dew-pure-linen-contrast-stripe-shorts-ecru-cossack-green | Dew - Pure Linen Contrast Stripe Shorts - Ecru & Cossack Green | Men's Shorts
+  oris-pure-linen-relaxed-fit-shorts-with-elastic-waistband-and-drawstring-light-hazelnut-brown | Oris - Pure Linen Relaxed Fit Shorts with Elastic Waistband and Drawstring - Light Hazelnut Brown | Men's Shorts
+  dan-linen-shorts-ecru-factory-rescue | Dan - Linen Shorts - Ecru (Factory Rescue) | Men's Shorts
+  draw-string-pure-linen-shorts-black-factory-rescue | Draw String Pure Linen Shorts - Black (Factory Rescue) | Men's Shorts
+  noel-pure-linen-t-shirt-shorts-co-ord-set-dark-pine-green | Noel Pure Linen T-Shirt & Shorts Co-Ord Set | Dark Pine Green | Co-ord Sets
+  noel-pure-linen-t-shirt-shorts-co-ord-set-coffee-brown | Noel Pure Linen T-Shirt & Shorts Co-Ord Set | Coffee Brown | Co-ord Sets
+  noel-pure-linen-t-shirt-shorts-co-ord-set-slate-grey | Noel Pure Linen T-Shirt & Shorts Co-Ord Set | Slate Grey | Co-ord Sets
+  milo-pure-linen-shirt-short-co-ord-set-oakwood-brown | Milo Pure Linen Shirt & Shorts Co-ord Set - Oakwood Brown | Co-ord Sets
+  milo-pure-linen-shirt-short-co-ord-set-gunmetal-grey | Milo Pure Linen Shirt & Shorts Co-ord Set - Gunmetal Grey | Co-ord Sets
+  milo-pure-linen-shirt-short-co-ord-set-terracotta-red | Milo Pure Linen Shirt & Shorts Co-ord Set - Terracotta Red | Co-ord Sets
+  noel-shorts-pure-linen-shorts-with-patch-pocket-slate-grey | Noel Shorts - Pure Linen Shorts with Patch Pocket - Slate Grey | Men's Shorts
+  noel-shorts-pure-linen-shorts-with-patch-pocket-coffee-brown | Noel Shorts - Pure Linen Shorts with Patch Pocket - Coffee Brown | Men's Shorts
+  noel-shorts-pure-linen-shorts-with-patch-pocket-dark-pine-green | Noel Shorts - Pure Linen Shorts with Patch Pocket - Dark Pine Green | Men's Shorts
+  milo-shorts-pure-linen-shorts-gunmetal-grey | Milo Shorts - Pure Linen Shorts - Gunmetal Grey | Men's Shorts
+  milo-shorts-pure-linen-shorts-oakwood-brown | Milo Shorts - Pure Linen Shorts - Oakwood Brown | Men's Shorts
+  milo-shorts-pure-linen-shorts-terracotta-red | Milo Shorts - Pure Linen Shorts - Terracotta Red | Men's Shorts
+  hawai-elastic-pure-linen-shorts-rose-pink | Hawaii - Pure Linen Elastic Shorts - Rose Pink | Men's Shorts
+  trio-shorts-pure-linen-shorts-with-elastic-band-mud-red | Trio Shorts - Pure Linen Shorts With Elastic Band - Mud Red | Men's Shorts
+  trio-shorts-pure-linen-shorts-with-elastic-band-sunburst-yellow | Trio Shorts - Pure Linen Shorts With Elastic Band - Sunburst Yellow | Men's Shorts
+  trio-shorts-pure-linen-shorts-with-elastic-band-dark-green | Trio Shorts - Pure Linen Shorts With Elastic Band - Dark Green | Men's Shorts
+Total shorts-ish (capped 20): 20
+
+Existing category=saree rows: 0
+Existing category=shorts rows: 0
