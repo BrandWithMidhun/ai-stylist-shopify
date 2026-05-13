@@ -1,0 +1,80 @@
+REGISTRY CONSUMERS — files importing from app/lib/chat/tools/registry.server.ts
+HEAD: d21abc0 (Sub-bundle 3.1.7 close)
+CAPTURED: 2026-05-14
+
+Search command:
+  Grep pattern "registry|recommendProductsTool|recommend-products" across the
+  TypeScript surface (*.ts, *.tsx) outside node_modules / .git / .pr-* dirs.
+
+Direct importers of registry.server (1 file — UNCHANGED from 3.1.7 Thread 1):
+  app/lib/chat/agent.server.ts:29
+    import { buildToolList, executeTool } from "./tools/registry.server";
+
+Self-references (NOT consumers):
+  app/lib/chat/tools/registry.server.ts:1                — self
+  app/lib/chat/tools/recommend-products-v2.server.ts:3-9 — comment refs only
+  app/lib/recommendations/v2/types.ts:166                — comment ref only
+  app/lib/recommendations/v2/stage-2-semantic-retrieval.server.ts:25 — comment ref only
+  app/lib/recommendations/v2/stage-6-output.server.ts:29,153,191 — comment refs only
+  app/lib/recommendations/v2/pipeline.server.ts:25,28    — comment refs only
+  app/lib/recommendations/v2/eval/pipeline-runner.server.ts:14 — comment ref only
+
+Tests: zero. No test file imports from registry.server.ts.
+
+Routes: zero direct importers. The route → registry chain goes through
+agent.server.ts (unchanged from 3.1.7 Thread 1):
+
+  app/routes/api.chat.message.tsx:14
+    import { runAgent } from "../lib/chat/agent.server";
+  app/routes/api.chat.message.tsx:97
+    agentResult = await runAgent({ ... });
+
+  app/lib/chat/agent.server.ts:29
+    import { buildToolList, executeTool } from "./tools/registry.server";
+  app/lib/chat/agent.server.ts:113
+    const tools = buildToolList(config);
+  app/lib/chat/agent.server.ts:153
+    const result = await executeTool(block.name, block.input, ...);
+
+USER-VISIBLE PATH: api.chat.message route → runAgent → registry → tool stub.
+This is the chat widget's only path to recommendations. The flip's blast
+radius is exactly one route handler (api.chat.message) and one widget
+surface (extensions/storefront-widget/assets/chat-widget.js, which renders
+the ProductCard[] returned in agent output).
+
+Cron / worker / other route handlers: zero. The recommendation engine is
+not invoked from cron, worker, or any non-chat route.
+
+Direct uses of `recommendProductsTool` (legacy tool symbol) — search across
+the whole TS surface:
+  app/lib/chat/tools/registry.server.ts:13       — declarative import (the flip site itself)
+  app/lib/chat/tools/registry.server.ts:14       — same import block
+  app/lib/chat/tools/registry.server.ts:29       — buildToolList return
+  app/lib/chat/tools/recommend-products.server.ts:45 — declaration
+
+No other consumer references the legacy tool's name. Same picture as 3.1.7
+Thread 1 — the legacy tool symbol is referenced in exactly one file outside
+its own declaration: registry.server.ts.
+
+Eval harness path (separate from registry — bypasses agent.server.ts):
+  app/lib/recommendations/v2/eval/pipeline-runner.server.ts
+  app/lib/recommendations/v2/eval/cli.ts
+  These call runPipeline(...) directly. The flip does not affect them — they
+  already exercise v2 unconditionally. So flipping the registry does not
+  break the eval harness.
+
+--- Delta vs 3.1.7 Thread 1 ---
+
+| Aspect                              | 3.1.7 Thread 1            | 3.1.8 Thread 1 (current)  | Delta            |
+|-------------------------------------|---------------------------|---------------------------|------------------|
+| Direct importers of registry        | 1 (agent.server.ts:29)    | 1 (agent.server.ts:29)    | unchanged        |
+| User-visible route                  | api.chat.message.tsx:97   | api.chat.message.tsx:97   | unchanged        |
+| Non-chat consumers                  | 0                         | 0                         | unchanged        |
+| Test imports                        | 0                         | 0                         | unchanged        |
+| Direct refs to `recommendProductsTool` outside its own file | 1 file (registry.server.ts) | 1 file (registry.server.ts) | unchanged |
+| Eval bypass intact                  | Yes (runPipeline direct)  | Yes (runPipeline direct)  | unchanged        |
+
+CONCLUSION: 3.1.7's mech chain did not introduce any new consumer of the
+registry or the legacy tool symbol. The single-seam architecture is intact.
+The flip's blast radius is the same single-route, single-widget shape that
+3.1.7 Thread 1 captured at e48e079.

@@ -1,0 +1,78 @@
+V1 PUBLIC SURFACE
+HEAD: d21abc0 (Sub-bundle 3.1.7 close)
+CAPTURED: 2026-05-14
+
+There is NO `app/lib/recommendations/v1/index.ts` — the directory does not
+exist. The "v1" recommendation surface is the legacy chat tool stub:
+
+  app/lib/chat/tools/recommend-products.server.ts
+  (172 lines)
+
+PUBLIC EXPORTS (full surface):
+
+  // Tool definition (Anthropic Tool shape) — passed to messages.create({ tools })
+  export const recommendProductsTool: ToolDef = {
+    name: "recommend_products",
+    description: "Recommend products to the user using semantic similarity ...",
+    input_schema: {
+      type: "object",
+      properties: {
+        intent:    { type: "string", description: "Rich natural-language ..." },
+        price_min: { type: "number", description: "Minimum price (optional)" },
+        price_max: { type: "number", description: "Maximum price (optional)" },
+        limit:     { type: "number", description: "Max product cards ..." },
+      },
+      required: ["intent"],
+    },
+  };
+
+  // Input type
+  export type RecommendProductsInput = {
+    intent: string;
+    price_min?: number;
+    price_max?: number;
+    limit?: number;
+  };
+
+  // Tool executor — called by registry's executeTool switch
+  export async function recommendProducts(
+    input: RecommendProductsInput,
+    ctx: ToolExecutionContext,
+  ): Promise<ToolResult>
+
+RETURN SHAPE (ToolResult):
+  {
+    ok: true,
+    data: {
+      products: Array<{ id, title, price, currency, available, tags }>,  // slim → Claude
+      total: number,
+      topDistance: number | null,
+      query: input,
+    },
+    products: ProductCard[],   // full out-of-band → widget render
+  }
+
+INTERNAL DEPENDENCIES (not exported):
+  - embedQuery from "../../embeddings/voyage.server"
+  - findSimilarProducts from "../../embeddings/similarity-search.server"
+  - formatProductCard (private to this file, builds ProductCard with
+    real variantId via extractNumericId(variant.shopifyId))
+
+KEY DIFFERENCE vs v2 (pre-3.1.7-mech.2): v1 loaded ProductVariant rows
+during candidate query (via findSimilarProducts which includes variants), and
+formatProductCard extracted the numeric variantId from the variant GID. So
+v1 ProductCard shipped with a populated variantId — add-to-cart worked in
+the widget. KEY DIFFERENCE vs v2 (POST-3.1.7-mech.2): v2 now ALSO loads
+variants via Stage 5.5 in pipeline.server.ts (see artifact 05). The shape
+gap that #15 captured is closed; v2's ProductCard now has populated
+variantId, available, and compareAtPrice fields.
+
+DIFF vs 3.1.7 Thread 1 artifact 04:
+  IDENTICAL — v1's file is unchanged. Same 172 lines, same exports,
+  same formatProductCard implementation. None of 3.1.7's mechs touched
+  the legacy tool stub.
+
+  The "key difference" line is the one substantive update: v1 vs v2 was
+  formerly v1-only-loads-variants; now both sides load variants (v1 via
+  findSimilarProducts, v2 via Stage 5.5). The parity story is therefore
+  cleaner post-mech.2 — captured fully in artifact 05.

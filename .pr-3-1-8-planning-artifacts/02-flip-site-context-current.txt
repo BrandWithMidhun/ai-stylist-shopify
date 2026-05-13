@@ -1,0 +1,98 @@
+FLIP SITE — app/lib/chat/tools/registry.server.ts
+HEAD: d21abc0 (Sub-bundle 3.1.7 close)
+CAPTURED: 2026-05-14
+
+There is NO v1/v2 conditional, feature flag, or hardcoded selector in this
+file. The legacy tool is hardcoded as the only `recommend_products` provider.
+The flip is a substitution edit, not a flag flip.
+
+The v2 tool stub (`recommend-products-v2.server.ts`) was authored in PR-3.1
+mech.6 with file-comment promise:
+
+  > Mirrors the legacy tool's external interface (recommend-products.server.ts)
+  > so that the post-eval-pass flip commit lands as a one-line registry
+  > change in registry.server.ts. The tool definition (input_schema +
+  > description) is intentionally identical to the legacy tool so the agent
+  > behavior on the prompt side does not change when the flip happens.
+  > Deliberately NOT registered in registry.server.ts in mech.6 — the
+  > feature flag stays structural through this commit.
+
+EXACT EDITS REQUIRED IN registry.server.ts FOR THE FLIP:
+
+  Lines 11-14 (the import block):
+    OLD: import {
+           recommendProducts,
+           recommendProductsTool,
+         } from "./recommend-products.server";
+    NEW: import {
+           recommendProductsV2,
+           recommendProductsV2Tool,
+         } from "./recommend-products-v2.server";
+
+  Line 29 (buildToolList return):
+    OLD: return [recommendProductsTool, searchProductsTool];
+    NEW: return [recommendProductsV2Tool, searchProductsTool];
+
+  Lines 38-42 (executeTool switch case):
+    OLD: case "recommend_products":
+           return recommendProducts(
+             input as Parameters<typeof recommendProducts>[0],
+             ctx,
+           );
+    NEW: case "recommend_products":
+           return recommendProductsV2(
+             input as Parameters<typeof recommendProductsV2>[0],
+             ctx,
+           );
+
+EDIT MAGNITUDE: 3 logical edits, ~8 line changes (multi-line import block +
+return list + switch case body). Could compress to one line by aliasing
+imports, but the conventional shape is 3 edits.
+
+CONTEXT (5 lines before/after each edit site):
+
+------- buildToolList (lines 18-30):
+export function buildToolList(config: MerchantConfig): ToolDef[] {
+  // Phase 1: commerce only. recommend_products + search_products are
+  // universal across storeModes. 010 will conditionally append the
+  // stylist tool when storeMode is FASHION or JEWELLERY and
+  // config.stylistAgentEnabled is true. 014 adds lookbook.
+  //
+  // Order matters: recommend_products is listed first so Claude prefers
+  // it for ambiguous "help me browse" requests where semantic similarity
+  // beats keyword matching. search_products stays available for explicit
+  // attribute lookups.
+  void config;
+  return [recommendProductsTool, searchProductsTool];   <-- LINE 29 EDIT SITE
+}
+
+------- executeTool switch (lines 32-51):
+export async function executeTool(
+  name: string,
+  input: unknown,
+  ctx: ToolExecutionContext,
+): Promise<ToolResult> {
+  switch (name) {
+    case "recommend_products":                          <-- LINES 38-42 EDIT SITE
+      return recommendProducts(
+        input as Parameters<typeof recommendProducts>[0],
+        ctx,
+      );
+    case "search_products":
+      return searchProducts(input as Parameters<typeof searchProducts>[0], ctx);
+    default:
+      return {
+        ok: false,
+        data: { error: `unknown_tool: ${name}` },
+      };
+  }
+}
+
+DIFF vs 3.1.7 Thread 1 artifact 02:
+  IDENTICAL. Line numbers unchanged (11-14, 29, 38-42). Edit count unchanged
+  (3 logical edits / ~8 lines). 3.1.7's mech chain did not touch this file
+  or any file that would have caused line numbers in this file to shift.
+
+DELTA SUMMARY: 0 line-number shifts. 0 net text changes. The mech.1 (flip
+itself) plan from `docs/planning/3-1-7-post-eval-pass-flip.md` line 156
+(anchoring the flip as 3.1.8-mech.1) remains exactly correctly scoped.

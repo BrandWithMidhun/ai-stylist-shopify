@@ -1,0 +1,195 @@
+V2 PUBLIC SURFACE
+HEAD: d21abc0 (Sub-bundle 3.1.7 close)
+CAPTURED: 2026-05-14
+
+There is NO `app/lib/recommendations/v2/index.ts`. The "v2" recommendation
+surface is the chat tool stub:
+
+  app/lib/chat/tools/recommend-products-v2.server.ts
+  (203 lines)
+
+which delegates to the multi-stage pipeline orchestrator:
+
+  app/lib/recommendations/v2/pipeline.server.ts → runPipeline(...)
+
+PUBLIC EXPORTS of recommend-products-v2.server.ts (full surface):
+
+  export const recommendProductsV2Tool: ToolDef = {
+    name: "recommend_products",                       // <-- SAME tool name as v1
+    description: "Recommend products to the user using the v2 multi-stage ...",
+    input_schema: {
+      type: "object",
+      properties: {
+        intent:    { type: "string", description: "Rich natural-language ..." },
+        price_min: { type: "number", description: "Minimum price (optional)" },
+        price_max: { type: "number", description: "Maximum price (optional)" },
+        limit:     { type: "number", description: "Max product cards ..." },
+      },
+      required: ["intent"],
+    },
+  };
+
+  export type RecommendProductsV2Input = {
+    intent: string;
+    price_min?: number;
+    price_max?: number;
+    limit?: number;
+  };
+
+  export async function recommendProductsV2(
+    input: RecommendProductsV2Input,
+    ctx: ToolExecutionContext,
+  ): Promise<ToolResult>
+
+RETURN SHAPE (ToolResult):
+  {
+    ok: true,
+    data: {
+      products: Array<{ id, title, price, currency, available, tags }>,  // slim → Claude
+      total: number,
+      topDistance: number | null,
+      query: input,
+    },
+    products: ProductCard[],   // full out-of-band → widget render
+  }
+
+SIDE EFFECT (per locked decision D7): every successful call writes one
+RecommendationEvent row. v1 does NOT do this. (Failures also write a
+RecommendationEvent with an empty candidates array + error trace.)
+
+PARITY ASSESSMENT vs v1 (POST-3.1.7-mech.2):
+
+  Tool definition           IDENTICAL (name, input schema; description differs in wording only)
+  Input type                IDENTICAL field names + types
+  Function signature        IDENTICAL: (input, ctx) => Promise<ToolResult>
+  Return data.* shape       IDENTICAL (products[], total, topDistance, query)
+  Return products[] shape   NOW IDENTICAL ON CRITICAL FIELDS — see below
+  Side effects              v2 adds RecommendationEvent writes; v1 has no write
+
+PRODUCT CARD SHAPE (declared in v2/types.ts, post-mech.2 wire is populated):
+
+  type ProductCard = {
+    id, handle, title, imageUrl, price, compareAtPrice, currency,
+    variantId: string | null,
+    available: boolean,
+    tags: string[],          // "axis:value" — same shape as v1
+    productUrl,
+    // v2-only (optional, agent ignores them):
+    traceContributions?: Array<{ stage; contribution; ms? }>,
+    whyTrace?: string,
+    finalScore?: number,
+  };
+
+--- Stage 5.5 in pipeline.server.ts ---
+
+(verbatim grep output, key lines)
+
+  const STAGE_VARIANT_LOAD = "stage-5.5-variant-load";
+
+  // --- Stage 5.5: variant load (mech.2 D1, 3.1.7). --------------------
+  // Single Prisma roundtrip: load lowest-priced available variant for
+  // every Stage 5 survivor (bounded at HARD_LIMIT=12 IDs max). Mirrors
+  // Stage 2.5's tag-load shape. See loadAndAttachVariants comment block
+  // for the selection rule rationale.
+  const variantLoadStartMs = Date.now();
+  const stage6Input = await loadAndAttachVariants(deps, stage5Out.candidates);
+  const variantLoadMs = Date.now() - variantLoadStartMs;
+  const variantsLoadedCount = stage6Input.filter(
+    (c) => c.loadedVariant != null,
+  ).length;
+  stages.push({ name: STAGE_VARIANT_LOAD, ... });
+
+  // mech.2 D1 (3.1.7): variant-authority moved from Stage 1 aggregate
+  // (mech.1 D1) to Stage 5.5 variant-load. Mirrors loadAndAttachTags's
+  // shape: single Prisma roundtrip with productId: { in: ids }, joined
+  // via Map. Variant selection rule mirrors v1 findSimilarProducts:
+  //   orderBy: [{ availableForSale: "desc" }, { price: "asc" }], take: 1
+  // Picks the lowest-priced available variant; falls back to lowest-
+  // priced overall if none available. Stage 6's formatProductCard reads
+  // variantId / compareAtPrice / available from c.loadedVariant.
+
+--- formatProductCard in stage-6-output.server.ts ---
+
+(post-mech.2; was the placeholder site before mech.2)
+
+  // mech.2 D1 (3.1.7): variantId, compareAtPrice, available all sourced
+  // from c.loadedVariant (set by Stage 5.5 variant-load in
+  // pipeline.server.ts). Mirrors v1 recommend-products.server.ts's
+  // formatProductCard contract.
+  const variant = c.loadedVariant ?? null;
+  const variantPrice =
+    variant?.price != null ? variant.price : (c.priceMin ?? 0);
+  const variantCompare =
+    variant?.compareAtPrice != null && variant.compareAtPrice > variantPrice
+      ? variant.compareAtPrice
+      : null;
+
+  return {
+    id: c.id,
+    handle: c.handle,
+    title: c.title,
+    imageUrl: c.featuredImageUrl,
+    price: variantPrice,
+    compareAtPrice: variantCompare,
+    currency,
+    variantId: variant ? extractNumericId(variant.shopifyId) : null,
+    available: variant?.availableForSale ?? false,
+    tags: tagsFlat,
+    productUrl: `/products/${c.handle}`,
+    traceContributions: tracksContributions(c),
+    whyTrace,
+    finalScore,
+  };
+
+RE-VERIFICATION QUESTIONS (answered):
+
+  Q1: Does v2's `ProductCard` return shape now include `variantId` (numeric
+      string), `compareAtPrice` (real value or null), `available` (real
+      boolean from `loadedVariant`)?
+  A1: YES. Per stage-6-output.server.ts:181-182, variantId is
+      `extractNumericId(variant.shopifyId)` when variant is non-null,
+      null otherwise. `available` is `variant?.availableForSale ?? false`
+      (note: changed from former hardcoded `true` to fall-through-false-
+      when-no-variant — which is the SAME failure mode as v1; both treat
+      "no variant available" as OOS at the widget). compareAtPrice is
+      `variant.compareAtPrice` when strictly greater than price, null
+      otherwise — IDENTICAL to v1's formula.
+
+  Q2: Does v2's tool-stub signature match v1's exactly?
+  A2: YES on name + input_schema + return-shape contract. Description
+      wording differs (v1 mentions "semantic similarity" / v2 mentions
+      "multi-stage pipeline (hard filters → semantic retrieval → re-rank
+      → merchant signals → diversity)") but Anthropic only uses the
+      description for tool-selection prompting, and the agent prompts
+      themselves are identical for v1 and v2 tool registration. No
+      cascading consumer changes.
+
+  Q3: Is parity CLEANER post-mech.2 than pre-mech.2?
+  A3: YES. Three fields that were stub-placeholders in 3.1.7 Thread 1's
+      capture are now real:
+        - variantId: null            -> extractNumericId(variant.shopifyId)
+        - available: true            -> variant?.availableForSale ?? false
+        - compareAtPrice: null       -> variant.compareAtPrice (when meaningful)
+      The flip ships against a strictly stronger surface than 3.1.7
+      planning round anticipated. This is the headline 3.1.8 Thread 1
+      finding: the flip's prerequisite (op debt #15) is fully closed,
+      mech.1 (the flip itself) no longer carries variant-loading work
+      bundled with it.
+
+DIFF vs 3.1.7 Thread 1 artifact 05:
+  Tool-stub file (recommend-products-v2.server.ts): IDENTICAL — same 203
+  lines, same exports, same writeRecommendationEvent. The tool stub
+  itself was not touched by mech.2 (the wire happened upstream in the
+  orchestrator).
+
+  Pipeline (pipeline.server.ts): CHANGED — added STAGE_VARIANT_LOAD
+  constant + Stage 5.5 block (lines 185-200ish) + loadAndAttachVariants
+  helper (lines 299-350ish).
+
+  Stage 6 (stage-6-output.server.ts): CHANGED — formatProductCard now
+  sources variantId/available/compareAtPrice from c.loadedVariant
+  instead of hardcoding placeholders.
+
+  Net: the surface is structurally the same (same tool-stub exports,
+  same return type, same wire shape) but DATA-COMPLETENESS is now
+  parity with v1 instead of stub-placeholder.

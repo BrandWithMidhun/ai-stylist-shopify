@@ -1,0 +1,148 @@
+PRODUCTCARD — TYPE vs COMPONENT — and where variantId is needed
+HEAD: d21abc0 (Sub-bundle 3.1.7 close)
+CAPTURED: 2026-05-14
+
+Op debt #15 said "variant-loading on v2 ProductCard". This refers to the v2
+ProductCard TYPE (data shape), not a React component called ProductCard.
+The repo does have a React component called ProductCard.tsx, but it is the
+merchant-admin catalog dashboard's card and is unrelated to the chat
+recommendation flow.
+
+------- TWO ProductCard TYPES (the relevant ones) -------
+
+Type 1 — chat tool ProductCard (the contract the registry returns):
+  app/lib/chat/tools/types.ts:31-43
+    export type ProductCard = {
+      id: string;
+      handle: string;
+      title: string;
+      imageUrl: string | null;
+      price: number;
+      compareAtPrice: number | null;
+      currency: string;
+      variantId: string | null; // numeric variant ID for /cart/add.js
+      available: boolean;
+      tags: string[];           // formatted as "axis:value"
+      productUrl: string;       // /products/<handle>
+    };
+
+Type 2 — v2 pipeline ProductCard (mirrors Type 1 + adds telemetry):
+  app/lib/recommendations/v2/types.ts:178-198
+    export type ProductCard = {
+      id, handle, title, imageUrl, price, compareAtPrice, currency,
+      variantId: string | null,
+      available: boolean,
+      tags: string[],
+      productUrl: string,
+      // v2-only (optional):
+      traceContributions?: Array<{ stage; contribution; ms? }>,
+      whyTrace?: string,
+      finalScore?: number,
+    };
+
+The two types are SHAPE-COMPATIBLE on the legacy fields. The flip carries
+v2 ProductCard out of recommend-products-v2.server.ts (which type-narrows
+back to chat tool ProductCard via `products: ProductCard[]` typed against
+chat/tools/types).
+
+------- React component ProductCard.tsx (NOT the chat surface) -------
+
+  app/components/catalog/ProductCard.tsx:33  export function ProductCard({...})
+  app/components/catalog/Dashboard.tsx:445   <ProductCard ... />  (admin dashboard)
+
+This component renders catalog products in the merchant-admin tagging
+dashboard. It is not invoked by the chat widget. The chat widget renders
+recommendations from a vanilla JS file under extensions/, NOT from a React
+component.
+
+------- Storefront widget — where variantId is read -------
+
+The chat widget that renders recommendations (the user-visible surface) is:
+
+  extensions/storefront-widget/assets/chat-widget.js
+
+Lines that depend on ProductCard.variantId being populated:
+
+  Line 839:
+    var oos = !product.variantId || product.available === false;
+  Line 840:
+    // Numeric variantId is required by /cart/add.js. The server already
+  Line 894:
+    var variantId = product && product.variantId;
+  Line 898:
+    if (!variantId || !/^\d+$/.test(String(variantId))) {
+  Line 915:
+    body: JSON.stringify({ id: Number(variantId), quantity: 1 }),
+  Line 928:
+    detail: { variantId: String(variantId) },
+
+------- v2 ProductCard data state at HEAD (d21abc0, post-mech.2) -------
+
+Stage 6 (app/lib/recommendations/v2/stage-6-output.server.ts:138-189) now writes:
+
+  const variant = c.loadedVariant ?? null;
+  const variantPrice =
+    variant?.price != null ? variant.price : (c.priceMin ?? 0);
+  const variantCompare =
+    variant?.compareAtPrice != null && variant.compareAtPrice > variantPrice
+      ? variant.compareAtPrice
+      : null;
+
+  return {
+    ...
+    price: variantPrice,                                       <-- real
+    compareAtPrice: variantCompare,                            <-- real (was: null hardcode)
+    currency,
+    variantId: variant ? extractNumericId(variant.shopifyId) : null,  <-- real (was: null hardcode)
+    available: variant?.availableForSale ?? false,             <-- real (was: true hardcode)
+    ...
+  };
+
+Loaded via Stage 5.5 (pipeline.server.ts:185-200 in the new code) which
+runs `loadAndAttachVariants` — a single Prisma roundtrip with
+`orderBy: [{ availableForSale: "desc" }, { price: "asc" }], take: 1`, picking
+the lowest-priced available variant (matches v1's selection rule exactly).
+
+RE-VERIFICATION QUESTIONS (answered):
+
+  Q1: Are v1's and v2's `ProductCard` types now structurally identical?
+  A1: YES on the chat-tool contract fields (Type 1 above). v2's type adds
+      three optional telemetry fields (traceContributions, whyTrace,
+      finalScore) which v1 does not have; these are out-of-band from the
+      widget render path and the agent's prompt. Wire-level identical.
+      Data-level (post-mech.2): identical formula for variantId,
+      compareAtPrice, available.
+
+  Q2: Does the chat widget's OOS check still work against v2's real-boolean
+      `available` post-mech.2?
+  A2: YES. Line 839's `oos = !product.variantId || product.available === false`
+      now correctly resolves:
+        - variant loaded + available  → variantId numeric, available=true  → oos=false ("Add to Cart" shown)
+        - variant loaded + unavailable→ variantId numeric, available=false → oos=true  ("Out of Stock" shown)
+        - no variant loaded           → variantId=null, available=false    → oos=true  (safe failure mode)
+      This is the SAME behavior v1 has (v1's formatProductCard at lines 159-160
+      uses `extractNumericId(variant.shopifyId)` and `variant?.availableForSale
+      ?? false` — identical to v2's post-mech.2 wire).
+
+  Q3: Does any other consumer of `ProductCard` make assumptions that v1
+      and v2 violate differently?
+  A3: No new such consumer surfaced. The two ProductCard types are still
+      used in exactly the same places: agent.server.ts response shaping
+      (types.ts:31-43, used to type the tool result's `products?:
+      ProductCard[]`), the chat widget render, and the v2 telemetry
+      writes (RecommendationEvent.candidates). All other places that
+      mention `ProductCard` are comment refs (artifact 03 enumerates them).
+
+DIFF vs 3.1.7 Thread 1 artifact 06:
+  Type-1 (chat tool ProductCard):     IDENTICAL definition, identical line numbers.
+  Type-2 (v2 pipeline ProductCard):   IDENTICAL definition; one comment block at
+                                      types.ts:165-177 references mech.5 framing but
+                                      the type itself is byte-unchanged.
+  Widget OOS check at lines 839,898:  IDENTICAL.
+  v2 ProductCard data state:          CHANGED — variantId/available/compareAtPrice
+                                      are now populated from c.loadedVariant
+                                      (post-mech.2 wire) instead of hardcoded
+                                      placeholders. This closes op debt #15
+                                      fully — the gap 3.1.7 Thread 1 captured at
+                                      pre-mech.2 is the SAME gap mech.2 fixed.
+  Adjacent gap (compareAtPrice null): CLOSED — same wire, same load.
