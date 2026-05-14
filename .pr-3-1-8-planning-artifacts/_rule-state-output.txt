@@ -1,0 +1,106 @@
+Thread 2 rule-state probe
+Captured: 2026-05-14T17:22:06.716Z
+Shop:     ai-fashion-store.myshopify.com
+
+== Dev-shop TaggingRule rows: 7 total ==
+  priority=100 name="Men's in title → gender=male"
+    conditions: {"kind":"title_contains","value":"men's"}
+    effects:    [{"axis":"gender","value":"male"}]
+    createdAt:  2026-04-25T18:27:46.355Z
+  priority=101 name="Women's in title → gender=female"
+    conditions: {"kind":"title_contains","value":"women's"}
+    effects:    [{"axis":"gender","value":"female"}]
+    createdAt:  2026-04-25T18:27:46.361Z
+  priority=102 name="Kurta → category=kurta"
+    conditions: {"kind":"any","conditions":[{"kind":"title_contains","value":"kurta"},{"kind":"tag_contains","value":"kurta"}]}
+    effects:    [{"axis":"category","value":"kurta"}]
+    createdAt:  2026-04-25T18:27:46.365Z
+  priority=103 name="Jeans → category=jeans"
+    conditions: {"kind":"any","conditions":[{"kind":"title_contains","value":"jeans"},{"kind":"tag_contains","value":"denim"}]}
+    effects:    [{"axis":"category","value":"jeans"}]
+    createdAt:  2026-04-25T18:27:46.368Z
+  priority=104 name="Linen mention → sub_category=linen"
+    conditions: {"kind":"any","conditions":[{"kind":"title_contains","value":"linen"},{"kind":"tag_contains","value":"linen"}]}
+    effects:    [{"axis":"sub_category","value":"linen"}]
+    createdAt:  2026-04-25T18:27:46.371Z
+  priority=105 name="Cotton mention → sub_category=cotton"
+    conditions: {"kind":"any","conditions":[{"kind":"title_contains","value":"cotton"},{"kind":"tag_contains","value":"cotton"}]}
+    effects:    [{"axis":"sub_category","value":"cotton"}]
+    createdAt:  2026-04-25T18:27:46.378Z
+  priority=106 name="Shorts category"
+    conditions: {"kind":"any","conditions":[{"kind":"title_contains","value":"shorts"},{"kind":"type_equals","value":"shorts"},{"kind":"type_equals","value":"men's shorts"},{"kind":"type_equals","value":"women's shorts"},{"kind":"type_equals","value":"kids shorts"}]}
+    effects:    [{"axis":"category","value":"shorts"}]
+    createdAt:  2026-05-11T14:02:05.130Z
+
+== SEED_RULES.FASHION rules: 8 total ==
+  name="Men's products"
+    conditions: {"kind":"any","conditions":[{"kind":"title_contains","value":"men's"},{"kind":"tag_contains","value":"men's"}]}
+    effects:    [{"axis":"gender","value":"male"}]
+  name="Women's products"
+    conditions: {"kind":"any","conditions":[{"kind":"title_contains","value":"women's"},{"kind":"tag_contains","value":"women's"}]}
+    effects:    [{"axis":"gender","value":"female"}]
+  name="Unisex products"
+    conditions: {"kind":"any","conditions":[{"kind":"title_contains","value":"unisex"},{"kind":"tag_contains","value":"unisex"}]}
+    effects:    [{"axis":"gender","value":"unisex"}]
+  name="Kids products"
+    conditions: {"kind":"any","conditions":[{"kind":"title_contains","value":"kids"},{"kind":"title_contains","value":"children"},{"kind":"tag_contains","value":"kids"}]}
+    effects:    [{"axis":"gender","value":"kids"}]
+  name="Linen material"
+    conditions: {"kind":"any","conditions":[{"kind":"tag_contains","value":"linen"},{"kind":"title_contains","value":"linen"}]}
+    effects:    [{"axis":"material","value":["linen"]}]
+  name="Cotton material"
+    conditions: {"kind":"any","conditions":[{"kind":"tag_contains","value":"cotton"},{"kind":"title_contains","value":"cotton"}]}
+    effects:    [{"axis":"material","value":["cotton"]}]
+  name="Denim material"
+    conditions: {"kind":"any","conditions":[{"kind":"title_contains","value":"denim"},{"kind":"title_contains","value":"jeans"}]}
+    effects:    [{"axis":"material","value":["denim"]}]
+  name="Shorts category"
+    conditions: {"kind":"any","conditions":[{"kind":"title_contains","value":"shorts"},{"kind":"type_equals","value":"shorts"},{"kind":"type_equals","value":"men's shorts"},{"kind":"type_equals","value":"women's shorts"},{"kind":"type_equals","value":"kids shorts"}]}
+    effects:    [{"axis":"category","value":"shorts"}]
+
+== Divergence summary ==
+  Rules ONLY in dev shop (not in SEED_RULES.FASHION):
+    - Men's in title → gender=male
+    - Women's in title → gender=female
+    - Kurta → category=kurta
+    - Jeans → category=jeans
+    - Linen mention → sub_category=linen
+    - Cotton mention → sub_category=cotton
+  Rules ONLY in SEED_RULES.FASHION (not in dev shop):
+    - Men's products
+    - Women's products
+    - Unisex products
+    - Kids products
+    - Linen material
+    - Cotton material
+    - Denim material
+
+== Effect-axis comparison ==
+  Dev-shop rule effect-axes:
+    category:
+      - Kurta → category=kurta → category="kurta"
+      - Jeans → category=jeans → category="jeans"
+      - Shorts category → category="shorts"
+    gender:
+      - Men's in title → gender=male → gender="male"
+      - Women's in title → gender=female → gender="female"
+    sub_category:
+      - Linen mention → sub_category=linen → sub_category="linen"
+      - Cotton mention → sub_category=cotton → sub_category="cotton"
+  SEED_RULES.FASHION rule effect-axes:
+    category:
+      - Shorts category → category="shorts"
+    gender:
+      - Men's products → gender="male"
+      - Women's products → gender="female"
+      - Unisex products → gender="unisex"
+      - Kids products → gender="kids"
+    material:
+      - Linen material → material=["linen"]
+      - Cotton material → material=["cotton"]
+      - Denim material → material=["denim"]
+
+== Audit note ==
+  TaggingRuleAudit model does not exist; rule provenance for the 6 pre-mech.4 rules is unknown.
+  The Shorts category rule (priority 106, createdAt 2026-05-11) was created by mech.4.
+  The other 6 rules were already in place before 3.1.7 (pre-mech.4); origin is undocumented.

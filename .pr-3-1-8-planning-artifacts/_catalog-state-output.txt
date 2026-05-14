@@ -1,0 +1,64 @@
+Thread 2 catalog-state probe
+Captured: 2026-05-14T17:20:34.988Z
+Shop:     ai-fashion-store.myshopify.com
+
+== Catalog totals ==
+  Products (all):                2632
+  ACTIVE+not-deleted+not-excluded: 1169
+  + embedding NOT NULL:            1169
+  + availableForSale variant:      29
+  In-stock ratio: 29/1169 = 2.48%
+
+== #43 gender axis state ==
+  status=PENDING_REVIEW value=male: 1 rows
+  status=APPROVED value=male: 49 rows
+  status=APPROVED value=unisex: 1 rows
+  Distinct products with APPROVED gender: 50
+  Distinct products with APPROVED gender=female: 0
+
+== #45 in-stock ratio reconfirm ==
+  29 of 1,168 ACTIVE pre-mech.1? Current count: 29 of 1169
+  Total ACTIVE+not-deleted+not-excluded: 1169
+  In-stock subset ratio: 29/1169 = 2.48%
+
+== #46 size_range AI-tagger reliability ==
+  Total size_range rows: 59
+  APPROVED:               15
+  PENDING_REVIEW:         44
+  REJECTED:               0
+  Distinct products with APPROVED size_range: 3
+  PENDING_REVIEW sub-0.8 confidence: 44/44 (100.0%)
+
+== #49 broader category coverage ==
+  APPROVED category by value:
+    innerwear            5
+    jacket               5
+    kurta                202
+    pants                8
+    shirt                26
+    shorts               53
+    t_shirt              4
+  Total APPROVED category rows: 303
+  Distinct products with APPROVED category: 303
+  Coverage: 303/1169 = 25.92%
+  source=RULE: 253
+  source=AI: 50
+
+== Per-axis APPROVED distinct product count (for #43/#46/#49 context) ==
+  gender               50
+  category             303
+  sub_category         52
+  occasion             49
+  color_family         47
+  material             51
+  fit                  39
+  season               47
+  size_range           3
+  style_type           44
+  sleeve_length        0
+  pattern              0
+  collar_type          0
+  price_tier           0
+  statement_piece      0
+
+-- End probe --
