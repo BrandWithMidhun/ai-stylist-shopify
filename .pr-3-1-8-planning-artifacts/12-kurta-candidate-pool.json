@@ -1,0 +1,838 @@
+{
+  "capturedAt": "2026-05-14T16:09:47.086Z",
+  "fixture": "fashion-oversized-fit-kurta",
+  "intent": "oversized fit kurta",
+  "extractedQueryAttributes": {
+    "category": [
+      "kurta"
+    ],
+    "fit": [
+      "oversized"
+    ]
+  },
+  "shop": "ai-fashion-store.myshopify.com",
+  "stage1": {
+    "totalCandidates": 202,
+    "candidatesWithFitApproved": 2,
+    "candidatesByCategorySource": {
+      "AI": 2,
+      "RULE": 200
+    }
+  },
+  "stage2": {
+    "candidatePoolSize": 50,
+    "candidatesInPool": 50,
+    "fitTaggedCandidateRankings": [
+      {
+        "productId": "cmoeelkam00lvo436eeeh82pm",
+        "rankInStage2": 24,
+        "distance": 0.5044662050367219
+      }
+    ],
+    "candidates": [
+      {
+        "rank": 1,
+        "productId": "cmoeem4pa0701o436u8qwu69n",
+        "distance": 0.4821683806971596,
+        "similarityScore": 0.5178316193028404,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 2,
+        "productId": "cmoeemb1908xgo436a0w1vqh3",
+        "distance": 0.4855438198666886,
+        "similarityScore": 0.5144561801333114,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 3,
+        "productId": "cmoeemb2508xro4369o79x4di",
+        "distance": 0.48847908056281075,
+        "similarityScore": 0.5115209194371892,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 4,
+        "productId": "cmoeem49f06rno436lfwxbqw4",
+        "distance": 0.48920187547173255,
+        "similarityScore": 0.5107981245282674,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 5,
+        "productId": "cmoeem48w06rco436hr6ln4zg",
+        "distance": 0.49122279987063044,
+        "similarityScore": 0.5087772001293696,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 6,
+        "productId": "cmoeen8a20l1zo436pyemhw8v",
+        "distance": 0.4920182540384068,
+        "similarityScore": 0.5079817459615932,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 7,
+        "productId": "cmoeemuv70fleo4368cg2w3mv",
+        "distance": 0.4923073071700794,
+        "similarityScore": 0.5076926928299206,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 8,
+        "productId": "cmoeelwgn03v7o436il0lqyo2",
+        "distance": 0.49438497524530045,
+        "similarityScore": 0.5056150247546995,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 9,
+        "productId": "cmoeemuoy0fj9o436hsdvvv51",
+        "distance": 0.496236563626155,
+        "similarityScore": 0.503763436373845,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 10,
+        "productId": "cmoeenps00t88o436hf4xqvlx",
+        "distance": 0.49625408738754095,
+        "similarityScore": 0.503745912612459,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 11,
+        "productId": "cmoeelzgy04l6o436stm7rtcx",
+        "distance": 0.4967521436805382,
+        "similarityScore": 0.5032478563194618,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 12,
+        "productId": "cmoeelraq02ixo43627bqp6k3",
+        "distance": 0.4970597628283747,
+        "similarityScore": 0.5029402371716253,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 13,
+        "productId": "cmoeemi6u0bcio436eofg2ea1",
+        "distance": 0.4972350603973722,
+        "similarityScore": 0.5027649396026278,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 14,
+        "productId": "cmoeemb3c08ydo436dzowbexr",
+        "distance": 0.497643620478027,
+        "similarityScore": 0.502356379521973,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 15,
+        "productId": "cmoeemuu60fkso4361mo30ukc",
+        "distance": 0.49843315794170917,
+        "similarityScore": 0.5015668420582908,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 16,
+        "productId": "cmoeelwg403uwo43697mmq9ps",
+        "distance": 0.49910289070537317,
+        "similarityScore": 0.5008971092946268,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 17,
+        "productId": "cmoeemyxb0hhdo436spg0ziqa",
+        "distance": 0.49950477489743594,
+        "similarityScore": 0.5004952251025641,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 18,
+        "productId": "cmoeemnq70d19o436sqzpefnz",
+        "distance": 0.4995658249051076,
+        "similarityScore": 0.5004341750948924,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 19,
+        "productId": "cmoeen7qa0kldo436bfgaj0w5",
+        "distance": 0.5008752939998402,
+        "similarityScore": 0.4991247060001598,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 20,
+        "productId": "cmoeemi970bdro4360bv0ifph",
+        "distance": 0.5021147426161621,
+        "similarityScore": 0.49788525738383793,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 21,
+        "productId": "cmoeelww0042uo4360i4u8kp4",
+        "distance": 0.503031431905882,
+        "similarityScore": 0.49696856809411805,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 22,
+        "productId": "cmoeelnhq01u9o436xvb78rbw",
+        "distance": 0.5035775591201895,
+        "similarityScore": 0.49642244087981047,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 23,
+        "productId": "cmoeenwi50vv5o43638aeyja1",
+        "distance": 0.5043695566433853,
+        "similarityScore": 0.49563044335661466,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 24,
+        "productId": "cmoeelkam00lvo436eeeh82pm",
+        "distance": 0.5044662050367219,
+        "similarityScore": 0.4955337949632781,
+        "source": "AI",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ],
+          "fit": [
+            "regular"
+          ],
+          "color_family": [
+            "multicolor"
+          ],
+          "occasion": [
+            "casual"
+          ],
+          "style_type": [
+            "ethnic"
+          ],
+          "material": [
+            "linen"
+          ]
+        },
+        "hasFitApproved": true
+      },
+      {
+        "rank": 25,
+        "productId": "cmoeelzmm04ojo436j8pxnw61",
+        "distance": 0.5044978556336172,
+        "similarityScore": 0.49550214436638285,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 26,
+        "productId": "cmoeent4e0ueao436qs5vo80w",
+        "distance": 0.5060097420802888,
+        "similarityScore": 0.4939902579197112,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 27,
+        "productId": "cmoeemi3f0baoo4363qosrwmy",
+        "distance": 0.5060128713238597,
+        "similarityScore": 0.49398712867614025,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 28,
+        "productId": "cmoeenon70sd4o436jliywzf8",
+        "distance": 0.5063978278877238,
+        "similarityScore": 0.4936021721122762,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 29,
+        "productId": "cmoeemyxv0hhoo436eqw023rd",
+        "distance": 0.5064172729451006,
+        "similarityScore": 0.49358272705489936,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 30,
+        "productId": "cmoeelwh703vio436tdquhy19",
+        "distance": 0.507109074937212,
+        "similarityScore": 0.492890925062788,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 31,
+        "productId": "cmoeenc480mdro436b2z8stcm",
+        "distance": 0.5073401919197773,
+        "similarityScore": 0.4926598080802227,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 32,
+        "productId": "cmoeemnpn0d0yo4365p7tju6s",
+        "distance": 0.5074755994237674,
+        "similarityScore": 0.4925244005762326,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 33,
+        "productId": "cmoeem4au06s9o43631n0layv",
+        "distance": 0.5075347712594509,
+        "similarityScore": 0.4924652287405491,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 34,
+        "productId": "cmoeenpr30t7mo436atf67yqc",
+        "distance": 0.5076436987347928,
+        "similarityScore": 0.49235630126520724,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 35,
+        "productId": "cmoeen7v60kowo436k9npbap4",
+        "distance": 0.5077831433207127,
+        "similarityScore": 0.4922168566792873,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 36,
+        "productId": "cmoeenwj00vvro436gvag7mfd",
+        "distance": 0.5078177140085007,
+        "similarityScore": 0.49218228599149927,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 37,
+        "productId": "cmoeemi530bblo436a4r37pso",
+        "distance": 0.5084392115284413,
+        "similarityScore": 0.4915607884715587,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 38,
+        "productId": "cmoeelwny03yko43656hxlpl6",
+        "distance": 0.5088593943966508,
+        "similarityScore": 0.49114060560334916,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 39,
+        "productId": "cmoeemb2o08y2o436pv839sj9",
+        "distance": 0.5092992164375266,
+        "similarityScore": 0.4907007835624734,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 40,
+        "productId": "cmoeenpsv0t8uo436rdtskdyi",
+        "distance": 0.5095432389326968,
+        "similarityScore": 0.4904567610673032,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 41,
+        "productId": "cmoeemi680bc7o436l6jx3xyj",
+        "distance": 0.5096821171613714,
+        "similarityScore": 0.49031788283862865,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 42,
+        "productId": "cmoeelnha01tyo436rgfep6zw",
+        "distance": 0.5099276876621991,
+        "similarityScore": 0.4900723123378009,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 43,
+        "productId": "cmoeem7xp082uo436udolo99f",
+        "distance": 0.5103533243290606,
+        "similarityScore": 0.48964667567093945,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 44,
+        "productId": "cmoeen8hg0l7zo436x364p2mj",
+        "distance": 0.5108268844095571,
+        "similarityScore": 0.48917311559044285,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 45,
+        "productId": "cmoeemuur0fl3o4366avm16wz",
+        "distance": 0.5112631890146282,
+        "similarityScore": 0.4887368109853718,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 46,
+        "productId": "cmoeen7s30kmlo436y0hatziy",
+        "distance": 0.5113588856030804,
+        "similarityScore": 0.4886411143969196,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 47,
+        "productId": "cmoeenbjm0ly6o436aah132bo",
+        "distance": 0.5113591538239499,
+        "similarityScore": 0.4886408461760501,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 48,
+        "productId": "cmoeem4ac06ryo436wavlv272",
+        "distance": 0.5119577930023882,
+        "similarityScore": 0.4880422069976118,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 49,
+        "productId": "cmoeem4ej06ueo436xlx99jgj",
+        "distance": 0.5121685833529035,
+        "similarityScore": 0.4878314166470965,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      },
+      {
+        "rank": 50,
+        "productId": "cmoeem4e206u3o436qzz5xnqn",
+        "distance": 0.512498167902558,
+        "similarityScore": 0.487501832097442,
+        "source": "RULE",
+        "approvedTagsOnFocusAxes": {
+          "category": [
+            "kurta"
+          ]
+        },
+        "hasFitApproved": false
+      }
+    ]
+  },
+  "stage5": {
+    "targetN": 6,
+    "selectedCount": 6,
+    "top6": [
+      {
+        "position": 1,
+        "productId": "cmoeem4pa0701o436u8qwu69n",
+        "handle": "arnav-full-sleeve-broad-notched-collar-pure-linen-short-kurta-oakwood-brown",
+        "title": "Arnav - Full Sleeve Broad-Notched Collar Pure Linen Short Kurta - Oakwood Brown",
+        "similarityDistance": 0.4821683806971596,
+        "similarityScore": 0.5178316193028404,
+        "rerankBoosts": {
+          "occasion": 0,
+          "fit": 0,
+          "color": 0,
+          "body_type": 0
+        },
+        "diversityPenalty": 0,
+        "categoryApproved": [
+          "kurta"
+        ],
+        "fitApproved": [],
+        "satisfiesKurta": true,
+        "satisfiesFitRelaxedOrOversized": false
+      },
+      {
+        "position": 2,
+        "productId": "cmoeelkam00lvo436eeeh82pm",
+        "handle": "gul-pure-linen-mandarin-collar-regular-kurta-black-sap-green",
+        "title": "Gul - Pure Linen Mandarin Collar Regular Kurta - Black & Sap Green",
+        "similarityDistance": 0.5044662050367219,
+        "similarityScore": 0.4955337949632781,
+        "rerankBoosts": {
+          "occasion": 0,
+          "fit": 0,
+          "color": 0,
+          "body_type": 0
+        },
+        "diversityPenalty": 0.1111111111111111,
+        "categoryApproved": [
+          "kurta"
+        ],
+        "fitApproved": [
+          "regular"
+        ],
+        "satisfiesKurta": true,
+        "satisfiesFitRelaxedOrOversized": false
+      },
+      {
+        "position": 3,
+        "productId": "cmoeemb1908xgo436a0w1vqh3",
+        "handle": "aman-pure-linen-long-kurta-with-double-pocket-black",
+        "title": "Aman - Pure Linen Long Kurta with Double Pocket - Black",
+        "similarityDistance": 0.4855438198666886,
+        "similarityScore": 0.5144561801333114,
+        "rerankBoosts": {
+          "occasion": 0,
+          "fit": 0,
+          "color": 0,
+          "body_type": 0
+        },
+        "diversityPenalty": 1,
+        "categoryApproved": [
+          "kurta"
+        ],
+        "fitApproved": [],
+        "satisfiesKurta": true,
+        "satisfiesFitRelaxedOrOversized": false
+      },
+      {
+        "position": 4,
+        "productId": "cmoeemb2508xro4369o79x4di",
+        "handle": "aman-pure-linen-long-kurta-with-double-pocket-dark-blue",
+        "title": "Aman - Pure Linen Long Kurta with Double Pocket - Dark Blue",
+        "similarityDistance": 0.48847908056281075,
+        "similarityScore": 0.5115209194371892,
+        "rerankBoosts": {
+          "occasion": 0,
+          "fit": 0,
+          "color": 0,
+          "body_type": 0
+        },
+        "diversityPenalty": 1,
+        "categoryApproved": [
+          "kurta"
+        ],
+        "fitApproved": [],
+        "satisfiesKurta": true,
+        "satisfiesFitRelaxedOrOversized": false
+      },
+      {
+        "position": 5,
+        "productId": "cmoeem49f06rno436lfwxbqw4",
+        "handle": "yash-kurta-pure-linen-long-kurta-with-floral-embroidery-coffee-brown",
+        "title": "Yash Kurta - Pure Linen Kurta with Floral Embroidery | Coffee Brown",
+        "similarityDistance": 0.48920187547173255,
+        "similarityScore": 0.5107981245282674,
+        "rerankBoosts": {
+          "occasion": 0,
+          "fit": 0,
+          "color": 0,
+          "body_type": 0
+        },
+        "diversityPenalty": 1,
+        "categoryApproved": [
+          "kurta"
+        ],
+        "fitApproved": [],
+        "satisfiesKurta": true,
+        "satisfiesFitRelaxedOrOversized": false
+      },
+      {
+        "position": 6,
+        "productId": "cmoeem48w06rco436hr6ln4zg",
+        "handle": "yash-kurta-pure-linen-long-kurta-with-floral-embroidery-golden-olive-green",
+        "title": "Yash Kurta - Pure Linen Kurta with Floral Embroidery | Golden Olive Green",
+        "similarityDistance": 0.49122279987063044,
+        "similarityScore": 0.5087772001293696,
+        "rerankBoosts": {
+          "occasion": 0,
+          "fit": 0,
+          "color": 0,
+          "body_type": 0
+        },
+        "diversityPenalty": 1,
+        "categoryApproved": [
+          "kurta"
+        ],
+        "fitApproved": [],
+        "satisfiesKurta": true,
+        "satisfiesFitRelaxedOrOversized": false
+      }
+    ],
+    "satisfyingKurtaCount": 6,
+    "satisfyingFitCount": 0,
+    "satisfyingBothCount": 0,
+    "relaxedMatchAtK": 0
+  }
+}

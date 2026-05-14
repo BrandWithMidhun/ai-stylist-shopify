@@ -1,0 +1,60 @@
+﻿{
+  "fixtureKey": "fashion-oversized-fit-kurta",
+  "mode": "FASHION",
+  "intent": "oversized fit kurta",
+  "expectedHandles": [],
+  "expectedTagFilters": {
+    "category": ["kurta"],
+    "fit": ["oversized", "relaxed"]
+  },
+  "k": 6,
+  "notes": "Specific-attribute query stressing the fit axis. relaxed accepted as a near-match for oversized â€” both should make the top-K when the user asks for an oversized vibe."
+}
+
+--- ANNOTATION (Thread 3) ---
+
+Fixture's query (the user-facing prompt that triggers extraction):
+  intent = "oversized fit kurta"
+  mode = FASHION
+  k = 6
+  expectedHandles = []   (empty — common across all 12 fixtures; op debt #9 pre-3.2 Midhun task)
+
+What expectedTagFilters requires (relaxedMatchAtK scoring axis):
+  category = ["kurta"]                  -> at least 1 of the 6 cards must carry APPROVED category:kurta
+  fit      = ["oversized", "relaxed"]   -> at least 1 of the 6 cards must carry APPROVED fit:oversized OR fit:relaxed
+
+For relaxedMatchAtK to register a satisfied card, the card must satisfy BOTH axes (category=kurta AND fit IN {oversized, relaxed}).
+relaxedMatchAtK = (count of satisfying cards in top-K) / K.
+
+Pre-mech.4 behavior (baseline at mech.3.5 = 0.3333 aggregate):
+  Stage 1 returns 2 candidates (the 2 AI-tagged category=kurta products from pre-rule-engine days).
+  Of those 2, exactly 1 has APPROVED fit tag.
+  relaxedMatchAtK = 1/2 = 0.50 (the K=6 cap doesn't kick in because Stage 1 only has 2 to begin with).
+  Fixture status: PARTIAL (score 0.50).
+
+Post-mech.4 behavior (regression to aggregate = 0.2917):
+  Stage 1 returns 202 candidates (2 AI + 200 retroactive-RULE kurta products).
+  Stage 2 narrows to 50.
+  Stage 5 selects top-6 by similarity-asc order with quotas.
+  Of the 6 selected, 0 carry APPROVED fit tag.
+  relaxedMatchAtK = 0/6 = 0.
+  Fixture status: FAIL (score 0).
+
+This is the fixture-of-record for fix (a) simulation. The diagnostic question is:
+  Where in Stage 2's similarity-ordered top-50 do the 2 fit-tagged kurta products rank?
+  - If rank in [1..6] within the 50 -> Stage 5 selects them naturally; the regression is caused by something else.
+    (Almost certainly not the case, per the verification analysis.)
+  - If rank in [7..50] -> Stage 5's similarity-order pass skips them; fix (a)'s rerank boost cannot move them
+    into the top-6 because Stage 5 doesn't consult rerankBoosts in selection.
+  - If rank > 50 -> They don't even make it into Stage 2's pool; impossible to recover via Stage 3/5 work.
+
+The artifact-12 probe answers this. If the second case holds (the predicted outcome based on the architecture
+reading), fix (a) as framed is INSUFFICIENT. The fix needs to also affect Stage 5 selection order OR Stage 2
+narrowing OR Stage 1 pool composition.
+
+Note on partial-credit scoring shape:
+  Pre-mech.4 PARTIAL = 0.50 came from 1 satisfying card out of 2 returned.
+  The fixture has expectedHandles=[] so precisionAtK doesn't fire (no exact-handle matches expected).
+  Scoring weights relaxedMatchAtK heavily because expectedHandles is empty (per op debt #9, eval is relaxed-match-only
+  until handles are curated).
+  Post-mech.4 FAIL = 0 because 0/6 = 0.

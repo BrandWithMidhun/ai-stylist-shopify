@@ -1,0 +1,559 @@
+﻿// PR-3.1-mech.4: Stage 3 re-rank â€” mode-keyed registry dispatch.
+//
+// Pattern (locked decision D2): Partial<Record<StoreMode, ReRankerSet>>.
+// Adding a mode in Phase 5 is a single registry-line entry plus a new
+// per-mode module â€” no conditional logic in this file changes.
+//
+// rerank() flow:
+//   - Look up mode in the registry. Missing entry â†’ return input
+//     candidates unchanged with a contribution recording
+//     fallback="no-mode-reranker". This keeps Stage 3 correct for
+//     non-FASHION modes in 3.1.
+//   - For each candidate, run every re-ranker in the set; record the
+//     boost magnitudes keyed by re-ranker name into
+//     candidate.rerankBoosts. Stage 5/6 reads this map for final
+//     scoring.
+//   - Stage 3 PRESERVES candidate set size (D5). No filtering, no
+//     reordering â€” only attaches rerankBoosts.
+
+import type { CandidateProduct, QueryAttributes, StageOutput, CustomerProfileSnapshot, StoreMode } from "../types";
+import {
+  FASHION_NAMED_RERANKERS,
+  fashionReRankerSet,
+  type NamedReRanker,
+} from "./fashion.server";
+
+const STAGE_NAME = "stage-3-rerank";
+
+export type ReRankInput = {
+  candidates: CandidateProduct[];
+  queryAttributes: QueryAttributes;
+  profile: CustomerProfileSnapshot | null;
+};
+
+export type ReRanker = (candidate: CandidateProduct, ctx: ReRankInput) => number;
+
+export type ReRankerSet = {
+  rerankers: ReRanker[];
+  describe(): string[];
+};
+
+const RE_RANKER_REGISTRY: Partial<Record<StoreMode, ReRankerSet>> = {
+  FASHION: fashionReRankerSet,
+  // ELECTRONICS, FURNITURE, BEAUTY, JEWELLERY, GENERAL â€” Phase 5
+};
+
+// Per-mode named-reranker tuples for trace-friendly boost keying.
+// The ReRankerSet exposes only the unnamed reranker functions; this
+// auxiliary map preserves the names so contribution.meta + per-
+// candidate rerankBoosts use stable, human-readable keys.
+const NAMED_RERANKER_REGISTRY: Partial<Record<StoreMode, readonly NamedReRanker[]>> = {
+  FASHION: FASHION_NAMED_RERANKERS,
+};
+
+export function rerank(input: ReRankInput, mode: StoreMode): StageOutput {
+  const startMs = Date.now();
+  const candidatesIn = input.candidates.length;
+
+  const set = RE_RANKER_REGISTRY[mode];
+  const named = NAMED_RERANKER_REGISTRY[mode];
+
+  if (!set || !named) {
+    return {
+      candidates: input.candidates,
+      contribution: {
+        name: STAGE_NAME,
+        ms: Date.now() - startMs,
+        candidatesIn,
+        candidatesOut: candidatesIn,
+        meta: {
+          fallback: "no-mode-reranker",
+          mode,
+        },
+      },
+    };
+  }
+
+  const out: CandidateProduct[] = input.candidates.map((c) => {
+    const boosts: Record<string, number> = {};
+    for (const r of named) {
+      boosts[r.name] = r.rerank(c, input);
+    }
+    return { ...c, rerankBoosts: boosts };
+  });
+
+  return {
+    candidates: out,
+    contribution: {
+      name: STAGE_NAME,
+      ms: Date.now() - startMs,
+      candidatesIn,
+      candidatesOut: out.length,
+      meta: {
+        mode,
+        queryAttributes: input.queryAttributes,
+        profileApplied: input.profile != null,
+        rerankerCount: named.length,
+        rerankerNames: named.map((r) => r.name),
+      },
+    },
+  };
+}
+
+--- fashion.server.ts ---
+// PR-3.1-mech.4: FASHION re-rankers for Stage 3.
+//
+// Each re-ranker is a pure scored function (NOT an LLM call) that takes
+// a CandidateProduct + ReRankInput context and returns an additive
+// boost in [0, weight]. Re-rankers never penalize â€” Stage 3 only
+// reorders by adding boosts; filtering / penalizing is Stage 5's job.
+//
+// Re-rankers read candidate.tags filtered to status='APPROVED'. The
+// orchestrator (mech.6) is responsible for populating candidate.tags
+// between Stage 2 and Stage 3 via a Prisma findMany. When tags is
+// undefined (e.g. mech.4 unit tests, or a product with no APPROVED
+// tags yet), all re-rankers gracefully return 0 â€” no boost, no crash.
+//
+// Weights per locked decision D3:
+//   occasion    0.4
+//   fit         0.3
+//   color       0.2
+//   body_type   0.15
+//
+// Body-type re-ranker reads profile.bodyType directly (no query
+// extraction equivalent for body type â€” it's profile-only). When
+// profile.bodyType is undefined, returns 0 for every candidate. PR-D
+// D.3 verifier confirmed dev shop has 0 CustomerProfileAttribute rows
+// in 3.1, so this re-ranker is a no-op in the current eval baseline.
+// Phase 6's quiz integration populates profile data; the re-ranker
+// activates without code change at that point.
+//
+// Body-type â†’ fit affinity map vocabulary check: "slim", "regular",
+// "relaxed", "oversized", "tailored" are the AXIS_OPTIONS.FASHION.fit
+// values. Affinity rules below pick from this set only â€” proposals
+// like "A-line" or "structured" (which appear in body-typing
+// literature) are intentionally not used because they aren't in the
+// vocabulary.
+
+import type { CandidateProduct } from "../types";
+import type { ReRanker, ReRankerSet, ReRankInput } from "./index.server";
+
+const OCCASION_WEIGHT = 0.4;
+const FIT_WEIGHT = 0.3;
+const COLOR_WEIGHT = 0.2;
+const BODY_TYPE_WEIGHT = 0.15;
+
+// AXIS_OPTIONS.FASHION.fit = ["slim", "regular", "relaxed", "oversized",
+// "tailored"]. Affinity entries are subsets thereof.
+const BODY_TYPE_TO_FIT: Record<string, readonly string[]> = {
+  apple: ["relaxed", "oversized"],
+  pear: ["relaxed"],
+  hourglass: ["tailored", "slim"],
+  rectangle: ["tailored"],
+  inverted_triangle: ["relaxed"],
+};
+
+function approvedValuesFor(
+  candidate: CandidateProduct,
+  axis: string,
+): string[] {
+  if (!candidate.tags) return [];
+  const out: string[] = [];
+  for (const t of candidate.tags) {
+    if (t.status === "APPROVED" && t.axis === axis) out.push(t.value);
+  }
+  return out;
+}
+
+const occasionReRanker: ReRanker = (candidate, ctx) => {
+  const queryOccasions = ctx.queryAttributes.occasion ?? [];
+  if (queryOccasions.length === 0) return 0;
+  if (!candidate.tags) return 0;
+  const candValues = approvedValuesFor(candidate, "occasion");
+  if (candValues.length === 0) return 0;
+  const overlap = queryOccasions.filter((v) => candValues.includes(v)).length;
+  return OCCASION_WEIGHT * (overlap / Math.max(1, queryOccasions.length));
+};
+
+const fitReRanker: ReRanker = (candidate, ctx) => {
+  const queryFits = ctx.queryAttributes.fit ?? [];
+  if (queryFits.length === 0) return 0;
+  if (!candidate.tags) return 0;
+  const candValues = approvedValuesFor(candidate, "fit");
+  if (candValues.length === 0) return 0;
+  const matches = queryFits.some((v) => candValues.includes(v));
+  return matches ? FIT_WEIGHT : 0;
+};
+
+const colorReRanker: ReRanker = (candidate, ctx) => {
+  const queryColors = ctx.queryAttributes.color_family ?? [];
+  if (queryColors.length === 0) return 0;
+  if (!candidate.tags) return 0;
+  const candValues = approvedValuesFor(candidate, "color_family");
+  if (candValues.length === 0) return 0;
+  const overlap = queryColors.filter((v) => candValues.includes(v)).length;
+  return COLOR_WEIGHT * (overlap / Math.max(1, queryColors.length));
+};
+
+const bodyTypeReRanker: ReRanker = (candidate, ctx) => {
+  const bodyType = ctx.profile?.bodyType;
+  if (!bodyType) return 0;
+  const affinityFits = BODY_TYPE_TO_FIT[bodyType];
+  if (!affinityFits || affinityFits.length === 0) return 0;
+  if (!candidate.tags) return 0;
+  const candFits = approvedValuesFor(candidate, "fit");
+  if (candFits.length === 0) return 0;
+  const matches = candFits.some((f) => affinityFits.includes(f));
+  return matches ? BODY_TYPE_WEIGHT : 0;
+};
+
+// Named-export tuple so the registry can iterate in a fixed order
+// and the trace records boost-name â†’ magnitude pairs deterministically.
+export type NamedReRanker = { name: string; rerank: ReRanker };
+
+export const FASHION_NAMED_RERANKERS: readonly NamedReRanker[] = [
+  { name: "occasion", rerank: occasionReRanker },
+  { name: "fit", rerank: fitReRanker },
+  { name: "color", rerank: colorReRanker },
+  { name: "body_type", rerank: bodyTypeReRanker },
+];
+
+export const fashionReRankerSet: ReRankerSet = {
+  rerankers: FASHION_NAMED_RERANKERS.map((r) => r.rerank),
+  describe(): string[] {
+    return FASHION_NAMED_RERANKERS.map((r) => r.name);
+  },
+};
+
+// Direct exports for unit-testing individual re-rankers.
+export {
+  occasionReRanker,
+  fitReRanker,
+  colorReRanker,
+  bodyTypeReRanker,
+  BODY_TYPE_TO_FIT,
+};
+
+// Re-export ReRankInput so test files can import the input shape from
+// either index.server.ts or fashion.server.ts.
+export type { ReRankInput };
+
+--- query-extraction.server.ts ---
+// PR-3.1-mech.4: heuristic query extraction for Stage 3 re-rank inputs.
+//
+// Pure function. NO LLM call (per locked decision D1 â€” latency budget
+// 8s p95 / 5s p50; an LLM call adds 800-1500ms minimum). Tracked in
+// HANDOFF as operational debt to revisit when Phase 5 multi-mode
+// re-rankers ship and we have latency headroom.
+//
+// Approach (two passes, additive):
+//   1. Direct AXIS_OPTIONS.FASHION value match: tokenize the intent
+//      and check each FASHION axis's allowed values for token-level
+//      match (case-insensitive, word-boundary).
+//   2. Synonym dict: hand-curated user-typed phrases mapped to
+//      (axis, value) pairs. Phrase matching uses word-boundary regex
+//      against the lowered intent string so "men" doesn't false-
+//      positive inside "women".
+//
+// Profile overrides (per locked decision D6):
+//   - profile.fitPreference set â†’ QueryAttributes.fit = [profile.fitPreference]
+//     (overwrite, not merge â€” fit is a personal preference and the
+//     query string isn't expected to override it).
+//   - profile.preferredColors set + non-empty â†’ MERGED into
+//     QueryAttributes.color_family (the user might query a specific
+//     color, but their stored preferences widen the range).
+//   - profile.preferredOccasions same shape on QueryAttributes.occasion.
+//   - profile.bodyType is NOT a query axis â€” the body-type re-ranker
+//     reads it directly from the profile snapshot.
+//
+// Fixture-by-fixture rationale (the 12 mech.1 eval fixtures):
+//
+//   1. fashion-linen-shirts-white      "show me white linen shirts"
+//      â†’ category:["shirt"] (synonym shirtsâ†’shirt),
+//        color_family:["white"] (direct AXIS_OPTIONS match),
+//        material:["linen"]    (direct AXIS_OPTIONS match)
+//
+//   2. fashion-oversized-fit-kurta     "oversized fit kurta"
+//      â†’ fit:["oversized"], category:["kurta"]   (both direct)
+//
+//   3. fashion-festive-kurta-women     "festive kurta for women"
+//      â†’ occasion:["festive"], category:["kurta"]   (direct),
+//        gender:["female"]    (synonym womenâ†’female)
+//
+//   4. fashion-summer-shorts-size-m    "summer shorts in size M"
+//      â†’ season:["summer"], category:["shorts"]   (direct),
+//        size_range:["m"]    (synonym phrase "size m"â†’m;
+//        single-letter "m" is too ambiguous for a token-level match)
+//
+//   5. fashion-minimalist-daily-wear   "minimalist daily wear"
+//      â†’ style_type:["minimal"]   (synonym minimalistâ†’minimal),
+//        occasion:["casual"]   (synonym dailyâ†’casual)
+//
+//   6. fashion-wedding-reception       "something for a wedding reception"
+//      â†’ occasion:["festive","event"]   (synonyms weddingâ†’festive,
+//        receptionâ†’event)
+//
+//   7. fashion-casual-office-shirts    "casual office shirts"
+//      â†’ occasion:["casual","work"]   (direct casual; synonym officeâ†’work),
+//        category:["shirt"]   (synonym shirtsâ†’shirt)
+//
+//   8. fashion-going-out-outfit        "going out outfit for evening"
+//      â†’ occasion:["event"]   (multi-word synonym "going out"â†’event,
+//        plus token synonym eveningâ†’event; deduplicates to single value)
+//
+//   9. fashion-show-jackets            "show me jackets"
+//      â†’ category:["jacket"]   (synonym jacketsâ†’jacket)
+//
+//   10. fashion-show-trousers          "what trousers do you have"
+//       â†’ category:["pants"]   (synonym trousersâ†’pants;
+//       pants is the FASHION vocabulary value â€” the synonym is the
+//       single most important entry in the dict, anchoring the
+//       category-vocab gap explicit in the fixture's notes field)
+//
+//   11. fashion-oos-stress-1           "white linen shirt for daily wear"
+//       â†’ category:["shirt"], color_family:["white"],
+//         material:["linen"]   (direct + synonym shirt;
+//         dailyâ†’casual adds occasion:["casual"])
+//
+//   12. fashion-oos-stress-2           "festive saree for an evening event"
+//       â†’ occasion:["festive","event"]   (direct festive +
+//         synonym eveningâ†’event + direct event),
+//         category:["saree"]
+//
+// Synonym dict size: 31 entries. Hand-curated against the 12
+// fixtures. Cap is 30-50 per planning decision D7 (>50 means the
+// heuristic is the wrong shape; <20 means it isn't doing real work).
+
+import { AXIS_OPTIONS } from "../../../catalog/axis-options";
+import type {
+  CustomerProfileSnapshot,
+  QueryAttributes,
+  StoreMode,
+} from "../types";
+
+// FASHION axes whose allowed values are typed inputs the user might
+// emit verbatim. Excludes axes with free-text type ("sub_category"
+// is `text`) or values too ambiguous to token-match safely
+// ("size_range" values like "m" / "s" are handled via the synonym
+// dict's "size m" / "size s" phrases).
+const FASHION_DIRECT_MATCH_AXES: readonly string[] = [
+  "gender",
+  "category",
+  "fit",
+  "color_family",
+  "occasion",
+  "style_type",
+  "sleeve_length",
+  "pattern",
+  "collar_type",
+  "season",
+  "material",
+  "sustainability",
+  "statement_piece",
+  "price_tier",
+];
+
+// User-typed phrase â†’ (axis, value) FASHION synonym dictionary.
+// Hand-curated from the 12 mech.1 eval fixture intents (see file
+// header for the fixture-by-fixture map). Cap 30-50 per decision D7.
+type SynonymEntry = { axis: string; value: string };
+const FASHION_SYNONYMS: Record<string, SynonymEntry> = {
+  // Categories: plural / singular / vocabulary-gap normalisation.
+  shirts: { axis: "category", value: "shirt" },
+  jackets: { axis: "category", value: "jacket" },
+  kurtas: { axis: "category", value: "kurta" },
+  trousers: { axis: "category", value: "pants" },
+  pants: { axis: "category", value: "pants" },
+  dresses: { axis: "category", value: "dress" },
+  sarees: { axis: "category", value: "saree" },
+  lehengas: { axis: "category", value: "lehenga" },
+  skirts: { axis: "category", value: "skirt" },
+  sweaters: { axis: "category", value: "sweater" },
+
+  // Genders.
+  women: { axis: "gender", value: "female" },
+  woman: { axis: "gender", value: "female" },
+  ladies: { axis: "gender", value: "female" },
+  men: { axis: "gender", value: "male" },
+  man: { axis: "gender", value: "male" },
+
+  // Occasions.
+  daily: { axis: "occasion", value: "casual" },
+  everyday: { axis: "occasion", value: "casual" },
+  office: { axis: "occasion", value: "work" },
+  wedding: { axis: "occasion", value: "festive" },
+  reception: { axis: "occasion", value: "event" },
+  evening: { axis: "occasion", value: "event" },
+  party: { axis: "occasion", value: "event" },
+  "going out": { axis: "occasion", value: "event" },
+
+  // Style synonyms.
+  minimalist: { axis: "style_type", value: "minimal" },
+  loose: { axis: "fit", value: "relaxed" },
+  fitted: { axis: "fit", value: "slim" },
+
+  // Sizes (multi-word phrases â€” single-letter "m" / "s" are too
+  // ambiguous for a standalone token match).
+  "size m": { axis: "size_range", value: "m" },
+  "size s": { axis: "size_range", value: "s" },
+  "size l": { axis: "size_range", value: "l" },
+  "size xl": { axis: "size_range", value: "xl" },
+  "size xs": { axis: "size_range", value: "xs" },
+};
+
+const TOKEN_SPLIT_RE = /[\s,.;:!?()]+/;
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function attach(qa: QueryAttributes, axis: string, value: string): void {
+  const existing = qa[axis];
+  if (!existing) {
+    qa[axis] = [value];
+    return;
+  }
+  if (!existing.includes(value)) existing.push(value);
+}
+
+export function extractQueryAttributes(
+  intent: string,
+  mode: StoreMode,
+  profile?: CustomerProfileSnapshot,
+): QueryAttributes {
+  const qa: QueryAttributes = {};
+  if (mode !== "FASHION") {
+    // Phase 5 will register per-mode extractors. For 3.1, FASHION-only.
+    // Profile overrides still apply on the way out so the contract is
+    // consistent across modes.
+    return applyProfileOverrides(qa, profile);
+  }
+
+  const lowered = intent.toLowerCase();
+  const tokens = lowered.split(TOKEN_SPLIT_RE).filter(Boolean);
+  const tokenSet = new Set(tokens);
+
+  // Pass 1 â€” direct AXIS_OPTIONS.FASHION value match (token-level for
+  // single-token values; word-boundary substring match for multi-token
+  // values like "all_season" â†’ "all season").
+  const fashionAxes = AXIS_OPTIONS.FASHION;
+  for (const axis of FASHION_DIRECT_MATCH_AXES) {
+    const def = fashionAxes[axis];
+    if (!def || def.type === "text") continue;
+    for (const value of def.values) {
+      if (tokenSet.has(value)) {
+        attach(qa, axis, value);
+        continue;
+      }
+      if (value.includes("_")) {
+        const phrase = value.replace(/_/g, " ");
+        const re = new RegExp(`\\b${escapeRegex(phrase)}\\b`);
+        if (re.test(lowered)) attach(qa, axis, value);
+      }
+    }
+  }
+
+  // Pass 2 â€” synonym dict. Word-boundary regex against the lowered
+  // intent so single-token entries don't false-positive on substrings
+  // (e.g. "men" inside "women", "man" inside "manage").
+  for (const [phrase, entry] of Object.entries(FASHION_SYNONYMS)) {
+    const re = new RegExp(`\\b${escapeRegex(phrase)}\\b`);
+    if (re.test(lowered)) attach(qa, entry.axis, entry.value);
+  }
+
+  return applyProfileOverrides(qa, profile);
+}
+
+function applyProfileOverrides(
+  qa: QueryAttributes,
+  profile?: CustomerProfileSnapshot,
+): QueryAttributes {
+  if (!profile) return qa;
+
+  // fitPreference: overwrite. Fit is a personal preference; the query
+  // string typically reflects the immediate need but the profile
+  // captures the durable preference.
+  if (profile.fitPreference) {
+    qa.fit = [profile.fitPreference];
+  }
+  // preferredColors: merge.
+  if (profile.preferredColors && profile.preferredColors.length > 0) {
+    for (const c of profile.preferredColors) attach(qa, "color_family", c);
+  }
+  // preferredOccasions: merge.
+  if (profile.preferredOccasions && profile.preferredOccasions.length > 0) {
+    for (const o of profile.preferredOccasions) attach(qa, "occasion", o);
+  }
+
+  return qa;
+}
+
+--- ANNOTATION (Thread 3) ---
+
+What signals Stage 3 currently weights (read from fashion.server.ts):
+  - occasion (weight 0.4):  per-axis overlap between queryAttributes.occasion[] and candidate's APPROVED occasion[].
+                            Returns OCCASION_WEIGHT * (overlap / queryOccasions.length). Scales with overlap count.
+  - fit (weight 0.3):       binary match — returns FIT_WEIGHT if any APPROVED fit value matches any queryFit; else 0.
+                            Threshold-style; does not scale with overlap count.
+  - color (weight 0.2):     per-axis overlap (same shape as occasion).
+                            Returns COLOR_WEIGHT * (overlap / queryColors.length). Scales with overlap count.
+  - body_type (weight 0.15): binary — profile-driven, NOT query-driven.
+                            Maps profile.bodyType -> affinity fit values via BODY_TYPE_TO_FIT; returns weight if any
+                            candidate fit matches. In 3.1 dev shop has 0 CustomerProfileAttribute rows so this re-ranker
+                            is a no-op in the current eval baseline.
+
+Sum of all max boosts: 0.4 + 0.3 + 0.2 + 0.15 = 1.05.
+Stage 6 finalScore = similarityScore + rerankBoostSum + merchantBoost - diversityPenalty (clamped [0, 2.0]).
+similarityScore = 1 - similarityDistance (pgvector cosine in [0, 2]); similarity contribution can reach 1.0.
+So the rerank boost ceiling (1.05) is comparable in magnitude to similarityScore (max 1.0).
+
+What query attributes Stage 3 extracts (per query-extraction.server.ts):
+  - FASHION_DIRECT_MATCH_AXES = 14 axes: gender, category, fit, color_family, occasion, style_type,
+    sleeve_length, pattern, collar_type, season, material, sustainability, statement_piece, price_tier.
+  - Direct AXIS_OPTIONS.FASHION value match via token-level OR phrase-level regex against lowered intent.
+  - FASHION_SYNONYMS = 31 entries: plural/singular normalisation, gender synonyms, occasion synonyms,
+    style/fit synonyms, multi-word size phrases.
+  - Profile overrides on the way out: fit (overwrite), preferredColors (merge), preferredOccasions (merge).
+  - bodyType is NOT a query axis — body-type reranker reads profile.bodyType directly.
+
+For "oversized fit kurta" (kurta fixture intent):
+  - Direct match: fit=["oversized"], category=["kurta"].
+  - No synonym fires (no plural, no gender, no occasion, no style synonym present).
+  - Profile=null in eval -> no overrides.
+  - Final extracted QueryAttributes: { fit: ["oversized"], category: ["kurta"] }.
+
+Is tag-overlap currently a signal?
+  - PARTIAL YES — but only on three axes (occasion, fit, color_family) and only via per-axis isolated boosts.
+  - There is NO omnibus "how many of the query's extracted attributes does this candidate satisfy across ALL axes"
+    signal. A candidate that has 0 occasion / 0 fit / 0 color overlap but matches semantically gets 0 rerank boost
+    and competes purely on similarityScore.
+  - Critically for the kurta regression: extracted attributes are {fit, category}. fit reranker boosts the 2
+    fit-tagged candidates by 0.3 each; category is NOT a reranker axis (Stage 1's hard filter handles category gating).
+    So the rerank advantage of fit-tagged candidates is exactly 0.3 over fit-untagged candidates — and that's
+    the entire competitive edge fit-tagged candidates carry into Stage 5.
+  - The rerankBoostSum is ADDITIVE on top of similarityScore in Stage 6 finalScore. If a fit-untagged
+    candidate has similarityScore > (fit-tagged candidate's similarityScore + 0.3), it outranks the fit-tagged
+    candidate.
+
+This is the architectural surface fix (a) would touch: introduce a tag-overlap signal that aggregates across
+ALL extracted query attributes (not just occasion/fit/color), or increase the weight of the existing per-axis
+boosts, or change the signal from additive to multiplicative.
+
+Note on D5 (Stage 3 preserves candidate set size — no filtering, no reordering, only attaches rerankBoosts):
+The reordering happens in Stage 5 (greedy MMR over input order) and Stage 6 finalScore (recomputed after
+Stage 5 selection but no actual reorder). The "Stage 4 relevance order" Stage 5 references is whatever
+order Stage 2 + Stage 3 + Stage 4 deliver — which is Stage 2's similarity-distance-ascending order
+(Stage 3 + 4 attach boosts but do not reorder). So Stage 5's greedy selection iterates in similarity order,
+and the rerank boosts contribute only to FINAL ranking (already-selected ordering) and to Stage 6 finalScore,
+not to Stage 5's selection eligibility decisions.
+
+This is a load-bearing observation for fix (a) design: even doubling the rerank weights would NOT change
+Stage 5's selection order. Stage 5 iterates the Stage 4 output in similarity order; the boost only affects
+finalScore display ordering AFTER Stage 5 has already decided which 6 candidates to pick. So fix (a)'s impact
+on the kurta regression depends on whether Stage 5 selects the fit-tagged candidates AT ALL — and Stage 5
+iterates by similarity (Stage 2's order), not by rerank-boosted score.
+
+This is the critical premise check for fix (a). Fix (a) as framed (Stage 3 tag-overlap signal) may NOT
+recover the kurta fixture if the fit-tagged candidates' similarity-distance ranking falls below the 6-card
+cap that Stage 5 selects from. The artifact 12 probe is the empirical test: where do the 2 fit-tagged
+candidates rank in Stage 2's similarity-ordered candidatePool=50, and does Stage 5 pick them in the first 6?
