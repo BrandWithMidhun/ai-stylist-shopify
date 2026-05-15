@@ -53,3 +53,9 @@ Candidate op debts added by Thread 3: #52, #53, #54, #55. All triaged by Thread 
 ## Thread 1 quick reference
 
 Flip site is still ~3 edits at `app/lib/chat/tools/registry.server.ts:75-78`. Surface parity is now cleaner post-mech.2 variant-loading wire (no remaining gap). The flip ships in 3.1.8-mech.2 per the recommended decomposition.
+
+## Planning round closed
+
+The 3.1.8 planning round closes with `docs/planning/3-1-8-flip-and-measurement-correction.md` as the locked architecture document. The locked-decisions table is in Section 10 of that document.
+
+3.1.8 mech chain begins with mech.1 (relaxedMatchAtK denominator switch); 4-5 mechs total to close the sub-bundle. After 3.1.8 closes, 3.2 planning round addresses the ranking-architecture cluster (#52, #53, #55, d.2-strict) + catalog-data cluster (#46, #49, #51).
