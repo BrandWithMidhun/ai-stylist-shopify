@@ -88,7 +88,7 @@ export function relaxedMatchAtK(
     }
     if (satisfies) satisfying += 1;
   }
-  return satisfying / Math.max(1, top.length);
+  return satisfying / Math.max(1, k);
 }
 
 // combinedScore: weighted hybrid per plan §5b.

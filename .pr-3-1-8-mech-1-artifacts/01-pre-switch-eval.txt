@@ -1,0 +1,24 @@
+Pre-switch baseline. Expected: 0.2917 = R3.0 under current Math.max(1, top.length) denominator. This is the comparison point for the post-switch eval in artifact 02.
+
+npm warn Unknown project config "shamefully-hoist". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+
+EvalRun cmp76k9sg0000q728j0esgabb
+  shopDomain:      ai-fashion-store.myshopify.com
+  pipelineVersion: 3.1.0
+  totalQueries:    12
+  pass / partial / fail: 3 / 0 / 9
+  aggregateScore:  0.2917
+  durationMs:      26725
+
+  [PASS] fashion-casual-office-shirts → score=1.0000 (precision=0.00, relaxed=1.00, latencyMs=3963)
+  [FAIL] fashion-festive-kurta-women → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=738)
+  [FAIL] fashion-going-out-outfit → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=3554)
+  [FAIL] fashion-linen-shirts-white → score=0.1667 (precision=0.00, relaxed=0.17, latencyMs=1811)
+  [FAIL] fashion-minimalist-daily-wear → score=0.1667 (precision=0.00, relaxed=0.17, latencyMs=2728)
+  [FAIL] fashion-oos-stress-1 → score=0.1667 (precision=0.00, relaxed=0.17, latencyMs=1830)
+  [FAIL] fashion-oos-stress-2 → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=714)
+  [FAIL] fashion-oversized-fit-kurta → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=2219)
+  [PASS] fashion-show-jackets → score=1.0000 (precision=0.00, relaxed=1.00, latencyMs=2533)
+  [PASS] fashion-show-trousers → score=1.0000 (precision=0.00, relaxed=1.00, latencyMs=2027)
+  [FAIL] fashion-summer-shorts-size-m → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=1993)
+  [FAIL] fashion-wedding-reception → score=0.0000 (precision=0.00, relaxed=0.00, latencyMs=2615)

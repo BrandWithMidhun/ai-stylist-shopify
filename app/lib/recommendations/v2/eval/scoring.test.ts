@@ -30,16 +30,24 @@ describe("scoring", () => {
     expect(precisionAtK([], ["a"])).toBe(0);
   });
 
-  it("relaxedMatchAtK returns 1.0 when every top-K product satisfies all expected axes", () => {
+  it("relaxedMatchAtK returns 1.0 when K satisfying products fill the top-K slots", () => {
+    // Under K-based normalization (op debt #54 close, 3.1.8-mech.1):
+    // the denominator is K, not actualWithTags.length. To score 1.0, K
+    // satisfying products must be returned — having fewer than K returned
+    // bounds the score above by returned-count / K.
     const products: ProductWithTags[] = [
       { handle: "shirt-a", tags: [{ axis: "category", value: "shirt" }, { axis: "occasion", value: "casual" }] },
       { handle: "shirt-b", tags: [{ axis: "category", value: "shirt" }, { axis: "occasion", value: "work" }] },
+      { handle: "shirt-c", tags: [{ axis: "category", value: "shirt" }, { axis: "occasion", value: "casual" }] },
+      { handle: "shirt-d", tags: [{ axis: "category", value: "shirt" }, { axis: "occasion", value: "work" }] },
+      { handle: "shirt-e", tags: [{ axis: "category", value: "shirt" }, { axis: "occasion", value: "casual" }] },
+      { handle: "shirt-f", tags: [{ axis: "category", value: "shirt" }, { axis: "occasion", value: "work" }] },
     ];
     const filters = { category: ["shirt"], occasion: ["casual", "work"] };
     expect(relaxedMatchAtK(products, filters, 6)).toBe(1);
   });
 
-  it("relaxedMatchAtK returns a partial ratio when some top-K satisfy and others don't", () => {
+  it("relaxedMatchAtK returns satisfying / K when some of the returned products fail filters", () => {
     const products: ProductWithTags[] = [
       { handle: "shirt-a", tags: [{ axis: "category", value: "shirt" }, { axis: "occasion", value: "casual" }] },
       { handle: "kurta-b", tags: [{ axis: "category", value: "kurta" }, { axis: "occasion", value: "festive" }] },
@@ -47,9 +55,23 @@ describe("scoring", () => {
       { handle: "dress-d", tags: [{ axis: "category", value: "dress" }, { axis: "occasion", value: "event" }] },
     ];
     // Demand category=shirt + occasion in {casual, work}. shirt-a + shirt-c
-    // satisfy both; kurta-b + dress-d miss category. 2/4 = 0.5.
+    // satisfy; kurta-b + dress-d miss. Under K-based: 2 satisfying / k=6 ≈ 0.333.
+    // (Pre-3.1.8-mech.1 this returned 2/4 = 0.5 — small-pool incentive removed.)
     const filters = { category: ["shirt"], occasion: ["casual", "work"] };
-    expect(relaxedMatchAtK(products, filters, 6)).toBe(0.5);
+    expect(relaxedMatchAtK(products, filters, 6)).toBeCloseTo(2 / 6, 5);
+  });
+
+  it("relaxedMatchAtK normalizes by K, not actualWithTags.length, when fewer than K candidates returned", () => {
+    // Regression test for op debt #54 close (3.1.8-mech.1). Pre-switch,
+    // a single satisfying product with k=6 would have scored 1/1 = 1.0
+    // (small-pool incentive). Post-switch, the same input scores 1/6 ≈ 0.167.
+    // This prevents future code changes from accidentally reverting to
+    // the small-pool-favoring denominator.
+    const products: ProductWithTags[] = [
+      { handle: "shirt-only", tags: [{ axis: "category", value: "shirt" }] },
+    ];
+    const filters = { category: ["shirt"] };
+    expect(relaxedMatchAtK(products, filters, 6)).toBeCloseTo(1 / 6, 5);
   });
 
   it("combinedScore weights differ when expectedHandles is empty vs. populated", () => {
