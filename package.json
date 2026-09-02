@@ -29,10 +29,10 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.91.0",
     "@prisma/client": "^6.16.3",
-    "@react-router/dev": "^7.12.0",
-    "@react-router/fs-routes": "^7.12.0",
+    "@react-router/dev": "^8.3.1",
+    "@react-router/fs-routes": "^8.3.1",
     "@react-router/node": "^7.12.0",
-    "@react-router/serve": "^7.12.0",
+    "@react-router/serve": "^8.3.1",
     "@shopify/app-bridge-react": "^4.2.4",
     "@shopify/shopify-app-react-router": "^1.1.0",
     "@shopify/shopify-app-session-storage-prisma": "^9.0.0",
